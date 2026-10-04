@@ -8,6 +8,7 @@ import { followupTools } from './followups';
 import { builderTools } from './builder';
 import { privacyTools } from './privacy';
 import { integrationTools } from './integrations';
+import { setupTools } from './setup';
 
 let done = false;
 /** Register every tool module once. Called by the API/agent runtime at startup. */
@@ -23,6 +24,7 @@ export function registerAllTools() {
     ...builderTools,
     ...privacyTools,
     ...integrationTools,
+    ...setupTools,
   ]);
   done = true;
 }

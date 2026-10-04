@@ -30,7 +30,7 @@ import {
   type EventBus,
   type ToolContext,
 } from '@sahayak/core';
-import { verifyPassword, withClinic } from '@sahayak/db';
+import { hashPassword, verifyPassword, withClinic } from '@sahayak/db';
 import { openApiSpec } from './openapi';
 import {
   BUILTIN_RED_FLAGS,
@@ -431,6 +431,114 @@ export async function buildApp(deps: AppDeps) {
       conversationId: idParam(req),
       text: z.object({ text: z.string().min(1).max(2000) }).parse(req.body).text,
     });
+  });
+
+  // ---- guided setup: signup (invite only), checklist, doctors, team ----
+  const signups = new Map<string, { n: number; reset: number }>();
+  app.post('/signup', async (req) => {
+    const code = process.env.SIGNUP_INVITE_CODE;
+    if (!code) throw new ToolError('not_found', 'Signup is not enabled on this server', 404);
+    const ip = req.ip;
+    const now = Date.now(),
+      b0 = signups.get(ip);
+    if (!b0 || b0.reset < now) signups.set(ip, { n: 1, reset: now + 3_600_000 });
+    else if (++b0.n > Number(process.env.SIGNUP_RATE_LIMIT ?? 5))
+      throw new ToolError('rate_limited', 'Too many attempts. Try again later.', 429);
+    const b = z
+      .object({
+        inviteCode: z.string(),
+        clinicName: z.string().trim().min(2).max(80),
+        slug: z.string().trim().toLowerCase().optional(),
+        doctorName: z.string().trim().min(2).max(80),
+        email: z.string().email().max(120),
+        password: z.string().min(10, 'Password must be at least 10 characters').max(100),
+      })
+      .parse(req.body);
+    const a = Buffer.from(b.inviteCode),
+      c = Buffer.from(code);
+    if (a.length !== c.length || !timingSafeEqual(a, c))
+      throw new ToolError('invalid_invite', 'That invite code is not valid', 403);
+    const slug =
+      b.slug ||
+      b.clinicName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 40);
+    try {
+      const r = await pool.query('SELECT create_clinic($1,$2,$3,$4,$5) AS id', [
+        slug,
+        b.clinicName,
+        b.doctorName,
+        b.email,
+        await hashPassword(b.password),
+      ]);
+      const u = (await pool.query('SELECT * FROM auth_lookup_staff($1)', [b.email])).rows[0];
+      const claimsOut: Claims = {
+        uid: u.id,
+        clinicId: r.rows[0].id,
+        role: 'doctor',
+        doctorId: u.doctor_id,
+        name: u.name,
+      };
+      return { token: app.jwt.sign(claimsOut, { expiresIn: '12h' }), user: claimsOut, slug };
+    } catch (e: any) {
+      const m = String(e.message);
+      if (m.includes('slug_taken'))
+        throw new ToolError('slug_taken', 'That clinic web name is taken. Choose another.', 409);
+      if (m.includes('invalid_slug'))
+        throw new ToolError(
+          'invalid_slug',
+          'Use 3-40 letters, numbers or dashes for the clinic web name',
+          400,
+        );
+      if (m.includes('email_in_use'))
+        throw new ToolError('email_in_use', 'That email already has an account', 409);
+      throw e;
+    }
+  });
+  app.get('/staff/setup', async (req) => {
+    const c = await claims(req);
+    return callTool(rt, staffCtx(c), 'get_setup_status', {});
+  });
+  app.post('/staff/setup/complete', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'complete_setup', {});
+  });
+  app.get('/staff/doctors/all', async (req) => {
+    const c = await claims(req);
+    return read(
+      c.clinicId,
+      async (db) =>
+        (
+          await db.query(
+            'SELECT id, name, speciality, slot_minutes, active, whatsapp_number FROM doctors ORDER BY name',
+          )
+        ).rows,
+    );
+  });
+  app.post('/staff/doctors', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'add_doctor', req.body);
+  });
+  app.patch('/staff/doctors/:id', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'update_doctor', {
+      ...(req.body as object),
+      doctorId: idParam(req),
+    });
+  });
+  app.get('/staff/team', async (req) => {
+    const c = await claims(req);
+    return callTool(rt, staffCtx(c), 'list_staff', {});
+  });
+  app.post('/staff/team', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'add_staff', req.body);
+  });
+  app.delete('/staff/team/:id', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'remove_staff', { id: idParam(req) });
   });
 
   // ---- integrations (doctor): API keys and webhooks ----

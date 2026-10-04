@@ -9,6 +9,7 @@ export default function Doctor() {
     [today, setToday] = useState<any[]>([]),
     [flags, setFlags] = useState<any[]>([]);
   const [llmDown, setLlmDown] = useState(false);
+  const [setupDone, setSetupDone] = useState(true);
   const [late, setLate] = useState(''),
     [proposal, setProposal] = useState<any>(null),
     [summary, setSummary] = useState<any>(null),
@@ -19,6 +20,9 @@ export default function Doctor() {
       staff('/staff/today'),
       staff('/staff/flags'),
     ]);
+    staff('/staff/setup')
+      .then((x) => setSetupDone(x.completed))
+      .catch(() => {});
     setQueue(q);
     setToday(a);
     setFlags(f);
@@ -84,6 +88,11 @@ export default function Doctor() {
           Sign out
         </button>
       </div>
+      {!setupDone && (
+        <div className="banner warn" role="status">
+          Your clinic setup is not finished. <a href="/setup">Continue setup →</a>
+        </div>
+      )}
       {llmDown && <div className="banner warn">{t('en', 'console.llm_down')}</div>}
       {urgent.map((f) => (
         <div key={f.id} className="banner urgent" role="alert">

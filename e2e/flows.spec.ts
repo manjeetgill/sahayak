@@ -201,3 +201,77 @@ test('integrations: doctor creates an API key (shown once) and the key works', a
   await doc.getByRole('button', { name: 'Revoke' }).click();
   await expect(doc.getByText('revoked')).toBeVisible();
 });
+
+test('guided setup: sign up, walk the seven steps, go live, print poster, receptionist can sign in', async ({
+  browser,
+}) => {
+  const name = `E2E Clinic ${Date.now().toString(36)}`;
+  const email = `owner-${Date.now()}@e2e.in`;
+  const page = await (await browser.newContext()).newPage();
+  await page.goto('/signup');
+  await page.getByLabel('Invite code').fill('wrong');
+  await page.getByLabel('Clinic name').fill(name);
+  await page.getByLabel('Your name (doctor)').fill('Dr. E2E');
+  await page.getByLabel(/Email/).fill(email);
+  await page.getByLabel(/Password/).fill('a-long-password-1');
+  await page.getByRole('button', { name: 'Create my clinic' }).click();
+  await expect(page.locator('.error')).toContainText('invite code is not valid');
+  await page.getByLabel('Invite code').fill('e2e-invite');
+  await page.getByRole('button', { name: 'Create my clinic' }).click();
+  await expect(page).toHaveURL(/\/setup/);
+
+  // 1 Clinic
+  await page.getByLabel('Address').fill('7 Setup Road, Ludhiana');
+  await page.getByLabel('Clinic phone').fill('+911612345000');
+  await page.getByRole('button', { name: 'Save and continue' }).click();
+  // 2 Hours
+  await page.getByRole('button', { name: 'Use Mon-Sat 9-1 and 5-8' }).click();
+  await page.getByRole('button', { name: 'Save and continue' }).click();
+  // 3 Doctors: add a second doctor
+  await page.getByLabel('Doctor name').fill('Dr. Second E2E');
+  await page.getByRole('button', { name: 'Add doctor' }).click();
+  await expect(page.getByText('Dr. Second E2E')).toBeVisible();
+  await page.getByRole('button', { name: 'Continue' }).click();
+  // 4 Team
+  await page.getByLabel('Receptionist name').fill('Rita');
+  const recEmail = `rita-${Date.now()}@e2e.in`;
+  await page.getByLabel('Receptionist email').fill(recEmail);
+  await page.getByRole('button', { name: 'Generate' }).click();
+  const recPassword = await page.getByLabel('Temporary password').inputValue();
+  expect(recPassword.length).toBeGreaterThanOrEqual(10);
+  await page.getByRole('button', { name: 'Create login' }).click();
+  await expect(page.getByTestId('created-login')).toContainText(recEmail);
+  await page.getByRole('button', { name: 'Continue' }).click();
+  // 5 Questions
+  await page.getByLabel(/parking/).check();
+  await page.getByLabel('parking answer English').fill('Free parking behind the clinic.');
+  await page.getByRole('button', { name: 'Save and continue' }).click();
+  // 6 Try it: chat as a patient in the simulator
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const sim = await (await browser.newContext()).newPage();
+  await sim.goto(`/c/${slug}/sim`);
+  await sim.getByLabel(/Simulate a patient/).fill('9876500099');
+  await simSend(sim, 'is there parking?');
+  await expect(sim.getByTestId('chat')).toContainText('Free parking behind the clinic.');
+  await page.getByRole('button', { name: 'I tried it: refresh checklist' }).click();
+  await page.getByRole('button', { name: 'Continue' }).click();
+  // 7 Go live
+  // everything done except the optional WhatsApp number (the simulator stands in for it)
+  await expect(page.getByTestId('checklist').locator('[aria-label="done"]')).toHaveCount(7);
+  await expect(page.getByTestId('checklist')).toContainText('WhatsApp number linked');
+  await page.getByRole('button', { name: 'Finish setup' }).click();
+  await expect(page.getByText('Your clinic is live.')).toBeVisible();
+  const poster = await (await browser.newContext()).newPage();
+  await poster.goto(`/c/${slug}/poster`);
+  await expect(poster.getByRole('heading', { name: name })).toBeVisible();
+  await expect(poster.locator('svg').first()).toBeVisible();
+  // no setup banner any more, and the receptionist can sign in with the generated password
+  await page.goto('/doctor');
+  await expect(page.getByText('Your clinic setup is not finished')).toHaveCount(0);
+  const rec = await (await browser.newContext()).newPage();
+  await rec.goto('/login');
+  await rec.getByLabel('Email').fill(recEmail);
+  await rec.getByLabel('Password').fill(recPassword);
+  await rec.getByRole('button', { name: 'Sign in' }).click();
+  await expect(rec).toHaveURL(/\/console/);
+});

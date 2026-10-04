@@ -25,6 +25,12 @@ Sahayak ("helper") is a team of AI agents that runs the front desk of a small cl
 7. DPDP: consent recorded at check-in (purpose-specific, versioned), minimal data, per-clinic row-level security, no patient data in logs sent to third parties. Proactive messages need messaging consent.
    Tests that must stay green: `packages/agents/test/safety.test.ts`, `packages/db/test/rls.test.ts`, `pnpm eval`.
 
+## Privacy and integrations rules (also enforced and tested)
+
+- Personal data must not end up in the audit log: use `auditOutput` on a tool whose result holds it. Erasure/retention redact via the security-definer functions in `005_privacy.sql`.
+- Outbound events go through `emitWebhook` inside the tool transaction; keep payloads to ids unless it is a "full" webhook. API keys never see another clinic and are scope-limited in `callTool`.
+- New patient-facing flows need Hindi and English strings, and STOP/consent must keep working.
+
 ## Commands
 
 ```

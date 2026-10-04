@@ -48,6 +48,9 @@ export default function Login() {
           <button type="submit">Sign in</button>
         </p>
         <p className="muted">
+          New clinic? <a href="/signup">Set up your clinic</a>
+        </p>
+        <p className="muted">
           Demo: reception@demo.sahayak.in / anil@demo.sahayak.in, password demo1234
         </p>
       </form>

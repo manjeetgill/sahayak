@@ -83,6 +83,7 @@ export const AGENT_NAMES = [
 ] as const;
 export const ClinicSettingsUpdate = z
   .object({
+    clinicName: z.string().trim().min(2).max(80),
     address: z.string().max(300),
     directions: z.string().max(500),
     phone: z.string().max(20),

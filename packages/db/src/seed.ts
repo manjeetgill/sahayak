@@ -81,6 +81,9 @@ export async function seed(adminUrl = process.env.ADMIN_DATABASE_URL) {
         JSON.stringify(INTAKE),
       ],
     );
+    await c.query(`UPDATE clinic_settings SET setup='{"completed": true}' WHERE clinic_id=$1`, [
+      clinic,
+    ]);
     const doc = async (name: string, spec: string) =>
       (
         await c.query(

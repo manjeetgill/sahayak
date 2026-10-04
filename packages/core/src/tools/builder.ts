@@ -18,6 +18,8 @@ export const getClinicSettings = defineTool({
       await db.query('SELECT id, phrase, language FROM red_flag_phrases ORDER BY phrase')
     ).rows;
     return {
+      clinicName: (await db.query('SELECT name FROM clinics WHERE id=$1', [ctx.clinicId])).rows[0]
+        .name,
       address: s.address,
       directions: s.directions,
       phone: s.phone,
@@ -74,6 +76,19 @@ export const updateClinicSettings = defineTool({
         );
     }
     const changed: string[] = [];
+    if (patch.clinicName) {
+      await db.query('SELECT rename_clinic($1)', [patch.clinicName]);
+      await db.query(
+        'INSERT INTO settings_changes (clinic_id,changed_by,field,before,after) VALUES ($1,$2,$3,NULL,$4)',
+        [
+          ctx.clinicId,
+          ctx.actor.kind === 'staff' ? ctx.actor.userId : null,
+          'clinicName',
+          JSON.stringify(patch.clinicName),
+        ],
+      );
+      changed.push('clinicName');
+    }
     for (const [key, value] of Object.entries(patch)) {
       const col = COLUMN[key];
       if (!col || value === undefined) continue;

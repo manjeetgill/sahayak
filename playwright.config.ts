@@ -20,7 +20,12 @@ export default defineConfig({
       url: 'http://127.0.0.1:4000/health',
       reuseExistingServer: true,
       timeout: 60_000,
-      env: { JOBS_ENABLED: 'false', API_PORT: '4000' },
+      env: {
+        JOBS_ENABLED: 'false',
+        API_PORT: '4000',
+        SIGNUP_INVITE_CODE: 'e2e-invite',
+        SIGNUP_RATE_LIMIT: '100',
+      },
     },
     {
       command: 'pnpm dev:web',
