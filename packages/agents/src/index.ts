@@ -5,3 +5,4 @@ export * from './orchestrator';
 export * from './turn';
 export * from './jobs';
 export * from './agents/schedule';
+export * from './agents/slotpref';

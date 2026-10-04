@@ -435,6 +435,10 @@ export async function buildApp(deps: AppDeps) {
     const c = await claims(req, ['doctor']);
     return callTool(rt, staffCtx(c), 'update_clinic_settings', req.body);
   });
+  app.put('/staff/settings/whatsapp', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'set_doctor_whatsapp_number', req.body);
+  });
   app.post('/staff/settings/phrases', async (req) => {
     const c = await claims(req);
     return callTool(rt, staffCtx(c), 'add_red_flag_phrase', req.body);
@@ -459,10 +463,11 @@ export async function buildApp(deps: AppDeps) {
         return reply.status(401).send({ error: 'bad_signature' });
       const results = [];
       for (const m of inbound.parse(req.body)) {
-        const clinic = await pool.query('SELECT clinic_for_whatsapp_number($1) AS id', [
+        const clinic = await pool.query('SELECT * FROM clinic_for_whatsapp_number($1)', [
           m.businessNumber,
         ]);
-        const clinicId = clinic.rows[0]?.id;
+        const clinicId = clinic.rows[0]?.clinic_id;
+        const doctorId = clinic.rows[0]?.doctor_id ?? undefined;
         if (!clinicId) {
           app.log.warn('webhook for unknown business number');
           continue;
@@ -470,7 +475,7 @@ export async function buildApp(deps: AppDeps) {
         const from = PhoneSchema.safeParse(m.from);
         if (!from.success) continue;
         results.push(
-          await handleInbound(env, { clinicId, from: from.data, text: m.text }).then(
+          await handleInbound(env, { clinicId, from: from.data, text: m.text, doctorId }).then(
             () => 'ok',
             (e) => {
               app.log.error(e, 'inbound failed');
@@ -552,7 +557,12 @@ export async function buildApp(deps: AppDeps) {
     app.post('/sim/:slug/message', async (req) => {
       const c = await clinicBySlug((req.params as any).slug);
       const i = InboundMessageInput.parse(req.body);
-      return handleInbound(env, { clinicId: c.id, from: i.from, text: i.text });
+      return handleInbound(env, {
+        clinicId: c.id,
+        from: i.from,
+        text: i.text,
+        doctorId: i.doctorId,
+      });
     });
     app.get('/sim/:slug/messages', async (req) => {
       const c = await clinicBySlug((req.params as any).slug);

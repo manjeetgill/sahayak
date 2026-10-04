@@ -41,6 +41,8 @@ export type CheckinInput = z.infer<typeof CheckinInput>;
 export const InboundMessageInput = z.object({
   from: PhoneSchema,
   text: z.string().min(1).max(2000),
+  /** Simulator only: pretend the patient wrote to this doctor's own WhatsApp number. */
+  doctorId: z.string().uuid().optional(),
 });
 
 export const ShiftScheduleInput = z.object({

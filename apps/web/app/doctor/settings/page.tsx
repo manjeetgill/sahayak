@@ -292,6 +292,31 @@ export default function Settings() {
         </div>
 
         <div className="card" style={{ marginTop: '1rem' }}>
+          <h2>Your WhatsApp number</h2>
+          <p className="muted">
+            Patients who write to this number get appointments with you, without being asked which
+            doctor.
+          </p>
+          <input
+            aria-label="Doctor WhatsApp number"
+            placeholder="+919876543210"
+            value={cfg.doctorWhatsappNumber ?? ''}
+            onChange={(e) => set('doctorWhatsappNumber', e.target.value)}
+          />
+          <p>
+            <button
+              onClick={() =>
+                staff('/staff/settings/whatsapp', { number: cfg.doctorWhatsappNumber ?? '' }, 'PUT')
+                  .then(() => setMsg('Saved'))
+                  .catch((x) => setErr(x.message))
+              }
+            >
+              Save number
+            </button>
+          </p>
+        </div>
+
+        <div className="card" style={{ marginTop: '1rem' }}>
           <h2>Agents</h2>
           <p className="muted">
             A switched-off agent hands its chats to the receptionist. Emergency (red-flag) detection

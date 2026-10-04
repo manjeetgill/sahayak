@@ -41,27 +41,51 @@ export async function freeSlots(
 }
 
 /** Next days with free slots for a doctor: used by agents offering options. */
+export interface SlotFilter {
+  /** Local clinic time-of-day bounds, "HH:MM". */
+  from?: string;
+  to?: string;
+}
+
+function localHm(iso: string, tz: string): string {
+  return new Date(iso).toLocaleTimeString('en-GB', {
+    timeZone: tz,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
+/** Next free slots for a doctor from a date onward (up to 14 days), optionally within a time-of-day window. */
 export async function nextFreeSlots(
   db: Db,
   clinicId: string,
   doctorId: string,
   count: number,
   fromDate?: string,
+  filter: SlotFilter = {},
 ): Promise<string[]> {
-  const { date } = await clinicToday(db, clinicId);
-  const start = fromDate ?? date;
+  const { date, tz } = await clinicToday(db, clinicId);
+  const start = fromDate && fromDate > date ? fromDate : date;
   const out: string[] = [];
   for (let i = 0; i < 14 && out.length < count; i++) {
     const d = (await db.query("SELECT to_char($1::date + $2::int,'YYYY-MM-DD') AS d", [start, i]))
       .rows[0].d;
-    out.push(...(await freeSlots(db, clinicId, doctorId, d, count - out.length)));
+    const day = await freeSlots(db, clinicId, doctorId, d, 500);
+    for (const sl of day) {
+      const hm = localHm(sl, tz);
+      if ((filter.from && hm < filter.from) || (filter.to && hm >= filter.to)) continue;
+      out.push(sl);
+      if (out.length >= count) break;
+    }
   }
   return out;
 }
 
 export const listFreeSlots = defineTool({
   name: 'list_free_slots',
-  description: 'List free appointment slots for a doctor, starting today.',
+  description:
+    'Free appointment slots for a doctor. Optionally from a date onward and within a time-of-day window (clinic local time). Returns the earliest matches.',
   module: 'appointments',
   input: z.object({
     doctorId: z.string().uuid(),
@@ -69,14 +93,24 @@ export const listFreeSlots = defineTool({
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional(),
+    from: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .optional(),
+    to: z
+      .string()
+      .regex(/^\d{2}:\d{2}$/)
+      .optional(),
     count: z.number().int().min(1).max(20).default(5),
   }),
   allow: [...BOOKERS, 'patient'],
   async run({ db, ctx }, i) {
-    const slots = i.date
-      ? await freeSlots(db, ctx.clinicId, i.doctorId, i.date, i.count)
-      : await nextFreeSlots(db, ctx.clinicId, i.doctorId, i.count);
-    return { slots };
+    return {
+      slots: await nextFreeSlots(db, ctx.clinicId, i.doctorId, i.count, i.date, {
+        from: i.from,
+        to: i.to,
+      }),
+    };
   },
 });
 
@@ -122,6 +156,7 @@ export const bookAppointment = defineTool({
         id: ins.rows[0].id,
         startsAt: ins.rows[0].starts_at,
       });
+      r.emit({ type: 'queue_changed', doctorId: i.doctorId }); // doctor's "today" list refreshes live
       return {
         appointmentId: ins.rows[0].id as string,
         startsAt: (ins.rows[0].starts_at as Date).toISOString(),
@@ -164,13 +199,14 @@ export const cancelAppointment = defineTool({
   module: 'appointments',
   input: z.object({ appointmentId: z.string().uuid() }),
   allow: BOOKERS,
-  async run({ db, ctx }, { appointmentId }) {
+  async run({ db, ctx, emit }, { appointmentId }) {
     const a = await db.query('SELECT patient_id, starts_at FROM appointments WHERE id=$1', [
       appointmentId,
     ]);
     if (!a.rowCount) throw new ToolError('not_found', 'Appointment not found', 404);
     if (a.rows[0].patient_id) assertOwn(ctx, a.rows[0].patient_id);
     await db.query("UPDATE appointments SET status='cancelled' WHERE id=$1", [appointmentId]);
+    emit({ type: 'queue_changed' });
     return { ok: true, startsAt: (a.rows[0].starts_at as Date).toISOString() };
   },
 });
@@ -181,7 +217,7 @@ export const rescheduleAppointment = defineTool({
   module: 'appointments',
   input: z.object({ appointmentId: z.string().uuid(), newStartsAt: z.string().datetime() }),
   allow: BOOKERS,
-  async run({ db, ctx }, i) {
+  async run({ db, ctx, emit }, i) {
     const a = await db.query('SELECT doctor_id, patient_id FROM appointments WHERE id=$1', [
       i.appointmentId,
     ]);
@@ -207,6 +243,7 @@ export const rescheduleAppointment = defineTool({
       "UPDATE appointments SET starts_at=$2, ends_at=$2::timestamptz + make_interval(mins => $3), status='booked' WHERE id=$1",
       [i.appointmentId, start, slot],
     );
+    emit({ type: 'queue_changed', doctorId: a.rows[0].doctor_id });
     return { ok: true, startsAt: start.toISOString() };
   },
 });

@@ -13,6 +13,8 @@ export interface Turn {
   clinicId: string;
   conversationId: string;
   patientId: string | null;
+  /** Set when the patient wrote to one doctor's own WhatsApp number. */
+  doctorId?: string | null;
   contact: string;
   lang: Lang;
   text: string;

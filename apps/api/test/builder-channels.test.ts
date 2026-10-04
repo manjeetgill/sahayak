@@ -250,6 +250,21 @@ describe('real WhatsApp channel (vendor-neutral bridge)', () => {
         .status,
     ).toBe('sent');
   });
+  it("a doctor's own WhatsApp number books with that doctor, without asking which one", async () => {
+    const docNumber = `+9122${Math.floor(Math.random() * 1e8)}`;
+    const set = await app.inject({ method: 'PUT', url: '/staff/settings/whatsapp', headers: h('doc'), payload: { number: docNumber } });
+    expect(set.statusCode).toBe(200);
+    await admin.query("UPDATE doctors SET whatsapp_number=NULL WHERE id=$1 AND false", [c.doctorIds[1]]);
+    const r = await post({ to: docNumber, from: '+919400000040', text: 'I need an appointment tomorrow morning' });
+    expect(r.json().processed).toBe(1);
+    const out = (await admin.query("SELECT body FROM outbox WHERE to_contact='+919400000040' ORDER BY created_at")).rows.map((x) => x.body).join(' ');
+    expect(out).not.toMatch(/Which doctor/);
+    expect(out).toMatch(/your name/); // unknown number: consent flow first
+    expect((await admin.query('SELECT doctor_id FROM conversations WHERE contact=$1', ['+919400000040'])).rows[0].doctor_id).toBe(c.doctorIds[0]);
+    // same number cannot be linked to two doctors
+    const dup = await app.inject({ method: 'PUT', url: '/staff/settings/whatsapp', headers: h('rec'), payload: { number: docNumber } });
+    expect(dup.statusCode).toBe(403);
+  });
   it('unknown business number is ignored', async () => {
     expect(
       (await post({ to: '+910000000000', from: '+919400000011', text: 'hi' })).json().processed,

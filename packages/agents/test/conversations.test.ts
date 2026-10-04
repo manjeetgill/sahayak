@@ -39,12 +39,16 @@ describe('WhatsApp front desk', () => {
     let r = await say('+919300000001', 'I want to book an appointment');
     expect(r.replies[0]).toMatch(/Which doctor/);
     r = await say('+919300000001', '1');
+    expect(r.replies[0]).toMatch(/Which day and time suits you with Dr\. Test One/);
+    r = await say('+919300000001', 'earliest');
     expect(r.replies[0]).toMatch(/Available slots with Dr\. Test One/);
     r = await say('+919300000001', '1');
     expect(r.replies[0]).toMatch(/is booked for/);
     expect(await appts()).toEqual(['booked']);
     r = await say('+919300000001', 'reschedule my appointment');
-    expect(r.replies[0]).toMatch(/Pick a new time/);
+    expect(r.replies[0]).toMatch(/Which day and time suits you/);
+    r = await say('+919300000001', 'tomorrow evening');
+    expect(r.replies[0]).toMatch(/Pick a new time|Nothing is free/);
     r = await say('+919300000001', '2');
     expect(r.replies[0]).toMatch(/Done\. Your appointment is now/);
     r = await say('+919300000001', 'cancel my appointment');

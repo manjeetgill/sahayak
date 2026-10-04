@@ -30,6 +30,12 @@ export const getClinicSettings = defineTool({
       modules: s.modules,
       whatsappNumber: s.whatsapp_number,
       redFlagPhrases: phrases,
+      doctorWhatsappNumber:
+        (
+          await db.query('SELECT whatsapp_number FROM doctors WHERE id=$1', [
+            ctx.actor.kind === 'staff' ? ctx.actor.doctorId : null,
+          ])
+        ).rows[0]?.whatsapp_number ?? null,
     };
   },
 });
@@ -125,7 +131,36 @@ export const removeRedFlagPhrase = defineTool({
   },
 });
 
+export const setDoctorWhatsappNumber = defineTool({
+  name: 'set_doctor_whatsapp_number',
+  description:
+    'Link a WhatsApp business number to a doctor: patients who write to it book with that doctor. Empty clears it.',
+  module: 'core',
+  input: z.object({
+    doctorId: z.string().uuid().optional(),
+    number: z.string().regex(/^(\+\d{10,14})?$/, 'Use international format, e.g. +919876543210'),
+  }),
+  allow: DOCTOR,
+  async run({ db, ctx }, i) {
+    const a = ctx.actor;
+    const doctorId = a.kind === 'staff' && a.doctorId ? a.doctorId : i.doctorId;
+    if (!doctorId) throw new ToolError('doctor_required', 'doctorId is required');
+    try {
+      await db.query('UPDATE doctors SET whatsapp_number=$2 WHERE id=$1', [
+        doctorId,
+        i.number || null,
+      ]);
+    } catch (e: any) {
+      if (e.code === '23505')
+        throw new ToolError('number_in_use', 'That number is already linked to another doctor');
+      throw e;
+    }
+    return { ok: true };
+  },
+});
+
 export const builderTools = [
+  setDoctorWhatsappNumber,
   getClinicSettings,
   updateClinicSettings,
   addRedFlagPhrase,

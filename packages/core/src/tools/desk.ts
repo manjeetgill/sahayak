@@ -279,6 +279,7 @@ export const receiveMessage = defineTool({
     text: z.string().min(1).max(2000),
     language: z.enum(['en', 'hi']).optional(),
     channel: z.enum(['whatsapp', 'voice', 'web']).default('whatsapp'),
+    doctorId: z.string().uuid().optional(),
   }),
   allow: ['patient', 'system'],
   async run({ db, ctx, emit }, i) {
@@ -289,17 +290,21 @@ export const receiveMessage = defineTool({
     const conv = await ensureConversation(db, ctx.clinicId, i.from, patientId, lang, i.channel);
     if (i.language)
       await db.query('UPDATE conversations SET language=$2 WHERE id=$1', [conv.id, i.language]);
+    if (i.doctorId)
+      await db.query('UPDATE conversations SET doctor_id=$2 WHERE id=$1', [conv.id, i.doctorId]);
     await storeMessage(db, ctx.clinicId, conv.id, 'in', 'patient', i.text);
     const c = (
-      await db.query('SELECT id, handled_by, state, language FROM conversations WHERE id=$1', [
-        conv.id,
-      ])
+      await db.query(
+        'SELECT id, handled_by, state, language, doctor_id FROM conversations WHERE id=$1',
+        [conv.id],
+      )
     ).rows[0];
     emit({ type: 'conversation_updated', conversationId: conv.id });
     return {
       conversationId: c.id as string,
       patientId,
       language: c.language as 'en' | 'hi',
+      doctorId: (c.doctor_id ?? null) as string | null,
       handledBy: c.handled_by as 'agent' | 'human',
       state: (c.state ?? {}) as Record<string, any>,
     };

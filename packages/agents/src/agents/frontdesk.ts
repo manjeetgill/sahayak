@@ -3,6 +3,7 @@ import { normalise } from '@sahayak/shared';
 import { classifyIntent, parseChoice, type Intent } from '../intent';
 import { violatesMedicalPolicy } from '../safety';
 import { runToolLoop } from '../toolloop';
+import { parseSlotPreference, todayIn, type SlotPreference } from './slotpref';
 import { call, formatTimings, say, sayText, setState, type Turn } from '../turn';
 
 const AGENT = 'front_desk';
@@ -34,25 +35,71 @@ export function matchFaq(faqs: Faq[] | undefined, text: string): Faq | null {
 }
 const opts = (items: string[]) => items.map((x, i) => `${i + 1}) ${x}`).join('; ');
 
-export async function startBooking(turn: Turn, agent = AGENT, rescheduleId?: string) {
+export async function startBooking(
+  turn: Turn,
+  agent = AGENT,
+  rescheduleId?: string,
+  pref?: SlotPreference,
+) {
   const info = await getInfo(turn);
-  if (info.doctors.length === 1) return offerSlots(turn, agent, info.doctors[0], rescheduleId);
+  // A doctor's own WhatsApp number books with that doctor; one-doctor clinics skip the question too.
+  const fixed =
+    info.doctors.find((d) => d.id === turn.doctorId) ??
+    (info.doctors.length === 1 ? info.doctors[0] : null);
+  if (fixed) return askOrOffer(turn, agent, fixed, rescheduleId, pref);
   await setState(turn, agent, {
     flow: 'pick_doctor',
     doctors: info.doctors.map((d) => ({ id: d.id, name: d.name })),
     rescheduleId,
+    pref,
   });
   await say(turn, agent, 'msg.pick_doctor', { options: opts(info.doctors.map((d) => d.name)) });
 }
 
-export async function offerSlots(
+/** If the patient already said when they want to come, search; otherwise ask "which day and time?". */
+export async function askOrOffer(
   turn: Turn,
   agent: string,
   doctor: { id: string; name: string },
   rescheduleId?: string,
+  pref?: SlotPreference,
+) {
+  if (pref) return offerForPreference(turn, agent, doctor, pref, rescheduleId);
+  await setState(turn, agent, {
+    flow: 'ask_pref',
+    doctorId: doctor.id,
+    doctorName: doctor.name,
+    rescheduleId,
+    tries: 0,
+  });
+  await say(turn, agent, 'msg.ask_pref', { doctor: doctor.name });
+}
+
+/** Earliest free slots (used by running-late rebooking). */
+export const offerSlots = (
+  turn: Turn,
+  agent: string,
+  doctor: { id: string; name: string },
+  rescheduleId?: string,
+) => offerForPreference(turn, agent, doctor, { asap: true }, rescheduleId);
+
+/** Look through the doctor's existing appointments for the best free slots matching what the patient asked for. */
+export async function offerForPreference(
+  turn: Turn,
+  agent: string,
+  doctor: { id: string; name: string },
+  pref: SlotPreference,
+  rescheduleId?: string,
 ) {
   const info = await getInfo(turn);
-  const { slots } = await call(turn, agent, 'list_free_slots', { doctorId: doctor.id, count: 5 });
+  const want = pref.asap ? {} : { date: pref.date, from: pref.from, to: pref.to };
+  const search = async (extra: Record<string, unknown>) =>
+    (await call(turn, agent, 'list_free_slots', { doctorId: doctor.id, count: 3, ...extra }))
+      .slots as string[];
+  let slots = await search(want);
+  // Nothing in that window: widen to "from that day onward", then to the earliest available.
+  if (!slots.length && (want.from || want.to)) slots = await search({ date: want.date });
+  if (!slots.length && want.date) slots = await search({});
   if (!slots.length) {
     await setState(turn, agent, {});
     await call(turn, agent, 'flag_to_receptionist', {
@@ -61,6 +108,17 @@ export async function offerSlots(
     });
     return say(turn, agent, 'msg.no_slots');
   }
+  const sameDay = !want.date || todayIn(info.timezone, new Date(slots[0])) === want.date;
+  const inWindow = (iso: string) => {
+    const hm = new Date(iso).toLocaleTimeString('en-GB', {
+      timeZone: info.timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    return (!want.from || hm >= want.from) && (!want.to || hm < want.to);
+  };
+  const exact = sameDay && slots.every(inWindow);
   await setState(turn, agent, {
     flow: 'pick_slot',
     doctorId: doctor.id,
@@ -68,10 +126,22 @@ export async function offerSlots(
     slots,
     rescheduleId,
   });
-  await say(turn, agent, rescheduleId ? 'msg.reschedule_pick' : 'msg.slots', {
-    doctor: doctor.name,
-    options: opts(slots.map((s: string) => fmtTime(s, info.timezone, turn.lang))),
-  });
+  const options = opts(slots.map((x) => fmtTime(x, info.timezone, turn.lang)));
+  if (slots.length === 1 && !rescheduleId) {
+    return say(turn, agent, 'msg.confirm_single', {
+      doctor: doctor.name,
+      options: fmtTime(slots[0], info.timezone, turn.lang),
+    });
+  }
+  await say(
+    turn,
+    agent,
+    rescheduleId ? 'msg.reschedule_pick' : exact || pref.asap ? 'msg.slots' : 'msg.slots_nearest',
+    {
+      doctor: doctor.name,
+      options,
+    },
+  );
 }
 
 /** Continue a multi-step flow. Returns true if the message was consumed by the flow. */
@@ -86,12 +156,42 @@ export async function continueFlow(turn: Turn, agent = AGENT): Promise<boolean> 
     );
     const d = c ? st.doctors[c - 1] : byName;
     if (!d) return false;
-    await offerSlots(turn, agent, d, st.rescheduleId);
+    await askOrOffer(turn, agent, d, st.rescheduleId, st.pref);
+    return true;
+  }
+  if (st.flow === 'ask_pref') {
+    const pref = parseSlotPreference(turn.text, info.timezone);
+    const doctor = { id: st.doctorId, name: st.doctorName };
+    if (pref) {
+      await offerForPreference(turn, agent, doctor, pref, st.rescheduleId);
+      return true;
+    }
+    if ((st.tries ?? 0) >= 1) {
+      await offerForPreference(turn, agent, doctor, { asap: true }, st.rescheduleId);
+      return true;
+    }
+    await setState(turn, agent, { ...st, tries: (st.tries ?? 0) + 1 });
+    await say(turn, agent, 'msg.pref_not_understood');
     return true;
   }
   if (st.flow === 'pick_slot') {
-    const c = parseChoice(turn.text, st.slots.length);
-    if (!c) return false;
+    let c = parseChoice(turn.text, st.slots.length);
+    if (!c && st.slots.length === 1 && classifyIntent(turn.text) === 'yes') c = 1;
+    if (!c) {
+      // "Friday instead": a new day/time request restarts the search with the same doctor.
+      const again = parseSlotPreference(turn.text, info.timezone);
+      if (again) {
+        await offerForPreference(
+          turn,
+          agent,
+          { id: st.doctorId, name: st.doctorName },
+          again,
+          st.rescheduleId,
+        );
+        return true;
+      }
+      return false;
+    }
     const startsAt = st.slots[c - 1];
     try {
       if (st.rescheduleId) {
@@ -136,7 +236,7 @@ export async function continueFlow(turn: Turn, agent = AGENT): Promise<boolean> 
         when: fmtTime(a.startsAt, info.timezone, turn.lang),
       });
     } else {
-      await offerSlots(turn, agent, { id: a.doctorId, name: a.doctor }, a.id);
+      await askOrOffer(turn, agent, { id: a.doctorId, name: a.doctor }, a.id);
     }
     return true;
   }
@@ -157,7 +257,7 @@ async function manageAppointment(turn: Turn, action: 'cancel' | 'reschedule') {
         when: fmtTime(a.startsAt, info.timezone, turn.lang),
       });
     }
-    return offerSlots(turn, AGENT, { id: a.doctorId, name: a.doctor }, a.id);
+    return askOrOffer(turn, AGENT, { id: a.doctorId, name: a.doctor }, a.id);
   }
   await setState(turn, AGENT, { flow: 'pick_appointment', action, appointments });
   await say(turn, AGENT, 'msg.pick_appointment', {
@@ -212,7 +312,12 @@ export async function frontDesk(turn: Turn, intent: Intent) {
         directions: info.directions ?? '',
       });
     case 'book':
-      return startBooking(turn);
+      return startBooking(
+        turn,
+        AGENT,
+        undefined,
+        parseSlotPreference(turn.text, info.timezone) ?? undefined,
+      );
     case 'cancel':
       return manageAppointment(turn, 'cancel');
     case 'reschedule':

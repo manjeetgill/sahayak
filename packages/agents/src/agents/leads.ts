@@ -1,4 +1,5 @@
 import { call, say, sayText, setState, type Turn } from '../turn';
+import { parseSlotPreference } from './slotpref';
 import { startBooking, frontDesk, matchFaq } from './frontdesk';
 import type { Intent } from '../intent';
 
@@ -13,7 +14,7 @@ export async function continueLead(turn: Turn): Promise<boolean> {
       await say(turn, AGENT, 'msg.ask_name');
       return true;
     }
-    await setState(turn, AGENT, { flow: 'lead_consent', name });
+    await setState(turn, AGENT, { flow: 'lead_consent', name, pref: st.pref });
     await say(turn, AGENT, 'msg.ask_consent_lead', { name });
     return true;
   }
@@ -32,7 +33,7 @@ export async function continueLead(turn: Turn): Promise<boolean> {
     });
     turn.patientId = patientId;
     await setState(turn, AGENT, {});
-    await startBooking(turn, AGENT);
+    await startBooking(turn, AGENT, undefined, st.pref);
     return true;
   }
   return false;
@@ -41,7 +42,12 @@ export async function continueLead(turn: Turn): Promise<boolean> {
 /** First contact from an unknown number. Info questions are answered; booking starts the consent-first lead flow. */
 export async function leads(turn: Turn, intent: Intent) {
   if (intent === 'book') {
-    await setState(turn, AGENT, { flow: 'lead_name' });
+    await setState(turn, AGENT, {
+      flow: 'lead_name',
+      pref:
+        parseSlotPreference(turn.text, (await call(turn, AGENT, 'get_clinic_info', {})).timezone) ??
+        undefined,
+    });
     return say(turn, AGENT, 'msg.ask_name');
   }
   if (intent === 'greeting' || intent === 'other') {

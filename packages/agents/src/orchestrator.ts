@@ -38,6 +38,7 @@ export async function handleInbound(
     from: string;
     text: string;
     channel?: 'whatsapp' | 'voice';
+    doctorId?: string;
     language?: 'en' | 'hi';
   },
 ): Promise<InboundResult> {
@@ -49,12 +50,14 @@ export async function handleInbound(
     text: input.text,
     language: lang,
     channel: input.channel ?? 'whatsapp',
+    doctorId: input.doctorId,
   });
   const turn: Turn = {
     env,
     clinicId: input.clinicId,
     conversationId: rec.conversationId,
     patientId: rec.patientId,
+    doctorId: rec.doctorId,
     contact: input.from,
     lang: detectLang(input.text, rec.language),
     text: input.text,
