@@ -71,6 +71,9 @@ export default function Console() {
     <div>
       <div className="topbar">
         <b>{s.user.name}</b>{' '}
+        <a href="/doctor/agents" style={{ marginLeft: 16 }}>
+          Custom agents
+        </a>{' '}
         <a href="/console/privacy" style={{ marginLeft: 16 }}>
           Privacy requests
         </a>{' '}

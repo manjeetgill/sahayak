@@ -8,6 +8,7 @@ import Fastify, { type FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { z, ZodError } from 'zod';
 import {
+  llmInterpret,
   answerStaffQuestion,
   handleInbound,
   handleInboundMedia,
@@ -670,6 +671,50 @@ export async function buildApp(deps: AppDeps) {
       clinic: r.clinic_name,
       patientInitials: r.patient_initials,
     };
+  });
+
+  // ---- custom agents: describe in plain words, review, approve ----
+  app.get('/staff/agents', async (req) => {
+    const c = await claims(req);
+    return callTool(rt, staffCtx(c), 'list_custom_agents', {});
+  });
+  app.post('/staff/agents/interpret', async (req) => {
+    const c = await claims(req, ['doctor']);
+    const { text } = z.object({ text: z.string().trim().min(5).max(500) }).parse(req.body);
+    const out = await callTool(rt, staffCtx(c), 'interpret_agent_request', { text });
+    if (out.understood) return out;
+    return (await llmInterpret(gate, text)) ?? out;
+  });
+  app.post('/staff/agents/preview', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'preview_custom_agent', { spec: (req.body as any)?.spec });
+  });
+  app.post('/staff/agents', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'create_custom_agent', req.body);
+  });
+  app.patch('/staff/agents/:id', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'update_custom_agent', {
+      ...(req.body as object),
+      agentId: idParam(req),
+    });
+  });
+  app.post('/staff/agents/:id/activate', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'activate_custom_agent', { agentId: idParam(req) });
+  });
+  app.post('/staff/agents/:id/pause', async (req) => {
+    const c = await claims(req);
+    return callTool(rt, staffCtx(c), 'pause_custom_agent', { agentId: idParam(req) });
+  });
+  app.post('/staff/agents/:id/resume', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'resume_custom_agent', { agentId: idParam(req) });
+  });
+  app.delete('/staff/agents/:id', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'delete_custom_agent', { agentId: idParam(req) });
   });
 
   // ---- guided setup: signup (invite only), checklist, doctors, team ----

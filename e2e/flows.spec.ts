@@ -393,3 +393,36 @@ test('public clinic page shows what the clinic published, with a booking link', 
     'MedicalClinic',
   );
 });
+
+test('custom agent: describe in plain words, review exactly what it will do, approve, pause', async ({
+  browser,
+}) => {
+  const db = DB();
+  await db.connect();
+  await db.query("UPDATE patients SET tags='{diabetic}' WHERE phone='+919876501002'"); // consenting seeded patient
+  await db.end();
+  const doc = await (await browser.newContext()).newPage();
+  await login(doc, 'anil@demo.sahayak.in');
+  await doc.getByRole('link', { name: 'Custom agents' }).click();
+  await doc.getByLabel('Describe your agent').fill('remind my diabetic patients every month');
+  await doc.getByRole('button', { name: 'Build it' }).click();
+  await expect(doc.getByTestId('agent-preview')).toContainText('On day 1 of every month at 10 am');
+  await expect(doc.getByTestId('agent-preview')).toContainText('agreed to messages and reminders');
+  await expect(doc.getByTestId('agent-preview')).toContainText('reach 1 patient');
+
+  // the safety rules cannot be talked around: a link is refused, with the reason
+  await doc.getByLabel(/Message \(English\)/).fill('Pay now at https://evil.example/pay');
+  await doc.getByRole('button', { name: 'Check what it will do' }).click();
+  await expect(doc.getByTestId('agent-problems')).toContainText('cannot contain links');
+  await expect(doc.getByRole('button', { name: 'Approve and turn on' })).toBeDisabled();
+
+  await doc
+    .getByLabel(/Message \(English\)/)
+    .fill('Hello {name}, please book your check-up at {clinic}.');
+  await doc.getByRole('button', { name: 'Check what it will do' }).click();
+  await doc.getByRole('button', { name: 'Approve and turn on' }).click();
+  await expect(doc.getByTestId('agent-list')).toContainText('active');
+  await expect(doc.getByTestId('agent-list')).toContainText('Next run');
+  await doc.getByRole('button', { name: 'Pause' }).click();
+  await expect(doc.getByTestId('agent-list')).toContainText('paused');
+});

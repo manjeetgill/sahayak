@@ -3,6 +3,7 @@ import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import type pg from 'pg';
 import { withClinic, type Db } from '@sahayak/db';
+import { enqueueAgentEvents } from './custom-agents';
 
 export const WEBHOOK_EVENTS = [
   'patient.checked_in',
@@ -33,6 +34,7 @@ export async function emitWebhook(
   data: Record<string, unknown>,
   personal?: { patientId?: string | null; extra?: Record<string, unknown> },
 ) {
+  await enqueueAgentEvents(db, clinicId, type, data); // custom agents listen to the same events
   const hooks = (
     await db.query('SELECT id, level FROM webhooks WHERE active AND $1 = ANY(events)', [type])
   ).rows;

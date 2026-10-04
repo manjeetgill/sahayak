@@ -31,6 +31,13 @@ Sahayak ("helper") is a team of AI agents that runs the front desk of a small cl
 - Outbound events go through `emitWebhook` inside the tool transaction; keep payloads to ids unless it is a "full" webhook. API keys never see another clinic and are scope-limited in `callTool`.
 - New patient-facing flows need Hindi and English strings, and STOP/consent must keep working.
 
+## Clinical data rules
+
+- Sahayak now holds clinical records (notes, uploads, certificates, prescriptions). Doctor-only access, every opening audited, **clinical text never in `agent_actions`** (use `auditInput`/`auditOutput`), signed records immutable (triggers), erasure keeps signed records until `clinical_years`.
+- **No AI generates prescription content, ever.** The scribe's AI path is opt-in and grounded to the doctor's words.
+- Custom agents: safety rules are enforced in `run_custom_agents`, never in the spec. A new action type must pass through the same consent, quiet-hours, frequency and policy checks.
+- Review requests must be offered to everyone who rates (no review gating).
+
 ## Commands
 
 ```

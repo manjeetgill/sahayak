@@ -157,5 +157,6 @@
   "msg.review_link": "If you would like to share your experience publicly, you can do it here (optional): {link}",
   "msg.review_sorry": "Sorry we did not meet your expectations. If you like, tell us what we could do better. The clinic team will read it.",
   "msg.review_comment_thanks": "Thank you, I have passed your comment to the clinic team.",
-  "ask.ratings": "Average rating {label}: {avg} out of 5 from {n} rating(s); {low} low (3 or below)."
+  "ask.ratings": "Average rating {label}: {avg} out of 5 from {n} rating(s); {low} low (3 or below).",
+  "msg.custom_footer": "Reply STOP to stop these messages."
 }

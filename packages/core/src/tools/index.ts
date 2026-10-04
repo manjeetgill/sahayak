@@ -12,6 +12,7 @@ import { setupTools } from './setup';
 import { askTools } from './ask';
 import { recordTools } from './records';
 import { issuedTools } from './issued';
+import { customAgentTools } from './custom_agents';
 
 let done = false;
 /** Register every tool module once. Called by the API/agent runtime at startup. */
@@ -31,6 +32,7 @@ export function registerAllTools() {
     ...askTools,
     ...recordTools,
     ...issuedTools,
+    ...customAgentTools,
   ]);
   done = true;
 }
@@ -41,3 +43,4 @@ export { freeSlots, nextFreeSlots } from './appointments';
 export { hashKey } from './integrations';
 export { parseClinicQuestion, parseRange, formatMetric, METRICS } from './ask';
 export { sniffMime, NOTE_FIELDS, type NoteContent } from './records';
+export * from '../custom-agents';

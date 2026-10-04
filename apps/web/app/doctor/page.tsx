@@ -74,6 +74,9 @@ export default function Doctor() {
         <a href="/doctor/settings" style={{ marginLeft: 16 }}>
           Agent builder
         </a>{' '}
+        <a href="/doctor/agents" style={{ marginLeft: 16 }}>
+          Custom agents
+        </a>{' '}
         <a href="/doctor/integrations" style={{ marginLeft: 16 }}>
           Integrations
         </a>{' '}
