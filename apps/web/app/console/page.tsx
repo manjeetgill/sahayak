@@ -72,6 +72,9 @@ export default function Console() {
         <b>{s.user.name}</b>{' '}
         <a href="/console/privacy" style={{ marginLeft: 16 }}>
           Privacy requests
+        </a>{' '}
+        <a href="/safety" style={{ marginLeft: 16 }}>
+          Safety report
         </a>
         <button
           className="ghost small"

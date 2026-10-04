@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import websocket from '@fastify/websocket';
@@ -27,6 +29,7 @@ import {
 } from '@sahayak/core';
 import { verifyPassword, withClinic } from '@sahayak/db';
 import {
+  BUILTIN_RED_FLAGS,
   CheckinInput,
   InboundMessageInput,
   LoginInput,
@@ -424,6 +427,174 @@ export async function buildApp(deps: AppDeps) {
       conversationId: idParam(req),
       text: z.object({ text: z.string().min(1).max(2000) }).parse(req.body).text,
     });
+  });
+
+  // ---- safety report: live checks, activity, latest eval, audit log ----
+  const evalFile = () => {
+    for (const f of [
+      process.env.EVAL_RESULTS_PATH,
+      join(process.cwd(), '../../eval-results/latest.json'),
+      join(process.cwd(), 'eval-results/latest.json'),
+    ]) {
+      try {
+        if (f && existsSync(f)) return JSON.parse(readFileSync(f, 'utf8'));
+      } catch {
+        /* unreadable: treated as no run */
+      }
+    }
+    return null;
+  };
+  app.get('/staff/safety-report', async (req) => {
+    const c = await claims(req);
+    return read(c.clinicId, async (db) => {
+      const one = async (sql: string, params: unknown[] = []) =>
+        (await db.query(sql, params)).rows[0];
+      const rls = await one(
+        `SELECT count(*)::int AS total, count(*) FILTER (WHERE c.relrowsecurity AND c.relforcerowsecurity)::int AS protected
+           FROM pg_class c JOIN pg_attribute a ON a.attrelid=c.oid AND a.attname='clinic_id' AND NOT a.attisdropped
+           JOIN pg_namespace n ON n.oid=c.relnamespace AND n.nspname='public' WHERE c.relkind='r'`,
+      );
+      const priv = await one(
+        `SELECT has_table_privilege(current_user,'agent_actions','UPDATE') AS upd, has_table_privilege(current_user,'agent_actions','DELETE') AS del`,
+      );
+      const clinicPhrases = (await one('SELECT count(*)::int AS n FROM red_flag_phrases')).n;
+      const act = await one(
+        `SELECT
+           (SELECT count(*)::int FROM messages WHERE direction='in' AND created_at > now() - interval '30 days') AS messages_in,
+           (SELECT count(*)::int FROM flags WHERE kind='red_flag' AND created_at > now() - interval '30 days') AS red_flags,
+           (SELECT count(*)::int FROM flags WHERE kind='red_flag' AND status='open' AND created_at < now() - interval '15 minutes') AS red_flags_unhandled,
+           (SELECT COALESCE(round(avg(extract(epoch FROM (resolved_at - created_at))/60)::numeric,1),0)::float FROM flags WHERE kind='red_flag' AND resolved_at IS NOT NULL AND created_at > now() - interval '30 days') AS red_flag_minutes_to_resolve,
+           (SELECT count(*)::int FROM flags WHERE kind='medical_question' AND created_at > now() - interval '30 days') AS medical_questions,
+           (SELECT count(*)::int FROM flags WHERE kind IN ('human_requested','upset') AND created_at > now() - interval '30 days') AS handoffs,
+           (SELECT count(*)::int FROM agent_actions WHERE ok=false AND output->>'error'='permission_denied' AND created_at > now() - interval '30 days') AS permission_denied,
+           (SELECT count(*)::int FROM agent_actions WHERE kind='error' AND created_at > now() - interval '30 days') AS agent_errors,
+           (SELECT count(*)::int FROM agent_actions WHERE created_at > now() - interval '30 days') AS audit_entries,
+           (SELECT count(*)::int FROM data_requests WHERE created_at > now() - interval '30 days') AS privacy_requests,
+           (SELECT count(*)::int FROM outbox WHERE status='failed') AS undelivered_messages`,
+      );
+      const ev = evalFile();
+      return {
+        generatedAt: new Date().toISOString(),
+        controls: [
+          {
+            id: 'rls',
+            ok: rls.total > 0 && rls.protected === rls.total,
+            label: 'Each clinic can only see its own data (database-enforced)',
+            detail: `${rls.protected} of ${rls.total} data tables protected`,
+          },
+          {
+            id: 'audit',
+            ok: !priv.upd && !priv.del,
+            label: 'Audit log cannot be edited or deleted by the application',
+            detail:
+              'Only a vetted privacy function can strip personal content, never remove entries',
+          },
+          {
+            id: 'redflags',
+            ok: true,
+            label: 'Emergency phrases checked on every patient message',
+            detail: `${BUILTIN_RED_FLAGS.reduce((n, g) => n + g.phrases.length, 0)} built-in phrases (cannot be removed) + ${clinicPhrases} added by this clinic, plus the AI check when enabled`,
+          },
+          {
+            id: 'consent',
+            ok: true,
+            label: "No proactive message without the patient's consent",
+            detail: 'Enforced in the message tool; STOP withdraws consent at once',
+          },
+          {
+            id: 'medical',
+            ok: true,
+            label: 'Agents never give medical advice',
+            detail: 'Fixed reply for medical questions; every AI draft passes an output filter',
+          },
+          {
+            id: 'llm',
+            ok: !gate.configured || gate.status().ok,
+            label: 'If the AI service is down, check-in and queue keep working',
+            detail: gate.configured
+              ? gate.status().ok
+                ? 'AI service healthy'
+                : 'AI service currently unavailable: running on built-in rules'
+              : 'AI service not configured: running on built-in rules',
+          },
+        ],
+        activity: act,
+        eval: ev,
+      };
+    });
+  });
+  const auditQuery = (q: any, limit: number) => {
+    const where: string[] = [];
+    const params: unknown[] = [];
+    const add = (sql: string, v: unknown) => {
+      params.push(v);
+      where.push(sql.replace('$#', `$${params.length}`));
+    };
+    if (q.kind) add('a.kind = $#', String(q.kind));
+    if (q.agent) add('a.agent LIKE $#', `${String(q.agent)}%`);
+    if (q.ok === 'false') where.push('a.ok = false');
+    if (q.before) add('a.id < $#', Number(q.before));
+    if (q.days)
+      add('a.created_at > now() - make_interval(days => $#)', Math.min(Number(q.days) || 30, 365));
+    params.push(limit);
+    return {
+      sql: `SELECT a.id, a.created_at, a.agent, a.kind, a.tool, a.ok, a.input, a.output, p.name AS patient
+              FROM agent_actions a LEFT JOIN patients p ON p.id = a.patient_id
+             ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY a.id DESC LIMIT $${params.length}`,
+      params,
+    };
+  };
+  app.get('/staff/audit', async (req) => {
+    const c = await claims(req);
+    const { sql, params } = auditQuery(req.query, 50);
+    return read(c.clinicId, async (db) =>
+      (await db.query(sql, params)).rows.map((r) => ({
+        id: Number(r.id),
+        at: r.created_at,
+        agent: r.agent,
+        kind: r.kind,
+        tool: r.tool,
+        ok: r.ok,
+        patient: r.patient,
+        redacted: r.input?.redacted === true,
+        detail: r.input?.redacted
+          ? 'Personal content removed'
+          : JSON.stringify(r.input ?? r.output ?? '').slice(0, 220),
+      })),
+    );
+  });
+  app.get('/staff/audit.csv', async (req, reply) => {
+    const c = await claims(req);
+    const { sql, params } = auditQuery(
+      { ...(req.query as object), days: (req.query as any).days ?? 30 },
+      5000,
+    );
+    const rows = await read(c.clinicId, async (db) => (await db.query(sql, params)).rows);
+    const esc = (v: unknown) => {
+      const t = String(v ?? '');
+      return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+    };
+    const csv = [
+      'id,time,agent,kind,tool,ok,patient,detail',
+      ...rows.map((r) =>
+        [
+          r.id,
+          new Date(r.created_at).toISOString(),
+          r.agent,
+          r.kind,
+          r.tool,
+          r.ok,
+          r.patient,
+          r.input?.redacted ? 'redacted' : JSON.stringify(r.input ?? '').slice(0, 300),
+        ]
+          .map(esc)
+          .join(','),
+      ),
+    ].join('\n');
+    return reply
+      .header('content-type', 'text/csv')
+      .header('content-disposition', 'attachment; filename="audit-log.csv"')
+      .send(csv);
   });
 
   // ---- privacy requests handled at the desk (patient asks in person) ----

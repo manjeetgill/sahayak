@@ -166,16 +166,95 @@ describe('patient check-in → queue → doctor', () => {
 
 describe('privacy requests at the desk', () => {
   it('receptionist finds a patient, exports a copy, erases; clinic B cannot', async () => {
-    await app.inject({ method: 'POST', url: `/public/${A.slug}/checkin`, payload: { name: 'Desk Privacy', phone: '9811100077', doctorId: A.doctorIds[0], consent: { visit_data: true } } });
-    const found = (await app.inject({ url: '/staff/patients?phone=9811100077', headers: h('recA') })).json();
+    await app.inject({
+      method: 'POST',
+      url: `/public/${A.slug}/checkin`,
+      payload: {
+        name: 'Desk Privacy',
+        phone: '9811100077',
+        doctorId: A.doctorIds[0],
+        consent: { visit_data: true },
+      },
+    });
+    const found = (
+      await app.inject({ url: '/staff/patients?phone=9811100077', headers: h('recA') })
+    ).json();
     expect(found).toHaveLength(1);
-    expect((await app.inject({ url: '/staff/patients?phone=9811100077', headers: h('recB') })).json()).toEqual([]);
-    const exp = await app.inject({ url: `/staff/patients/${found[0].id}/export`, headers: h('recA') });
+    expect(
+      (await app.inject({ url: '/staff/patients?phone=9811100077', headers: h('recB') })).json(),
+    ).toEqual([]);
+    const exp = await app.inject({
+      url: `/staff/patients/${found[0].id}/export`,
+      headers: h('recA'),
+    });
     expect(exp.headers['content-disposition']).toMatch(/patient-data\.json/);
     expect(exp.json().patient.name).toBe('Desk Privacy');
-    expect((await app.inject({ url: `/staff/patients/${found[0].id}/export`, headers: h('recB') })).statusCode).toBe(404);
-    expect((await app.inject({ method: 'POST', url: `/staff/patients/${found[0].id}/erase`, headers: h('recB') })).statusCode).toBe(404);
-    expect((await app.inject({ method: 'POST', url: `/staff/patients/${found[0].id}/erase`, headers: h('recA') })).statusCode).toBe(200);
-    expect((await app.inject({ url: '/staff/patients?phone=9811100077', headers: h('recA') })).json()).toEqual([]);
+    expect(
+      (await app.inject({ url: `/staff/patients/${found[0].id}/export`, headers: h('recB') }))
+        .statusCode,
+    ).toBe(404);
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: `/staff/patients/${found[0].id}/erase`,
+          headers: h('recB'),
+        })
+      ).statusCode,
+    ).toBe(404);
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: `/staff/patients/${found[0].id}/erase`,
+          headers: h('recA'),
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      (await app.inject({ url: '/staff/patients?phone=9811100077', headers: h('recA') })).json(),
+    ).toEqual([]);
+  });
+});
+
+describe('safety report and audit log', () => {
+  it('shows live protections, 30-day activity and the latest eval; scoped to the clinic', async () => {
+    await app.inject({
+      method: 'POST',
+      url: `/sim/${A.slug}/message`,
+      payload: { from: '9811100055', text: 'chest pain' },
+    });
+    const rep = (await app.inject({ url: '/staff/safety-report', headers: h('recA') })).json();
+    expect(rep.controls.every((c: any) => c.ok)).toBe(true);
+    expect(rep.controls.map((c: any) => c.id)).toEqual([
+      'rls',
+      'audit',
+      'redflags',
+      'consent',
+      'medical',
+      'llm',
+    ]);
+    expect(rep.activity.red_flags).toBeGreaterThanOrEqual(1);
+    expect(rep.activity.red_flags_unhandled).toBe(0);
+    const repB = (await app.inject({ url: '/staff/safety-report', headers: h('recB') })).json();
+    expect(repB.activity.red_flags).toBe(0);
+    expect(rep.eval === null || typeof rep.eval.total === 'number').toBe(true);
+  });
+  it('audit log lists and filters entries, only for the own clinic', async () => {
+    const all = (await app.inject({ url: '/staff/audit', headers: h('recA') })).json();
+    expect(all.length).toBeGreaterThan(0);
+    const rf = (await app.inject({ url: '/staff/audit?kind=red_flag', headers: h('recA') })).json();
+    expect(rf.length).toBeGreaterThanOrEqual(1);
+    expect(rf.every((r: any) => r.kind === 'red_flag')).toBe(true);
+    expect(
+      (await app.inject({ url: '/staff/audit?kind=red_flag', headers: h('recB') })).json(),
+    ).toEqual([]);
+    expect((await app.inject({ url: '/staff/audit' })).statusCode).toBe(401);
+  });
+  it('CSV export works and escapes content', async () => {
+    const r = await app.inject({ url: '/staff/audit.csv', headers: h('recA') });
+    expect(r.headers['content-type']).toMatch(/text\/csv/);
+    expect(r.body.split('\n')[0]).toBe('id,time,agent,kind,tool,ok,patient,detail');
+    expect(r.body.split('\n').length).toBeGreaterThan(2);
   });
 });

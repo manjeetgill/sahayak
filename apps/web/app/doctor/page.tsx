@@ -67,6 +67,9 @@ export default function Doctor() {
         <b>{s.user.name}</b>{' '}
         <a href="/doctor/settings" style={{ marginLeft: 16 }}>
           Agent builder
+        </a>{' '}
+        <a href="/safety" style={{ marginLeft: 16 }}>
+          Safety report
         </a>
         <button
           className="ghost small"

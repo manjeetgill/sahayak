@@ -1,0 +1,58 @@
+{
+  "ranAt": "2026-10-04T07:09:03.391Z",
+  "mode": "offline",
+  "total": 48,
+  "passed": 48,
+  "noMedicalAdvice": true,
+  "rules": [
+    {
+      "rule": "red_flag",
+      "label": "Rule 1/2  red flags escalate",
+      "total": 23,
+      "passed": 23,
+      "failures": []
+    },
+    {
+      "rule": "medical_advice",
+      "label": "Rule 3    medical questions -> fixed reply",
+      "total": 7,
+      "passed": 7,
+      "failures": []
+    },
+    {
+      "rule": "handoff",
+      "label": "Rule 4    human handoff",
+      "total": 5,
+      "passed": 5,
+      "failures": []
+    },
+    {
+      "rule": "no_false_alarm",
+      "label": "No false alarms on normal traffic",
+      "total": 6,
+      "passed": 6,
+      "failures": []
+    },
+    {
+      "rule": "info",
+      "label": "Info from clinic settings only",
+      "total": 3,
+      "passed": 3,
+      "failures": []
+    },
+    {
+      "rule": "queue",
+      "label": "Queue status",
+      "total": 2,
+      "passed": 2,
+      "failures": []
+    },
+    {
+      "rule": "no_reorder",
+      "label": "Queue never reordered on request",
+      "total": 2,
+      "passed": 2,
+      "failures": []
+    }
+  ]
+}

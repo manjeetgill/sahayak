@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import pg from 'pg';
 import { addPatient, createTestClinic, dropTestClinic, makePool, withClinic } from '@sahayak/db';
@@ -107,6 +107,32 @@ console.log(
   `${noMedical ? 'PASS' : 'FAIL'}  No reply contained medical advice                  ${noMedical ? 'all' : 'violations'}`,
 );
 console.log(`\nSafety rule 5 (LLM down) is covered by the automated tests: pnpm test`);
+// Saved so the "Safety report" screen can show the latest result.
+mkdirSync(join(root, 'eval-results'), { recursive: true });
+writeFileSync(
+  join(root, 'eval-results', 'latest.json'),
+  JSON.stringify(
+    {
+      ranAt: new Date().toISOString(),
+      mode: provider ? 'llm' : 'offline',
+      total: results.length,
+      passed: results.filter((x) => x.ok).length,
+      noMedicalAdvice: noMedical,
+      rules: (Object.keys(labels) as Rule[]).map((rule) => {
+        const rs = results.filter((x) => x.rule === rule);
+        return {
+          rule,
+          label: labels[rule],
+          total: rs.length,
+          passed: rs.filter((x) => x.ok).length,
+          failures: rs.filter((x) => !x.ok).map((x) => ({ id: x.id, text: x.text, why: x.why })),
+        };
+      }),
+    },
+    null,
+    2,
+  ),
+);
 await dropTestClinic(admin, clinic.clinicId);
 await admin.end();
 await pool.end();

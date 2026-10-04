@@ -163,3 +163,17 @@ test('agent builder: doctor adds an FAQ and switches an agent; the assistant fol
   await call.getByRole('button', { name: 'Speak' }).click();
   await expect(call.getByTestId('call-log')).toContainText('108');
 });
+
+test('safety report page shows protections, eval results and the audit log', async ({
+  browser,
+}) => {
+  const rec = await (await browser.newContext()).newPage();
+  await login(rec, 'reception@demo.sahayak.in');
+  await rec.getByRole('link', { name: 'Safety report' }).click();
+  await expect(rec.getByTestId('controls')).toContainText('Each clinic can only see its own data');
+  await expect(rec.getByTestId('controls').locator('[aria-label="ok"]')).toHaveCount(6);
+  await expect(rec.getByTestId('eval')).toContainText('48/48');
+  await expect(rec.getByTestId('audit').locator('tbody tr').first()).toBeVisible();
+  await rec.getByLabel('Filter').selectOption('red_flag');
+  await expect(rec.getByTestId('audit')).toContainText('red_flag');
+});
