@@ -1,32 +1,59 @@
 import { ToolError, fmtTime } from '@sahayak/core';
-import { t } from '@sahayak/shared';
 import { classifyIntent, parseChoice, type Intent } from '../intent';
 import { violatesMedicalPolicy } from '../safety';
 import { runToolLoop } from '../toolloop';
 import { call, formatTimings, say, sayText, setState, type Turn } from '../turn';
 
 const AGENT = 'front_desk';
-type Info = { clinic: string; timezone: string; address: string | null; directions: string | null; timings: Record<string, string>; doctors: { id: string; name: string }[] };
+type Info = {
+  clinic: string;
+  timezone: string;
+  address: string | null;
+  directions: string | null;
+  timings: Record<string, string>;
+  doctors: { id: string; name: string }[];
+};
 const getInfo = (turn: Turn): Promise<Info> => call(turn, AGENT, 'get_clinic_info', {});
 const opts = (items: string[]) => items.map((x, i) => `${i + 1}) ${x}`).join('; ');
 
 export async function startBooking(turn: Turn, agent = AGENT, rescheduleId?: string) {
   const info = await getInfo(turn);
   if (info.doctors.length === 1) return offerSlots(turn, agent, info.doctors[0], rescheduleId);
-  await setState(turn, agent, { flow: 'pick_doctor', doctors: info.doctors.map((d) => ({ id: d.id, name: d.name })), rescheduleId });
+  await setState(turn, agent, {
+    flow: 'pick_doctor',
+    doctors: info.doctors.map((d) => ({ id: d.id, name: d.name })),
+    rescheduleId,
+  });
   await say(turn, agent, 'msg.pick_doctor', { options: opts(info.doctors.map((d) => d.name)) });
 }
 
-export async function offerSlots(turn: Turn, agent: string, doctor: { id: string; name: string }, rescheduleId?: string) {
+export async function offerSlots(
+  turn: Turn,
+  agent: string,
+  doctor: { id: string; name: string },
+  rescheduleId?: string,
+) {
   const info = await getInfo(turn);
   const { slots } = await call(turn, agent, 'list_free_slots', { doctorId: doctor.id, count: 5 });
   if (!slots.length) {
     await setState(turn, agent, {});
-    await call(turn, agent, 'flag_to_receptionist', { kind: 'other', summary: `No free slots with ${doctor.name}; patient wanted an appointment.` });
+    await call(turn, agent, 'flag_to_receptionist', {
+      kind: 'other',
+      summary: `No free slots with ${doctor.name}; patient wanted an appointment.`,
+    });
     return say(turn, agent, 'msg.no_slots');
   }
-  await setState(turn, agent, { flow: 'pick_slot', doctorId: doctor.id, doctorName: doctor.name, slots, rescheduleId });
-  await say(turn, agent, rescheduleId ? 'msg.reschedule_pick' : 'msg.slots', { doctor: doctor.name, options: opts(slots.map((s: string) => fmtTime(s, info.timezone, turn.lang))) });
+  await setState(turn, agent, {
+    flow: 'pick_slot',
+    doctorId: doctor.id,
+    doctorName: doctor.name,
+    slots,
+    rescheduleId,
+  });
+  await say(turn, agent, rescheduleId ? 'msg.reschedule_pick' : 'msg.slots', {
+    doctor: doctor.name,
+    options: opts(slots.map((s: string) => fmtTime(s, info.timezone, turn.lang))),
+  });
 }
 
 /** Continue a multi-step flow. Returns true if the message was consumed by the flow. */
@@ -36,7 +63,9 @@ export async function continueFlow(turn: Turn, agent = AGENT): Promise<boolean> 
   const info = await getInfo(turn);
   if (st.flow === 'pick_doctor') {
     const c = parseChoice(turn.text, st.doctors.length);
-    const byName = st.doctors.find((d: any) => turn.text.toLowerCase().includes(d.name.toLowerCase().replace('dr. ', '').split(' ')[0]));
+    const byName = st.doctors.find((d: any) =>
+      turn.text.toLowerCase().includes(d.name.toLowerCase().replace('dr. ', '').split(' ')[0]),
+    );
     const d = c ? st.doctors[c - 1] : byName;
     if (!d) return false;
     await offerSlots(turn, agent, d, st.rescheduleId);
@@ -48,16 +77,32 @@ export async function continueFlow(turn: Turn, agent = AGENT): Promise<boolean> 
     const startsAt = st.slots[c - 1];
     try {
       if (st.rescheduleId) {
-        await call(turn, agent, 'reschedule_appointment', { appointmentId: st.rescheduleId, newStartsAt: startsAt });
+        await call(turn, agent, 'reschedule_appointment', {
+          appointmentId: st.rescheduleId,
+          newStartsAt: startsAt,
+        });
         await setState(turn, agent, {});
-        await say(turn, agent, 'msg.rescheduled', { when: fmtTime(startsAt, info.timezone, turn.lang) });
+        await say(turn, agent, 'msg.rescheduled', {
+          when: fmtTime(startsAt, info.timezone, turn.lang),
+        });
       } else {
-        await call(turn, agent, 'book_appointment', { doctorId: st.doctorId, patientId: turn.patientId, startsAt, source: 'whatsapp' });
+        await call(turn, agent, 'book_appointment', {
+          doctorId: st.doctorId,
+          patientId: turn.patientId,
+          startsAt,
+          source: 'whatsapp',
+        });
         await setState(turn, agent, {});
-        await say(turn, agent, 'msg.booked', { doctor: st.doctorName, when: fmtTime(startsAt, info.timezone, turn.lang) });
+        await say(turn, agent, 'msg.booked', {
+          doctor: st.doctorName,
+          when: fmtTime(startsAt, info.timezone, turn.lang),
+        });
       }
     } catch (e) {
-      if (e instanceof ToolError && e.code === 'slot_taken') { await offerSlots(turn, agent, { id: st.doctorId, name: st.doctorName }, st.rescheduleId); return true; }
+      if (e instanceof ToolError && e.code === 'slot_taken') {
+        await offerSlots(turn, agent, { id: st.doctorId, name: st.doctorName }, st.rescheduleId);
+        return true;
+      }
       throw e;
     }
     return true;
@@ -69,7 +114,9 @@ export async function continueFlow(turn: Turn, agent = AGENT): Promise<boolean> 
     if (st.action === 'cancel') {
       await call(turn, agent, 'cancel_appointment', { appointmentId: a.id });
       await setState(turn, agent, {});
-      await say(turn, agent, 'msg.cancelled', { when: fmtTime(a.startsAt, info.timezone, turn.lang) });
+      await say(turn, agent, 'msg.cancelled', {
+        when: fmtTime(a.startsAt, info.timezone, turn.lang),
+      });
     } else {
       await offerSlots(turn, agent, { id: a.doctorId, name: a.doctor }, a.id);
     }
@@ -80,18 +127,26 @@ export async function continueFlow(turn: Turn, agent = AGENT): Promise<boolean> 
 
 async function manageAppointment(turn: Turn, action: 'cancel' | 'reschedule') {
   const info = await getInfo(turn);
-  const { appointments } = await call(turn, AGENT, 'get_patient_appointments', { patientId: turn.patientId });
+  const { appointments } = await call(turn, AGENT, 'get_patient_appointments', {
+    patientId: turn.patientId,
+  });
   if (!appointments.length) return say(turn, AGENT, 'msg.no_appointments');
   if (appointments.length === 1) {
     const a = appointments[0];
     if (action === 'cancel') {
       await call(turn, AGENT, 'cancel_appointment', { appointmentId: a.id });
-      return say(turn, AGENT, 'msg.cancelled', { when: fmtTime(a.startsAt, info.timezone, turn.lang) });
+      return say(turn, AGENT, 'msg.cancelled', {
+        when: fmtTime(a.startsAt, info.timezone, turn.lang),
+      });
     }
     return offerSlots(turn, AGENT, { id: a.doctorId, name: a.doctor }, a.id);
   }
   await setState(turn, AGENT, { flow: 'pick_appointment', action, appointments });
-  await say(turn, AGENT, 'msg.pick_appointment', { options: opts(appointments.map((a: any) => `${a.doctor}, ${fmtTime(a.startsAt, info.timezone, turn.lang)}`)) });
+  await say(turn, AGENT, 'msg.pick_appointment', {
+    options: opts(
+      appointments.map((a: any) => `${a.doctor}, ${fmtTime(a.startsAt, info.timezone, turn.lang)}`),
+    ),
+  });
 }
 
 const SYSTEM = `You are Sahayak, a front-desk assistant for a small clinic in India. Answer ONLY using the clinic information returned by tools.
@@ -102,11 +157,22 @@ Reply in the patient's language (Hindi if they wrote Hindi, otherwise English), 
 async function freeForm(turn: Turn) {
   if (turn.env.gate.available()) {
     try {
-      const out = await runToolLoop(turn, AGENT, SYSTEM + `\nPatient language: ${turn.lang}.`, turn.text, ['get_clinic_info', 'list_free_slots', 'flag_to_receptionist']);
+      const out = await runToolLoop(
+        turn,
+        AGENT,
+        SYSTEM + `\nPatient language: ${turn.lang}.`,
+        turn.text,
+        ['get_clinic_info', 'list_free_slots', 'flag_to_receptionist'],
+      );
       if (out && !violatesMedicalPolicy(out)) return sayText(turn, AGENT, out.trim());
-    } catch { /* fall through to plain-software behaviour */ }
+    } catch {
+      /* fall through to plain-software behaviour */
+    }
   }
-  await call(turn, AGENT, 'flag_to_receptionist', { kind: 'other', summary: `Patient asked something outside clinic settings: "${turn.text.slice(0, 200)}"` });
+  await call(turn, AGENT, 'flag_to_receptionist', {
+    kind: 'other',
+    summary: `Patient asked something outside clinic settings: "${turn.text.slice(0, 200)}"`,
+  });
   return say(turn, AGENT, 'msg.not_in_settings');
 }
 
@@ -114,17 +180,30 @@ async function freeForm(turn: Turn) {
 export async function frontDesk(turn: Turn, intent: Intent) {
   const info = await getInfo(turn);
   switch (intent) {
-    case 'timings': return say(turn, AGENT, 'msg.timings', { timings: formatTimings(info.timings) });
+    case 'timings':
+      return say(turn, AGENT, 'msg.timings', { timings: formatTimings(info.timings) });
     case 'address':
       if (!info.address) return freeForm(turn);
-      return say(turn, AGENT, 'msg.address', { address: info.address, directions: info.directions ?? '' });
-    case 'book': return startBooking(turn);
-    case 'cancel': return manageAppointment(turn, 'cancel');
-    case 'reschedule': return manageAppointment(turn, 'reschedule');
-    case 'greeting': return say(turn, AGENT, 'msg.greeting');
-    case 'thanks': return say(turn, AGENT, 'msg.thanks_ack');
-    case 'yes': case 'no': case 'number': return say(turn, AGENT, 'msg.didnt_understand');
-    default: return freeForm(turn);
+      return say(turn, AGENT, 'msg.address', {
+        address: info.address,
+        directions: info.directions ?? '',
+      });
+    case 'book':
+      return startBooking(turn);
+    case 'cancel':
+      return manageAppointment(turn, 'cancel');
+    case 'reschedule':
+      return manageAppointment(turn, 'reschedule');
+    case 'greeting':
+      return say(turn, AGENT, 'msg.greeting');
+    case 'thanks':
+      return say(turn, AGENT, 'msg.thanks_ack');
+    case 'yes':
+    case 'no':
+    case 'number':
+      return say(turn, AGENT, 'msg.didnt_understand');
+    default:
+      return freeForm(turn);
   }
 }
 export { classifyIntent };

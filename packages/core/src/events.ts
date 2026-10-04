@@ -20,8 +20,12 @@ export class EventBus {
     const opts = { lazyConnect: true, maxRetriesPerRequest: 1, retryStrategy: () => null };
     const pub = new Redis(redisUrl, opts);
     const sub = new Redis(redisUrl, opts);
-    pub.on('error', () => { this.redisOk = false; });
-    sub.on('error', () => { this.redisOk = false; });
+    pub.on('error', () => {
+      this.redisOk = false;
+    });
+    sub.on('error', () => {
+      this.redisOk = false;
+    });
     Promise.all([pub.connect(), sub.connect()])
       .then(async () => {
         await sub.subscribe(EventBus.CHANNEL);
@@ -29,20 +33,29 @@ export class EventBus {
         this.pub = pub;
         this.redisOk = true;
       })
-      .catch(() => { this.redisOk = false; });
+      .catch(() => {
+        this.redisOk = false;
+      });
   }
 
   publish(clinicId: string, event: LiveEvent) {
     const env: Envelope = { clinicId, event };
-    if (this.pub && this.redisOk) this.pub.publish(EventBus.CHANNEL, JSON.stringify(env)).catch(() => this.local.emit('event', env));
+    if (this.pub && this.redisOk)
+      this.pub
+        .publish(EventBus.CHANNEL, JSON.stringify(env))
+        .catch(() => this.local.emit('event', env));
     else this.local.emit('event', env);
   }
 
   subscribe(clinicId: string, fn: (e: LiveEvent) => void): () => void {
-    const h = (env: Envelope) => { if (env.clinicId === clinicId) fn(env.event); };
+    const h = (env: Envelope) => {
+      if (env.clinicId === clinicId) fn(env.event);
+    };
     this.local.on('event', h);
     return () => this.local.off('event', h);
   }
 
-  async close() { await Promise.allSettled([this.pub?.quit()]); }
+  async close() {
+    await Promise.allSettled([this.pub?.quit()]);
+  }
 }

@@ -11,9 +11,15 @@ export async function migrate(adminUrl = process.env.ADMIN_DATABASE_URL): Promis
   await c.connect();
   const applied: string[] = [];
   try {
-    await c.query('CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz DEFAULT now())');
-    const done = new Set((await c.query('SELECT name FROM schema_migrations')).rows.map((r) => r.name));
-    for (const f of readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()) {
+    await c.query(
+      'CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz DEFAULT now())',
+    );
+    const done = new Set(
+      (await c.query('SELECT name FROM schema_migrations')).rows.map((r) => r.name),
+    );
+    for (const f of readdirSync(dir)
+      .filter((f) => f.endsWith('.sql'))
+      .sort()) {
       if (done.has(f)) continue;
       await c.query('BEGIN');
       try {

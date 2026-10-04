@@ -9,5 +9,10 @@ if (existsSync('.env')) {
   }
 }
 export default defineConfig({
-  test: { include: ['**/*.test.ts'], exclude: ['**/node_modules/**', 'e2e/**'], testTimeout: 20000, fileParallelism: false },
+  test: {
+    include: ['**/*.test.ts'],
+    exclude: ['**/node_modules/**', 'e2e/**'],
+    testTimeout: 20000,
+    fileParallelism: false,
+  },
 });

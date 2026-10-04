@@ -11,7 +11,11 @@ export function makePool(url = process.env.DATABASE_URL): pg.Pool {
  * Run work inside a transaction scoped to one clinic. Row-level security uses the
  * `app.clinic_id` setting, so code inside `fn` can only ever see/write that clinic's rows.
  */
-export async function withClinic<T>(pool: pg.Pool, clinicId: string, fn: (db: Db) => Promise<T>): Promise<T> {
+export async function withClinic<T>(
+  pool: pg.Pool,
+  clinicId: string,
+  fn: (db: Db) => Promise<T>,
+): Promise<T> {
   const db = await pool.connect();
   try {
     await db.query('BEGIN');

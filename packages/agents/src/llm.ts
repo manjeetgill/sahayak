@@ -6,9 +6,21 @@ export interface ChatMessage {
   tool_call_id?: string;
   tool_calls?: { id: string; type: 'function'; function: { name: string; arguments: string } }[];
 }
-export interface LlmTool { name: string; description: string; parameters: Record<string, unknown> }
-export interface LlmRequest { messages: ChatMessage[]; tools?: LlmTool[]; temperature?: number; maxTokens?: number }
-export interface LlmResponse { content: string | null; toolCalls: { id: string; name: string; arguments: string }[] }
+export interface LlmTool {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}
+export interface LlmRequest {
+  messages: ChatMessage[];
+  tools?: LlmTool[];
+  temperature?: number;
+  maxTokens?: number;
+}
+export interface LlmResponse {
+  content: string | null;
+  toolCalls: { id: string; name: string; arguments: string }[];
+}
 
 export class LlmUnavailable extends Error {}
 
@@ -18,7 +30,14 @@ export interface LlmProvider {
   chat(req: LlmRequest): Promise<LlmResponse>;
 }
 
-export interface NemotronOptions { baseUrl: string; apiKey: string; model: string; timeoutMs: number; retries?: number; fetchImpl?: typeof fetch }
+export interface NemotronOptions {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  timeoutMs: number;
+  retries?: number;
+  fetchImpl?: typeof fetch;
+}
 
 /** NVIDIA-hosted Nemotron through the OpenAI-compatible chat completions API. */
 export class NemotronProvider implements LlmProvider {
@@ -42,24 +61,42 @@ export class NemotronProvider implements LlmProvider {
       const ctl = new AbortController();
       const timer = setTimeout(() => ctl.abort(), this.o.timeoutMs);
       try {
-        const res = await (this.o.fetchImpl ?? fetch)(`${this.o.baseUrl.replace(/\/$/, '')}/chat/completions`, {
-          method: 'POST',
-          signal: ctl.signal,
-          headers: { 'content-type': 'application/json', authorization: `Bearer ${this.o.apiKey}` },
-          body: JSON.stringify({
-            model: this.o.model,
-            messages: req.messages,
-            temperature: req.temperature ?? 0.2,
-            max_tokens: req.maxTokens ?? 600,
-            ...(req.tools?.length ? { tools: req.tools.map((t) => ({ type: 'function', function: t })), tool_choice: 'auto' } : {}),
-          }),
-        });
+        const res = await (this.o.fetchImpl ?? fetch)(
+          `${this.o.baseUrl.replace(/\/$/, '')}/chat/completions`,
+          {
+            method: 'POST',
+            signal: ctl.signal,
+            headers: {
+              'content-type': 'application/json',
+              authorization: `Bearer ${this.o.apiKey}`,
+            },
+            body: JSON.stringify({
+              model: this.o.model,
+              messages: req.messages,
+              temperature: req.temperature ?? 0.2,
+              max_tokens: req.maxTokens ?? 600,
+              ...(req.tools?.length
+                ? {
+                    tools: req.tools.map((t) => ({ type: 'function', function: t })),
+                    tool_choice: 'auto',
+                  }
+                : {}),
+            }),
+          },
+        );
         if (res.status === 429 || res.status >= 500) throw new Error(`LLM HTTP ${res.status}`);
         if (!res.ok) throw new LlmUnavailable(`LLM HTTP ${res.status}`); // 4xx other than 429: do not retry
         const j: any = await res.json();
         const m = j.choices?.[0]?.message;
         if (!m) throw new Error('LLM returned no message');
-        return { content: m.content ?? null, toolCalls: (m.tool_calls ?? []).map((c: any) => ({ id: c.id, name: c.function.name, arguments: c.function.arguments })) };
+        return {
+          content: m.content ?? null,
+          toolCalls: (m.tool_calls ?? []).map((c: any) => ({
+            id: c.id,
+            name: c.function.name,
+            arguments: c.function.arguments,
+          })),
+        };
       } catch (e) {
         lastErr = e;
         if (e instanceof LlmUnavailable) break;
@@ -80,10 +117,18 @@ export class LlmGate {
   private failures = 0;
   private downUntil = 0;
   private lastReported: boolean | null = null;
-  constructor(public provider: LlmProvider | null, private bus?: EventBus, private clinicIds: () => string[] = () => []) {}
+  constructor(
+    public provider: LlmProvider | null,
+    private bus?: EventBus,
+    private clinicIds: () => string[] = () => [],
+  ) {}
 
-  available(): boolean { return !!this.provider && Date.now() >= this.downUntil; }
-  get configured() { return !!this.provider; }
+  available(): boolean {
+    return !!this.provider && Date.now() >= this.downUntil;
+  }
+  get configured() {
+    return !!this.provider;
+  }
 
   async chat(req: LlmRequest): Promise<LlmResponse> {
     if (!this.provider || !this.available()) throw new LlmUnavailable('LLM not available');
@@ -93,7 +138,10 @@ export class LlmGate {
       this.report(true);
       return out;
     } catch (e) {
-      if (++this.failures >= 2) { this.downUntil = Date.now() + 30_000; this.report(false); }
+      if (++this.failures >= 2) {
+        this.downUntil = Date.now() + 30_000;
+        this.report(false);
+      }
       throw e instanceof LlmUnavailable ? e : new LlmUnavailable((e as Error).message);
     }
   }
@@ -102,5 +150,7 @@ export class LlmGate {
     this.lastReported = ok;
     for (const id of this.clinicIds()) this.bus?.publish(id, { type: 'llm_status', ok });
   }
-  status() { return { configured: this.configured, ok: this.configured ? this.available() : false }; }
+  status() {
+    return { configured: this.configured, ok: this.configured ? this.available() : false };
+  }
 }

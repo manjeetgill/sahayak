@@ -10,13 +10,24 @@ export default function Sim({ params }: { params: { slug: string } }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState('');
   const end = useRef<HTMLDivElement>(null);
-  const load = useCallback(() => { api<Msg[]>(`/sim/${params.slug}/messages?phone=${encodeURIComponent(phone)}`).then(setMsgs).catch(() => setMsgs([])); }, [params.slug, phone]);
-  useEffect(() => { load(); }, [load]);
-  useLive(`/ws/public/${params.slug}`, (e) => { if (e.type === 'conversation_updated') load(); });
-  useEffect(() => { end.current?.scrollIntoView(); }, [msgs]);
+  const load = useCallback(() => {
+    api<Msg[]>(`/sim/${params.slug}/messages?phone=${encodeURIComponent(phone)}`)
+      .then(setMsgs)
+      .catch(() => setMsgs([]));
+  }, [params.slug, phone]);
+  useEffect(() => {
+    load();
+  }, [load]);
+  useLive(`/ws/public/${params.slug}`, (e) => {
+    if (e.type === 'conversation_updated') load();
+  });
+  useEffect(() => {
+    end.current?.scrollIntoView();
+  }, [msgs]);
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
-    const v = text.trim(); if (!v) return;
+    const v = text.trim();
+    if (!v) return;
     setText('');
     await api(`/sim/${params.slug}/message`, { body: { from: phone, text: v } }).catch(() => {});
     load();
@@ -28,15 +39,27 @@ export default function Sim({ params }: { params: { slug: string } }) {
       <div className="phone">
         <header>Sahayak · Clinic</header>
         <div className="chat" data-testid="chat">
-          {msgs.map((m, i) => <div key={i} className={`bubble ${m.direction}`}>{m.body}</div>)}
+          {msgs.map((m, i) => (
+            <div key={i} className={`bubble ${m.direction}`}>
+              {m.body}
+            </div>
+          ))}
           <div ref={end} />
         </div>
         <form className="compose" onSubmit={send}>
-          <input aria-label="Message" value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a message" />
+          <input
+            aria-label="Message"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Type a message"
+          />
           <button type="submit">Send</button>
         </form>
       </div>
-      <p className="muted">Try: &quot;what are your timings?&quot;, &quot;book appointment&quot;, &quot;मुझे सीने में दर्द है&quot;. Seeded patients: 9876501000-9876501024.</p>
+      <p className="muted">
+        Try: &quot;what are your timings?&quot;, &quot;book appointment&quot;, &quot;मुझे सीने में
+        दर्द है&quot;. Seeded patients: 9876501000-9876501024.
+      </p>
     </div>
   );
 }

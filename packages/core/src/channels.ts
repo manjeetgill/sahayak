@@ -18,5 +18,7 @@ export interface VoiceChannel {
  */
 export class MockWhatsAppChannel implements MessagingChannel {
   readonly name = 'mock-whatsapp';
-  async send(): Promise<void> { /* stored message row is the delivery */ }
+  async send(): Promise<void> {
+    /* stored message row is the delivery */
+  }
 }

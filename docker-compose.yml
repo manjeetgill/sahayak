@@ -5,29 +5,33 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: sahayak
-    ports: ["55450:5432"]
-    volumes: ["pgdata:/var/lib/postgresql/data"]
+    ports: ['55450:5432']
+    volumes: ['pgdata:/var/lib/postgresql/data']
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d sahayak"]
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d sahayak']
       interval: 3s
       retries: 20
   redis:
     image: redis:7
-    ports: ["56379:6379"]
+    ports: ['56379:6379']
   api:
     build: { context: ., dockerfile: apps/api/Dockerfile }
-    profiles: ["full"]
-    env_file: .env.example
     environment:
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-real-deployments}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-nemotron-3-ultra-550b-a55b}
       DATABASE_URL: postgres://sahayak_app:sahayak_app@postgres:5432/sahayak
       ADMIN_DATABASE_URL: postgres://postgres:postgres@postgres:5432/sahayak
       REDIS_URL: redis://redis:6379
     depends_on: { postgres: { condition: service_healthy } }
-    ports: ["4000:4000"]
+    ports: ['4000:4000']
   web:
-    build: { context: ., dockerfile: apps/web/Dockerfile }
-    profiles: ["full"]
-    environment: { API_URL: http://api:4000, NEXT_PUBLIC_API_URL: http://localhost:4000 }
-    ports: ["3000:3000"]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args: { NEXT_PUBLIC_API_URL: 'http://localhost:4000' }
+    depends_on: [api]
+    ports: ['3000:3000']
 volumes:
   pgdata:

@@ -20,20 +20,31 @@ export function parseLateMinutes(text: string): number | null {
   if (/an hour|one hour|ek ghanta|एक घंटा/.test(n)) return 60;
   return null;
 }
-const clamp = (x: number) => (x >= 5 && x <= 240 ? x : null as unknown as number);
+const clamp = (x: number) => (x >= 5 && x <= 240 ? x : (null as unknown as number));
 
 export async function parseLateRequest(gate: LlmGate | null, text: string): Promise<number | null> {
   const det = parseLateMinutes(text);
   if (det) return det;
   if (!gate?.available()) return null;
   try {
-    const r = await gate.chat({ messages: [
-      { role: 'system', content: 'The doctor says they are running late. Extract the delay in minutes. Reply ONLY JSON {"minutes": <integer or null>}.' },
-      { role: 'user', content: text }], temperature: 0, maxTokens: 30 });
+    const r = await gate.chat({
+      messages: [
+        {
+          role: 'system',
+          content:
+            'The doctor says they are running late. Extract the delay in minutes. Reply ONLY JSON {"minutes": <integer or null>}.',
+        },
+        { role: 'user', content: text },
+      ],
+      temperature: 0,
+      maxTokens: 30,
+    });
     const j = JSON.parse((r.content ?? '').match(/\{[\s\S]*\}/)?.[0] ?? '{}');
     const v = Number(j.minutes);
     return Number.isInteger(v) && v >= 5 && v <= 240 ? v : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 /** Patient replies to "doctor is running late": 1 = keep the new time, 2 = see other slots. */
@@ -43,17 +54,26 @@ export async function continueSchedule(turn: Turn): Promise<boolean> {
   const intent = classifyIntent(turn.text);
   const t = normalise(turn.text);
   const keep = t === '1' || intent === 'yes' || /\b(keep|fine|ok|theek)\b/.test(t);
-  const other = t === '2' || /\b(other|change|different|reschedule|cancel)\b/.test(t) || intent === 'reschedule' || intent === 'no';
+  const other =
+    t === '2' ||
+    /\b(other|change|different|reschedule|cancel)\b/.test(t) ||
+    intent === 'reschedule' ||
+    intent === 'no';
   if (keep) {
     await call(turn, 'schedule', 'record_late_response', { itemId: st.itemId, response: 'kept' });
     const info = await call(turn, 'schedule', 'get_clinic_info', {});
     const { fmtTime } = await import('@sahayak/core');
     await call(turn, 'schedule', 'set_conversation_state', { state: {} });
-    await say(turn, 'schedule', 'msg.late_kept', { when: fmtTime(st.newStart, info.timezone, turn.lang) });
+    await say(turn, 'schedule', 'msg.late_kept', {
+      when: fmtTime(st.newStart, info.timezone, turn.lang),
+    });
     return true;
   }
   if (other) {
-    await call(turn, 'schedule', 'record_late_response', { itemId: st.itemId, response: 'rebooking' });
+    await call(turn, 'schedule', 'record_late_response', {
+      itemId: st.itemId,
+      response: 'rebooking',
+    });
     await offerSlots(turn, 'schedule', { id: st.doctorId, name: st.doctorName }, st.appointmentId);
     return true;
   }

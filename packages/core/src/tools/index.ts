@@ -10,7 +10,14 @@ let done = false;
 /** Register every tool module once. Called by the API/agent runtime at startup. */
 export function registerAllTools() {
   if (done) return;
-  registerTools([...checkinTools, ...queueTools, ...appointmentTools, ...deskTools, ...scheduleTools, ...followupTools]);
+  registerTools([
+    ...checkinTools,
+    ...queueTools,
+    ...appointmentTools,
+    ...deskTools,
+    ...scheduleTools,
+    ...followupTools,
+  ]);
   done = true;
 }
 export * from './registry';
