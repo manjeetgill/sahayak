@@ -1,4 +1,5 @@
 import { ToolError, fmtTime } from '@sahayak/core';
+import { normalise } from '@sahayak/shared';
 import { classifyIntent, parseChoice, type Intent } from '../intent';
 import { violatesMedicalPolicy } from '../safety';
 import { runToolLoop } from '../toolloop';
@@ -6,6 +7,8 @@ import { call, formatTimings, say, sayText, setState, type Turn } from '../turn'
 
 const AGENT = 'front_desk';
 type Info = {
+  faqs?: Faq[];
+  agents?: Record<string, boolean>;
   clinic: string;
   timezone: string;
   address: string | null;
@@ -14,6 +17,21 @@ type Info = {
   doctors: { id: string; name: string }[];
 };
 const getInfo = (turn: Turn): Promise<Info> => call(turn, AGENT, 'get_clinic_info', {});
+type Faq = { keywords: string[]; en: string; hi: string };
+/** Doctor-written FAQ answers (agent builder): the best-matching entry wins, by number of keywords found. */
+export function matchFaq(faqs: Faq[] | undefined, text: string): Faq | null {
+  const n = normalise(text);
+  let best: Faq | null = null,
+    bestScore = 0;
+  for (const f of faqs ?? []) {
+    const score = f.keywords.filter((k) => n.includes(normalise(k))).length;
+    if (score > bestScore) {
+      best = f;
+      bestScore = score;
+    }
+  }
+  return best;
+}
 const opts = (items: string[]) => items.map((x, i) => `${i + 1}) ${x}`).join('; ');
 
 export async function startBooking(turn: Turn, agent = AGENT, rescheduleId?: string) {
@@ -179,6 +197,11 @@ async function freeForm(turn: Turn) {
 /** WhatsApp front desk: timings, directions, availability, book/move/cancel. Known patients only for booking. */
 export async function frontDesk(turn: Turn, intent: Intent) {
   const info = await getInfo(turn);
+  // The doctor's own FAQ answers beat the built-in info replies (e.g. a parking FAQ vs the address reply).
+  if (['timings', 'address', 'other'].includes(intent)) {
+    const faq = matchFaq(info.faqs, turn.text);
+    if (faq) return sayText(turn, AGENT, faq[turn.lang]);
+  }
   switch (intent) {
     case 'timings':
       return say(turn, AGENT, 'msg.timings', { timings: formatTimings(info.timings) });
@@ -202,8 +225,11 @@ export async function frontDesk(turn: Turn, intent: Intent) {
     case 'no':
     case 'number':
       return say(turn, AGENT, 'msg.didnt_understand');
-    default:
+    default: {
+      const faq = matchFaq(info.faqs, turn.text);
+      if (faq) return sayText(turn, AGENT, faq[turn.lang]);
       return freeForm(turn);
+    }
   }
 }
 export { classifyIntent };

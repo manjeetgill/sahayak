@@ -33,15 +33,22 @@ export interface InboundResult {
  */
 export async function handleInbound(
   env: AgentEnv,
-  input: { clinicId: string; from: string; text: string },
+  input: {
+    clinicId: string;
+    from: string;
+    text: string;
+    channel?: 'whatsapp' | 'voice';
+    language?: 'en' | 'hi';
+  },
 ): Promise<InboundResult> {
   const { rt } = env;
   const sys = { clinicId: input.clinicId, actor: { kind: 'patient' } as const };
-  const lang = /[ऀ-ॿ]/.test(input.text) ? ('hi' as const) : undefined;
+  const lang = input.language ?? (/[ऀ-ॿ]/.test(input.text) ? ('hi' as const) : undefined);
   const rec = await callTool(rt, sys, 'receive_message', {
     from: input.from,
     text: input.text,
     language: lang,
+    channel: input.channel ?? 'whatsapp',
   });
   const turn: Turn = {
     env,
@@ -130,8 +137,21 @@ export async function handleInbound(
     if (turn.state.flow) await setState(turn, 'system', {}); // message did not fit the flow: drop it and treat as new
 
     const intent = classifyIntent(turn.text);
-    if (!turn.patientId) await leads(turn, intent);
-    else if (intent === 'queue_status') await queueStatus(turn);
+    // The doctor can switch agents off in the agent builder; a switched-off agent hands the chat to a person.
+    const agents: Record<string, boolean> =
+      (await call(turn, 'system', 'get_clinic_info', {})).agents ?? {};
+    const target = !turn.patientId ? 'leads' : intent === 'queue_status' ? 'queue' : 'front_desk';
+    if (agents[target] === false) {
+      await call(turn, 'system', 'handoff_to_human', {
+        reason: 'other',
+        summary: `The ${target} agent is switched off. Patient said: "${turn.text.slice(0, 200)}"`,
+      });
+      await say(turn, 'system', 'msg.human_handoff');
+      rec.handledBy = 'human';
+      return result();
+    }
+    if (target === 'leads') await leads(turn, intent);
+    else if (target === 'queue') await queueStatus(turn);
     else await frontDesk(turn, intent);
     return result();
   } catch (e) {
@@ -160,6 +180,18 @@ export async function startIntakeFor(
 ) {
   const conv = await findConversation({ env, clinicId: args.clinicId }, args.phone);
   if (!conv) return;
+  const probe = {
+    env,
+    clinicId: args.clinicId,
+    conversationId: conv.id,
+    patientId: args.patientId,
+    contact: args.phone,
+    lang: conv.language,
+    text: '',
+    state: {},
+    replies: [],
+  } as Turn;
+  if (((await call(probe, 'system', 'get_clinic_info', {})).agents ?? {}).intake === false) return;
   const turn: Turn = {
     env,
     clinicId: args.clinicId,

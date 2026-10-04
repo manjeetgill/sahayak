@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { LlmGate, NemotronProvider, startJobs } from '@sahayak/agents';
-import { EventBus } from '@sahayak/core';
+import { EventBus, pluginFromEnv } from '@sahayak/core';
 import { makePool } from '@sahayak/db';
 import { activeClinics, buildApp } from './app';
 
@@ -18,7 +18,9 @@ if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET)
 const pool = makePool();
 const bus = new EventBus();
 const gate = new LlmGate(NemotronProvider.fromEnv(), bus, () => [...activeClinics]);
+const whatsapp = pluginFromEnv() ?? undefined;
 const app = await buildApp({
+  whatsapp,
   pool,
   bus,
   gate,
@@ -28,6 +30,7 @@ await app.listen({ port: Number(process.env.API_PORT ?? 4000), host: '0.0.0.0' }
 
 if (process.env.JOBS_ENABLED !== 'false' && process.env.ADMIN_DATABASE_URL) {
   startJobs({
+    channel: whatsapp?.messaging,
     adminUrl: process.env.ADMIN_DATABASE_URL,
     pool,
     bus,

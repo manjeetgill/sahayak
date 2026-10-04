@@ -136,3 +136,30 @@ test('red-flag escalation: patient message → emergency reply → urgent alert 
   await rec.getByRole('button', { name: 'Send' }).click();
   await expect(sim.getByTestId('chat')).toContainText('We are sending help');
 });
+
+test('agent builder: doctor adds an FAQ and switches an agent; the assistant follows it', async ({
+  browser,
+}) => {
+  const doc = await (await browser.newContext()).newPage();
+  await login(doc, 'anil@demo.sahayak.in');
+  await doc.getByRole('link', { name: 'Agent builder' }).click();
+  await doc.getByRole('button', { name: 'Add FAQ' }).click();
+  await doc.getByLabel('FAQ 1 keywords').fill('parking, scooter');
+  await doc.getByLabel('FAQ 1 answer English').fill('Free parking is behind the building.');
+  await doc.getByLabel('FAQ 1 answer Hindi').fill('मुफ़्त पार्किंग इमारत के पीछे है।');
+  await doc.getByRole('button', { name: 'Save FAQs' }).click();
+  await expect(doc.getByRole('status')).toHaveText('Saved');
+
+  const sim = await (await browser.newContext()).newPage();
+  await sim.goto('/c/dr-sharma/sim');
+  await sim.getByLabel(/Simulate a patient/).fill('9876501010');
+  await simSend(sim, 'is there scooter parking?');
+  await expect(sim.getByTestId('chat')).toContainText('Free parking is behind the building.');
+
+  // Phone call simulator uses the same agents
+  const call = await (await browser.newContext()).newPage();
+  await call.goto('/c/dr-sharma/call');
+  await call.getByLabel('Caller says').fill('I have chest pain');
+  await call.getByRole('button', { name: 'Speak' }).click();
+  await expect(call.getByTestId('call-log')).toContainText('108');
+});

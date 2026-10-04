@@ -102,12 +102,7 @@ export async function notifyPatient(
     opts.sender ?? (ctx.actor.kind === 'agent' ? `agent:${ctx.actor.agent}` : 'system'),
     text,
   );
-  await (rt.channel ?? mock).send({
-    clinicId: ctx.clinicId,
-    to: patient.phone,
-    text,
-    lang: patient.language,
-  });
+  await deliver(r, { to: patient.phone, text, lang: patient.language });
   r.emit({ type: 'conversation_updated', conversationId: conv.id });
   return true;
 }
@@ -178,4 +173,22 @@ export function assertOwn(
   if (ctx.actor.kind === 'staff' || ctx.actor.kind === 'system') return;
   if (ctx.patientId !== patientId)
     throw new ToolError('forbidden', "You may only access the current patient's own data", 403);
+}
+
+/**
+ * Hand an outbound message to the channel. The mock channel delivers instantly (the stored message is the delivery).
+ * A real vendor channel goes through the `outbox` table so a slow or failing vendor never holds a DB transaction
+ * or loses a message: the outbox job sends it with retries.
+ */
+export async function deliver(
+  r: ToolRun,
+  m: { to: string; text: string; lang: Lang; channel?: string },
+) {
+  if (m.channel && m.channel !== 'whatsapp') return; // voice/web replies go back to the caller directly, never out as WhatsApp
+  const ch = r.rt.channel ?? mock;
+  if (!ch.queued) return ch.send({ clinicId: r.ctx.clinicId, ...m });
+  await r.db.query(
+    'INSERT INTO outbox (clinic_id,channel,to_contact,body,language) VALUES ($1,$2,$3,$4,$5)',
+    [r.ctx.clinicId, ch.name, m.to, m.text, m.lang],
+  );
 }

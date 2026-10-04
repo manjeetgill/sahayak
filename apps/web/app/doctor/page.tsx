@@ -64,7 +64,10 @@ export default function Doctor() {
   return (
     <div>
       <div className="topbar">
-        <b>{s.user.name}</b>
+        <b>{s.user.name}</b>{' '}
+        <a href="/doctor/settings" style={{ marginLeft: 16 }}>
+          Agent builder
+        </a>
         <button
           className="ghost small"
           onClick={() => {

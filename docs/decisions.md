@@ -16,6 +16,12 @@ Product decisions not covered by the plan are listed under "Open questions" for 
 - **Next.js 14, plain CSS, no UI kit:** keeps the screens easy to read and change.
 - **Playwright uses installed Google Chrome** (`channel: 'chrome'`), so no browser download.
 
+## Post-pilot features (started after go-ahead)
+
+- **Real WhatsApp, vendor-neutral.** No vendor chosen (your call). `MessagingChannel` (outbound), `InboundAdapter` (verify + parse webhook) and `channelRegistry` define the seam; a vendor is one small `ChannelPlugin`. `WHATSAPP_PROVIDER=generic` is a working HMAC-signed bridge for any gateway. Outbound goes through the `outbox` table (retries with backoff, 5 tries, then an urgent receptionist flag) so a vendor outage never loses a message or holds a DB transaction. Inbound webhooks verify the signature over the raw body (fail closed) and map the business number to a clinic via `clinic_settings.whatsapp_number`. Not yet done: vendor template/24-hour-window rules (Meta requires approved templates for proactive messages), media messages, delivery receipts.
+- **Voice.** `SpeechToText` / `TextToSpeech` / `VoiceChannel` interfaces with mock implementations (audio = UTF-8 text) so the whole flow runs and is tested without vendors. `/voice/:slug/turn` runs one phone-call turn through the same orchestrator (red flags, handoff, booking...) on a `voice` conversation; voice replies are never pushed out as WhatsApp; "talk to a person" returns `transferToHuman`. Doctor voice notes go to `/staff/schedule/propose-voice` (transcript, then the usual propose, still needs one-tap confirmation). Needs from you: a telephony vendor and STT/TTS with good Hindi quality. Not done: barge-in, call recording consent text, latency tuning.
+- **Agent builder.** Doctor-only settings screen (`/doctor/settings`) and `update_clinic_settings` tool: clinic info, timings, consult length, intake questions (EN+HI), FAQs (keyword to answer, EN+HI, held to the no-medical-advice policy), follow-up timings, per-agent on/off, extra emergency phrases. Switching an agent off hands its chats to the receptionist. Emergency detection and the fixed safety replies are not configurable. Every change is stored in append-only `settings_changes`. Doctor FAQs win over built-in info replies.
+
 ## Behavioural choices made while building (tell me if any is wrong)
 
 - Queue order is arrival order across one token sequence per clinic per day. Hold keeps your place; skipped/no-show patients rejoin at the back. Only staff can hold/skip/resume; no agent tool can reorder.

@@ -70,8 +70,8 @@ export async function api<T = any>(
   }
   return j as T;
 }
-export const staff = <T = any>(path: string, body?: unknown) =>
-  api<T>(path, { auth: true, body, method: body !== undefined ? 'POST' : 'GET' });
+export const staff = <T = any>(path: string, body?: unknown, method?: 'PUT' | 'DELETE') =>
+  api<T>(path, { auth: true, body, method: method ?? (body !== undefined ? 'POST' : 'GET') });
 
 /** Live updates over WebSocket with automatic reconnect. `path` is e.g. /ws/public/slug or /ws?token=... */
 export function useLive(path: string | null, onEvent: (e: LiveEvent) => void) {

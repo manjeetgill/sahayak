@@ -5,6 +5,7 @@ import { appointmentTools } from './appointments';
 import { deskTools } from './desk';
 import { scheduleTools } from './schedule';
 import { followupTools } from './followups';
+import { builderTools } from './builder';
 
 let done = false;
 /** Register every tool module once. Called by the API/agent runtime at startup. */
@@ -17,6 +18,7 @@ export function registerAllTools() {
     ...deskTools,
     ...scheduleTools,
     ...followupTools,
+    ...builderTools,
   ]);
   done = true;
 }

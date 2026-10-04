@@ -1,9 +1,10 @@
 import PgBoss from 'pg-boss';
 import type pg from 'pg';
-import { callTool, type EventBus } from '@sahayak/core';
+import { callTool, type EventBus, type MessagingChannel } from '@sahayak/core';
 import { withClinic } from '@sahayak/db';
 
 type Deps = {
+  channel?: MessagingChannel;
   adminUrl: string;
   pool: pg.Pool;
   bus: EventBus;
@@ -15,7 +16,60 @@ type Deps = {
  * pg-boss keeps its own tables (schema "pgboss") and uses the admin connection for that.
  * Each job lists work with security-definer functions (ids only) and then acts inside each clinic's own scope.
  */
-export async function startJobs({ adminUrl, pool, bus, log = () => {} }: Deps) {
+export async function deliverOutbox(
+  pool: pg.Pool,
+  channel: MessagingChannel,
+  log: (m: string, e?: unknown) => void = () => {},
+) {
+  const due = (await pool.query('SELECT id, clinic_id FROM due_outbox(100)')).rows;
+  let sent = 0;
+  for (const d of due) {
+    await withClinic(pool, d.clinic_id, async (db) => {
+      const row = (
+        await db.query(
+          "SELECT * FROM outbox WHERE id=$1 AND status='pending' FOR UPDATE SKIP LOCKED",
+          [d.id],
+        )
+      ).rows[0];
+      if (!row) return;
+      try {
+        await channel.send({
+          clinicId: d.clinic_id,
+          to: row.to_contact,
+          text: row.body,
+          lang: row.language,
+        });
+        await db.query("UPDATE outbox SET status='sent', attempts=attempts+1 WHERE id=$1", [d.id]);
+        sent++;
+      } catch (e) {
+        const attempts = row.attempts + 1;
+        const msg = String((e as Error).message).slice(0, 200);
+        log('outbox send failed', e);
+        if (attempts >= 5) {
+          await db.query(
+            "UPDATE outbox SET status='failed', attempts=$2, last_error=$3 WHERE id=$1",
+            [d.id, attempts, msg],
+          );
+          await db.query(
+            "INSERT INTO flags (clinic_id,kind,severity,summary) VALUES ($1,'system','urgent',$2)",
+            [
+              d.clinic_id,
+              `A WhatsApp message to ${row.to_contact} could not be delivered after 5 tries. Please contact the patient another way.`,
+            ],
+          );
+        } else {
+          await db.query(
+            'UPDATE outbox SET attempts=$2, last_error=$3, next_attempt_at=now() + make_interval(secs => $4) WHERE id=$1',
+            [d.id, attempts, msg, 30 * 2 ** attempts],
+          );
+        }
+      }
+    });
+  }
+  return sent;
+}
+
+export async function startJobs({ adminUrl, pool, bus, channel, log = () => {} }: Deps) {
   const boss = new PgBoss({ connectionString: adminUrl, schema: 'pgboss' });
   boss.on('error', (e) => log('pg-boss error', e));
   await boss.start();
@@ -65,9 +119,19 @@ export async function startJobs({ adminUrl, pool, bus, log = () => {} }: Deps) {
   await boss.work('recall.sweep', async () => {
     await eachClinic('queue_recalls', {});
   });
+  // Real vendors: drain the outbox every few seconds in-process (cron granularity is one minute).
+  let timer: NodeJS.Timeout | undefined;
+  if (channel?.queued)
+    timer = setInterval(
+      () => deliverOutbox(pool, channel, log).catch((e) => log('outbox sweep failed', e)),
+      5000,
+    );
   return {
     boss,
     runFollowups: followups,
-    stop: () => boss.stop({ graceful: true, timeout: 5000 }),
+    stop: () => {
+      clearInterval(timer);
+      return boss.stop({ graceful: true, timeout: 5000 });
+    },
   };
 }

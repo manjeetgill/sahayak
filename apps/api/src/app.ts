@@ -13,6 +13,11 @@ import {
 } from '@sahayak/agents';
 import {
   callTool,
+  MockSpeechToText,
+  MockTextToSpeech,
+  type ChannelPlugin,
+  type SpeechToText,
+  type TextToSpeech,
   queueSnapshot,
   registerAllTools,
   ToolError,
@@ -30,6 +35,10 @@ import {
 } from '@sahayak/shared';
 
 export interface AppDeps {
+  /** Real WhatsApp channel + inbound adapter (omit for the mock simulator). */
+  whatsapp?: ChannelPlugin;
+  stt?: SpeechToText;
+  tts?: TextToSpeech;
   pool: pg.Pool;
   bus: EventBus;
   gate: LlmGate;
@@ -49,7 +58,9 @@ type Claims = {
 export async function buildApp(deps: AppDeps) {
   registerAllTools();
   const { pool, bus, gate } = deps;
-  const rt = { pool, bus };
+  const rt = { pool, bus, channel: deps.whatsapp?.messaging };
+  const stt = deps.stt ?? new MockSpeechToText();
+  const tts = deps.tts ?? new MockTextToSpeech();
   const env: AgentEnv = { rt, gate };
   const app = Fastify({
     logger:
@@ -60,6 +71,20 @@ export async function buildApp(deps: AppDeps) {
   await app.register(cors, { origin: true });
   await app.register(jwt, { secret: deps.jwtSecret });
   await app.register(websocket);
+  // Keep the raw JSON body: webhook signatures are computed over the exact bytes the vendor sent.
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+    (req as any).rawBody = body;
+    try {
+      done(null, body ? JSON.parse(body as string) : {});
+    } catch (e) {
+      done(e as Error, undefined);
+    }
+  });
+  app.addContentTypeParser(
+    /^audio\//,
+    { parseAs: 'buffer', bodyLimit: 10_000_000 },
+    (_req, body, done) => done(null, body),
+  );
 
   app.setErrorHandler((err: any, _req, reply) => {
     if (err instanceof ToolError)
@@ -399,6 +424,127 @@ export async function buildApp(deps: AppDeps) {
       conversationId: idParam(req),
       text: z.object({ text: z.string().min(1).max(2000) }).parse(req.body).text,
     });
+  });
+
+  // ---- agent builder: doctor-configurable behaviour ----
+  app.get('/staff/settings', async (req) => {
+    const c = await claims(req);
+    return callTool(rt, staffCtx(c), 'get_clinic_settings', {});
+  });
+  app.put('/staff/settings', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'update_clinic_settings', req.body);
+  });
+  app.post('/staff/settings/phrases', async (req) => {
+    const c = await claims(req);
+    return callTool(rt, staffCtx(c), 'add_red_flag_phrase', req.body);
+  });
+  app.delete('/staff/settings/phrases/:id', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'remove_red_flag_phrase', { id: idParam(req) });
+  });
+
+  // ---- real WhatsApp: webhook in (signature-checked), outbox out ----
+  if (deps.whatsapp) {
+    const { inbound } = deps.whatsapp;
+    app.get('/webhooks/whatsapp', async (req, reply) => {
+      const out = inbound.handshake?.(req.query as Record<string, string>) ?? null;
+      return out === null
+        ? reply.status(403).send('forbidden')
+        : reply.type('text/plain').send(out);
+    });
+    app.post('/webhooks/whatsapp', async (req, reply) => {
+      const raw = (req as any).rawBody as string | undefined;
+      if (!raw || !inbound.verify(req.headers as Record<string, string | undefined>, raw))
+        return reply.status(401).send({ error: 'bad_signature' });
+      const results = [];
+      for (const m of inbound.parse(req.body)) {
+        const clinic = await pool.query('SELECT clinic_for_whatsapp_number($1) AS id', [
+          m.businessNumber,
+        ]);
+        const clinicId = clinic.rows[0]?.id;
+        if (!clinicId) {
+          app.log.warn('webhook for unknown business number');
+          continue;
+        } // never log message content
+        const from = PhoneSchema.safeParse(m.from);
+        if (!from.success) continue;
+        results.push(
+          await handleInbound(env, { clinicId, from: from.data, text: m.text }).then(
+            () => 'ok',
+            (e) => {
+              app.log.error(e, 'inbound failed');
+              return 'error';
+            },
+          ),
+        );
+      }
+      return { processed: results.length };
+    });
+  }
+
+  // ---- voice: speech in, agent, speech out (telephony vendor drives these endpoints) ----
+  // Doctor voice note for "running late": audio -> transcript -> the same proposal flow (still needs one-tap confirmation).
+  app.post('/staff/schedule/propose-voice', async (req) => {
+    const c = await claims(req, ['doctor']);
+    if (!Buffer.isBuffer(req.body))
+      throw new ToolError('bad_request', 'Send the voice note as audio/* in the request body', 415);
+    const { text } = await stt.transcribe(req.body, {
+      mimeType: String(req.headers['content-type']),
+    });
+    const minutes = await parseLateRequest(gate, text);
+    if (!minutes)
+      throw new ToolError(
+        'not_understood',
+        `I heard: "${text.slice(0, 120)}". Say how late you are running, e.g. "30 minutes late".`,
+      );
+    return {
+      transcript: text,
+      ...(await callTool(rt, staffCtx(c), 'propose_schedule_shift', {
+        minutes,
+        requestedText: text,
+      })),
+    };
+  });
+  // One conversational turn of a phone call. Audio (base64) or text; the reply comes back as text and speech.
+  app.post('/voice/:slug/turn', async (req) => {
+    if (deps.simulator === false && !deps.whatsapp)
+      throw new ToolError('forbidden', 'Voice is not enabled', 403);
+    const clinic = await clinicBySlug((req.params as any).slug);
+    const b = z
+      .object({
+        from: PhoneSchema,
+        text: z.string().max(2000).optional(),
+        audio: z.string().optional(),
+        mimeType: z.string().default('audio/wav'),
+      })
+      .parse(req.body);
+    let text = b.text,
+      language: 'en' | 'hi' | undefined;
+    if (!text && b.audio) {
+      const r = await stt.transcribe(Buffer.from(b.audio, 'base64'), { mimeType: b.mimeType });
+      text = r.text;
+      language = r.language;
+    }
+    if (!text?.trim()) throw new ToolError('no_speech', 'Nothing was heard', 400);
+    const r = await handleInbound(env, {
+      clinicId: clinic.id,
+      from: b.from,
+      text,
+      channel: 'voice',
+      language,
+    });
+    const spoken = r.handledBy === 'human' && !r.replies.length ? [] : r.replies;
+    const lang = language ?? (/[\u0900-\u097F]/.test(text) ? 'hi' : 'en');
+    const audio = spoken.length ? await tts.synthesize(spoken.join(' '), lang) : null;
+    return {
+      transcript: text,
+      replies: spoken,
+      handledBy: r.handledBy,
+      redFlag: r.redFlag,
+      transferToHuman: r.handledBy === 'human',
+      audio: audio ? { base64: audio.audio.toString('base64'), mimeType: audio.mimeType } : null,
+    };
   });
 
   // ---- WhatsApp simulator (mock channel; real vendors plug in behind MessagingChannel) ----

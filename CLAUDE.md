@@ -12,7 +12,7 @@ Sahayak ("helper") is a team of AI agents that runs the front desk of a small cl
 - **Agents never give medical advice.** Red flags always escalate to a human (see Safety).
 - **Modular:** agent core + tool layer + modules (`checkin`, `queue`, `appointments`, `followups`, `leads`, `core`). A tool's `module` can be switched off per clinic in `clinic_settings.modules`.
 - Channels are adapters (`MessagingChannel`, `VoiceChannel` in `packages/core/src/channels.ts`). Release 1 uses the mock WhatsApp simulator. Do not pick WhatsApp/telephony vendors without asking.
-- Voice agent and the doctor's agent builder come after the pilot. Design for them; do not build them yet.
+- Real WhatsApp, voice and the agent builder have been started (see `docs/decisions.md`, Post-pilot features). WhatsApp/telephony/STT/TTS **vendors are still unchosen**: build only behind the adapter interfaces and ask before picking one.
 
 ## Safety rules (enforced in code, tested)
 

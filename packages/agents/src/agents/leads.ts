@@ -1,5 +1,5 @@
-import { call, say, setState, type Turn } from '../turn';
-import { startBooking, frontDesk } from './frontdesk';
+import { call, say, sayText, setState, type Turn } from '../turn';
+import { startBooking, frontDesk, matchFaq } from './frontdesk';
 import type { Intent } from '../intent';
 
 const AGENT = 'leads';
@@ -46,6 +46,8 @@ export async function leads(turn: Turn, intent: Intent) {
   }
   if (intent === 'greeting' || intent === 'other') {
     const info = await call(turn, AGENT, 'get_clinic_info', {});
+    const faq = intent === 'other' ? matchFaq(info.faqs, turn.text) : null;
+    if (faq) return sayText(turn, AGENT, faq[turn.lang]);
     return say(turn, AGENT, 'msg.lead_welcome', {
       clinic: info.clinic,
       doctor: info.doctors[0]?.name ?? '',

@@ -56,3 +56,72 @@ export type LiveEvent =
   | { type: 'conversation_updated'; conversationId: string }
   | { type: 'schedule_proposal'; proposalId: string }
   | { type: 'llm_status'; ok: boolean };
+
+// ---- Agent builder: what a doctor may configure ----
+const Window = z.string().regex(/^\d{2}:\d{2}-\d{2}:\d{2}$/);
+const TimingsValue = z
+  .string()
+  .max(60)
+  .refine(
+    (v) =>
+      v === '' ||
+      /^closed$/i.test(v) ||
+      v.split(',').every((w) => Window.safeParse(w.trim()).success),
+    'Use HH:MM-HH:MM, comma separated, or Closed',
+  );
+export const AGENT_NAMES = [
+  'checkin',
+  'queue',
+  'intake',
+  'front_desk',
+  'schedule',
+  'followup',
+  'leads',
+  'records',
+] as const;
+export const ClinicSettingsUpdate = z
+  .object({
+    address: z.string().max(300),
+    directions: z.string().max(500),
+    phone: z.string().max(20),
+    timings: z.record(z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']), TimingsValue),
+    avgConsultMinutes: z.number().int().min(1).max(120),
+    intakeQuestions: z
+      .array(
+        z.object({
+          id: z.string().regex(/^[a-z0-9_]{1,30}$/),
+          en: z.string().min(1).max(200),
+          hi: z.string().min(1).max(200),
+        }),
+      )
+      .max(10),
+    faqs: z
+      .array(
+        z.object({
+          id: z.string().regex(/^[a-z0-9_]{1,30}$/),
+          keywords: z.array(z.string().min(2).max(40)).min(1).max(8),
+          en: z.string().min(1).max(400),
+          hi: z.string().min(1).max(400),
+        }),
+      )
+      .max(50),
+    followupRules: z.object({
+      reminder_hours_before: z.number().int().min(1).max(168),
+      post_visit_hours: z.number().int().min(1).max(168),
+      recall_days: z.number().int().min(14).max(730),
+    }),
+    agents: z
+      .object(
+        Object.fromEntries(AGENT_NAMES.map((a) => [a, z.boolean()])) as Record<
+          (typeof AGENT_NAMES)[number],
+          z.ZodBoolean
+        >,
+      )
+      .partial(),
+    modules: z.record(
+      z.enum(['checkin', 'queue', 'appointments', 'followups', 'leads']),
+      z.boolean(),
+    ),
+  })
+  .partial();
+export type ClinicSettingsUpdate = z.infer<typeof ClinicSettingsUpdate>;

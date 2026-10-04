@@ -7,6 +7,7 @@ import {
   getSettings,
   hasConsent,
   storeMessage,
+  deliver,
 } from './common';
 
 const STAFF = ['staff:doctor', 'staff:receptionist'];
@@ -36,6 +37,8 @@ export const getClinicInfo = defineTool({
     return {
       clinic: s.clinic_name,
       timezone: s.timezone,
+      faqs: (s as any).faqs ?? [],
+      agents: (s as any).agents ?? {},
       address: s.address,
       directions: s.directions,
       phone: s.phone,
@@ -177,7 +180,7 @@ export const sendMessage = defineTool({
   async run(r, i) {
     const { db, ctx, rt } = r;
     const c = await db.query(
-      'SELECT id, contact, patient_id, language FROM conversations WHERE id=$1',
+      'SELECT id, contact, patient_id, language, channel FROM conversations WHERE id=$1',
       [i.conversationId],
     );
     if (!c.rowCount) throw new ToolError('not_found', 'Conversation not found', 404);
@@ -195,11 +198,11 @@ export const sendMessage = defineTool({
           ? `agent:${ctx.actor.agent}`
           : 'system';
     await storeMessage(db, ctx.clinicId, conv.id, 'out', sender, i.text);
-    await rt.channel?.send({
-      clinicId: ctx.clinicId,
+    await deliver(r, {
       to: conv.contact,
       text: i.text,
       lang: conv.language,
+      channel: conv.channel,
     });
     r.emit({ type: 'conversation_updated', conversationId: conv.id });
     return { ok: true };
@@ -275,6 +278,7 @@ export const receiveMessage = defineTool({
     from: z.string(),
     text: z.string().min(1).max(2000),
     language: z.enum(['en', 'hi']).optional(),
+    channel: z.enum(['whatsapp', 'voice', 'web']).default('whatsapp'),
   }),
   allow: ['patient', 'system'],
   async run({ db, ctx, emit }, i) {
@@ -282,7 +286,7 @@ export const receiveMessage = defineTool({
     const patientId: string | null = p.rows[0]?.id ?? null;
     const s = await getSettings(db, ctx.clinicId);
     const lang = i.language ?? p.rows[0]?.language ?? s.default_language;
-    const conv = await ensureConversation(db, ctx.clinicId, i.from, patientId, lang);
+    const conv = await ensureConversation(db, ctx.clinicId, i.from, patientId, lang, i.channel);
     if (i.language)
       await db.query('UPDATE conversations SET language=$2 WHERE id=$1', [conv.id, i.language]);
     await storeMessage(db, ctx.clinicId, conv.id, 'in', 'patient', i.text);
