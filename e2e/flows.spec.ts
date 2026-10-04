@@ -275,3 +275,16 @@ test('guided setup: sign up, walk the seven steps, go live, print poster, recept
   await rec.getByRole('button', { name: 'Sign in' }).click();
   await expect(rec).toHaveURL(/\/console/);
 });
+
+test('ask your clinic: doctor asks in plain words and gets an answer', async ({ browser }) => {
+  const doc = await (await browser.newContext()).newPage();
+  await login(doc, 'anil@demo.sahayak.in');
+  await doc.getByLabel('Ask your clinic').fill('appointments tomorrow');
+  await doc.getByRole('button', { name: 'Ask', exact: true }).click();
+  await expect(doc.getByTestId('ask-clinic')).toContainText('appointment(s) tomorrow');
+  await doc.getByRole('button', { name: "Today's summary" }).click();
+  await expect(doc.getByTestId('ask-clinic')).toContainText('Daily summary for');
+  await doc.getByLabel('Ask your clinic').fill('मुझे आज कितने मरीज़ आए');
+  await doc.getByRole('button', { name: 'Ask', exact: true }).click();
+  await expect(doc.getByTestId('ask-clinic')).toContainText('मरीज़ देखे गए');
+});

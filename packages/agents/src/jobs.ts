@@ -118,12 +118,16 @@ export async function startJobs({ adminUrl, pool, bus, channel, log = () => {} }
   await boss.schedule('queue.sweep', '* * * * *');
   await boss.schedule('recall.sweep', '0 10 * * *');
   await boss.schedule('webhooks.sweep', '* * * * *');
+  await boss.schedule('brief.sweep', '*/10 * * * *');
   await boss.schedule('retention.sweep', '30 21 * * *'); // 03:00 IST
   await boss.work('followups.sweep', async () => {
     await followups();
   });
   await boss.work('queue.sweep', async () => {
     await eachClinic('sweep_no_shows', {});
+  });
+  await boss.work('brief.sweep', async () => {
+    await eachClinic('send_daily_briefs', {});
   });
   await boss.work('webhooks.sweep', async () => {
     await deliverWebhooks(pool, log);

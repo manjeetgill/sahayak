@@ -29,6 +29,13 @@ export const getClinicSettings = defineTool({
       faqs: s.faqs,
       followupRules: s.followup_rules,
       retentionRules: s.retention_rules,
+      brief: s.brief,
+      myPhone:
+        (
+          await db.query('SELECT phone FROM staff_users WHERE id=$1', [
+            ctx.actor.kind === 'staff' ? ctx.actor.userId : null,
+          ])
+        ).rows[0]?.phone ?? null,
       agents: s.agents,
       modules: s.modules,
       whatsappNumber: s.whatsapp_number,
@@ -53,6 +60,7 @@ const COLUMN: Record<string, string> = {
   faqs: 'faqs',
   followupRules: 'followup_rules',
   retentionRules: 'retention_rules',
+  brief: 'brief',
   agents: 'agents',
   modules: 'modules',
 };

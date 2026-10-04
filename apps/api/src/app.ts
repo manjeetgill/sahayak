@@ -8,6 +8,7 @@ import Fastify, { type FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { z, ZodError } from 'zod';
 import {
+  answerStaffQuestion,
   handleInbound,
   parseLateRequest,
   startIntakeFor,
@@ -431,6 +432,21 @@ export async function buildApp(deps: AppDeps) {
       conversationId: idParam(req),
       text: z.object({ text: z.string().min(1).max(2000) }).parse(req.body).text,
     });
+  });
+
+  // ---- ask your clinic + daily brief ----
+  app.post('/staff/ask', async (req) => {
+    const c = await claims(req);
+    const { question } = z.object({ question: z.string().trim().min(2).max(300) }).parse(req.body);
+    return { answer: await answerStaffQuestion(env, staffCtx(c), question) };
+  });
+  app.get('/staff/brief', async (req) => {
+    const c = await claims(req);
+    return callTool(rt, staffCtx(c), 'build_daily_brief', {});
+  });
+  app.put('/staff/phone', async (req) => {
+    const c = await claims(req);
+    return callTool(rt, staffCtx(c), 'set_my_phone', req.body);
   });
 
   // ---- guided setup: signup (invite only), checklist, doctors, team ----

@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { t } from '@sahayak/shared';
+import { AskClinic } from '../components/AskClinic';
 import { beep, session, staff, useLive, useSession } from '../../lib/api';
 
 export default function Doctor() {
@@ -116,6 +117,9 @@ export default function Doctor() {
             >
               {t('en', 'doctor.next')} →
             </button>
+          </div>
+          <div style={{ marginBottom: '1rem' }}>
+            <AskClinic />
           </div>
           <div className="card" style={{ marginBottom: '1rem' }} data-testid="late-box">
             <form className="row" onSubmit={proposeLate}>

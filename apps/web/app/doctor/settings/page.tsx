@@ -296,6 +296,52 @@ export default function Settings() {
         </div>
 
         <div className="card" style={{ marginTop: '1rem' }}>
+          <h2>Daily summary and questions on WhatsApp</h2>
+          <p className="muted">
+            Add your own WhatsApp number to get an end-of-day summary and to ask questions like "how
+            many patients today?" by message. Only your registered number is recognised.
+          </p>
+          <input
+            aria-label="My phone"
+            placeholder="+919876543210"
+            value={cfg.myPhone ?? ''}
+            onChange={(e) => set('myPhone', e.target.value)}
+          />
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={cfg.brief?.enabled === true}
+              onChange={(e) => set('brief', { ...cfg.brief, enabled: e.target.checked })}
+            />
+            Send the daily summary
+          </label>
+          <label htmlFor="bt">Send it at (clinic time)</label>
+          <input
+            id="bt"
+            type="time"
+            value={cfg.brief?.time ?? '20:00'}
+            onChange={(e) => set('brief', { ...cfg.brief, time: e.target.value })}
+          />
+          <p>
+            <button
+              onClick={async () => {
+                setErr('');
+                setMsg('');
+                try {
+                  await staff('/staff/phone', { phone: cfg.myPhone ?? '' }, 'PUT');
+                  await staff('/staff/settings', { brief: cfg.brief }, 'PUT');
+                  setMsg('Saved');
+                } catch (x: any) {
+                  setErr(x.message);
+                }
+              }}
+            >
+              Save
+            </button>
+          </p>
+        </div>
+
+        <div className="card" style={{ marginTop: '1rem' }}>
           <h2>Your WhatsApp number</h2>
           <p className="muted">
             Patients who write to this number get appointments with you, without being asked which

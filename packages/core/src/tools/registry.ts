@@ -56,6 +56,8 @@ export interface ToolDef<I extends z.ZodTypeAny = z.ZodTypeAny, O = unknown> {
   allow: string[];
   /** For API keys: minimum scope needed (read < write < admin). Defaults to write. */
   scope?: 'read' | 'write' | 'admin';
+  /** What to keep in the audit log instead of the full input (clinical text must not be copied into the log). */
+  auditInput?: (input: z.infer<I>) => unknown;
   /** What to keep in the audit log instead of the full output (keep personal data out of the log). */
   auditOutput?: (output: O) => unknown;
   run: (r: ToolRun, input: z.infer<I>) => Promise<O>;
@@ -189,7 +191,7 @@ export async function callTool(
           ctx.conversationId ?? null,
           actorLabel(ctx.actor),
           name,
-          JSON.stringify(parsed.data),
+          JSON.stringify(tool.auditInput ? tool.auditInput(parsed.data) : parsed.data),
           JSON.stringify((tool.auditOutput ? tool.auditOutput(out) : out) ?? null),
         ],
       );
@@ -198,7 +200,14 @@ export async function callTool(
     for (const e of events) rt.bus.publish(ctx.clinicId, e);
     return output;
   } catch (e) {
-    await audit(rt, ctx, name, parsed.data, { error: (e as Error).message }, false);
+    await audit(
+      rt,
+      ctx,
+      name,
+      tool.auditInput ? tool.auditInput(parsed.data) : parsed.data,
+      { error: (e as Error).message },
+      false,
+    );
     throw e;
   }
 }

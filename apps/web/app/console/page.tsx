@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { t } from '@sahayak/shared';
+import { AskClinic } from '../components/AskClinic';
 import { beep, session, staff, useLive, useSession } from '../../lib/api';
 
 export default function Console() {
@@ -101,6 +102,9 @@ export default function Console() {
           {err}
         </div>
       )}
+      <div style={{ padding: '1rem 1rem 0' }}>
+        <AskClinic />
+      </div>
       <div className="grid3">
         <div className="card">
           <h2>{t('en', 'console.queue')}</h2>

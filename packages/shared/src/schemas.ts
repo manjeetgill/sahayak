@@ -84,6 +84,7 @@ export const AGENT_NAMES = [
 export const ClinicSettingsUpdate = z
   .object({
     clinicName: z.string().trim().min(2).max(80),
+    brief: z.object({ enabled: z.boolean(), time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/) }),
     address: z.string().max(300),
     directions: z.string().max(500),
     phone: z.string().max(20),

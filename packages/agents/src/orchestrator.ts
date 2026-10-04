@@ -7,6 +7,7 @@ import { continueLead, leads } from './agents/leads';
 import { queueStatus, refuseReorder } from './agents/queue';
 import { continueSchedule } from './agents/schedule';
 import { continueFollowup } from './agents/followup';
+import { answerStaffQuestion } from './agents/staff';
 import { continueErase, detectPrivacyRequest, handlePrivacy } from './agents/privacy';
 import { classifyIntent } from './intent';
 import {
@@ -17,7 +18,7 @@ import {
   wantsHuman,
   wantsQueueJump,
 } from './safety';
-import { call, ctxFor, say, setState, type AgentEnv, type Turn } from './turn';
+import { call, ctxFor, say, sayText, setState, type AgentEnv, type Turn } from './turn';
 
 export interface InboundResult {
   replies: string[];
@@ -95,6 +96,23 @@ export async function handleInbound(
       });
       await say(turn, 'system', 'msg.red_flag');
       return result(true);
+    }
+
+    // A message from a doctor's or receptionist's own registered number is a question about the clinic, not a patient chat.
+    const who = await call(turn, 'system', 'identify_staff_phone', { phone: turn.contact });
+    if (who.staff) {
+      const staffCtx = {
+        clinicId: turn.clinicId,
+        conversationId: turn.conversationId,
+        actor: {
+          kind: 'staff' as const,
+          role: who.role,
+          userId: who.userId,
+          doctorId: who.doctorId,
+        },
+      };
+      await sayText(turn, 'system', await answerStaffQuestion(env, staffCtx, turn.text));
+      return result();
     }
 
     // Privacy requests come right after the safety check: STOP must always work, and erasure needs a clear confirmation.
