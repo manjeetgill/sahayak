@@ -244,7 +244,6 @@ export async function runMetric(
 
 const hh = (h: number) => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? 'am' : 'pm'}`;
 const label = (lang: Lang, r: Range) => t(lang, r.label, r.vars ?? {});
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function formatMetric(lang: Lang, metric: Metric, r: Range, d: MetricResult): string {
   const l = label(lang, r);
@@ -329,7 +328,6 @@ export const askClinic = defineTool({
   auditInput: (i) => ({ question: i.question.slice(0, 120) }),
   async run(r, i) {
     const { db, ctx } = r;
-    const s = await getSettings(db, ctx.clinicId);
     const { date: today } = await clinicToday(db, ctx.clinicId);
     const lang: Lang = i.lang ?? (/[ऀ-ॿ]/.test(i.question) ? 'hi' : 'en');
     const parsed =
@@ -350,7 +348,6 @@ export const askClinic = defineTool({
       parsed.range.to,
       scopeDoctor(r, i.question),
     );
-    void s;
     return {
       understood: true,
       metric: parsed.metric,
@@ -454,14 +451,10 @@ export const setMyPhone = defineTool({
   allow: STAFF,
   async run({ db, ctx }, { phone }) {
     if (ctx.actor.kind !== 'staff') throw new ToolError('forbidden', 'Staff only', 403);
-    try {
-      await db.query('UPDATE staff_users SET phone=$2 WHERE id=$1', [
-        ctx.actor.userId,
-        phone || null,
-      ]);
-    } catch (e: any) {
-      throw e;
-    }
+    await db.query('UPDATE staff_users SET phone=$2 WHERE id=$1', [
+      ctx.actor.userId,
+      phone || null,
+    ]);
     return { ok: true };
   },
 });
@@ -543,7 +536,6 @@ export const sendDailyBriefs = defineTool({
   },
 });
 
-void cap;
 export const askTools = [
   clinicMetric,
   askClinic,

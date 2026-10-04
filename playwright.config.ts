@@ -19,6 +19,7 @@ export default defineConfig({
       command: 'pnpm dev:api',
       url: 'http://127.0.0.1:4000/health',
       reuseExistingServer: true,
+      gracefulShutdown: { signal: 'SIGTERM', timeout: 5000 },
       timeout: 60_000,
       env: {
         JOBS_ENABLED: 'false',
@@ -31,6 +32,7 @@ export default defineConfig({
       command: 'pnpm dev:web',
       url: 'http://127.0.0.1:3000',
       reuseExistingServer: true,
+      gracefulShutdown: { signal: 'SIGTERM', timeout: 5000 },
       timeout: 90_000,
       env: { NEXT_PUBLIC_API_URL: 'http://127.0.0.1:4000' },
     },
