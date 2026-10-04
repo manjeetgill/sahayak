@@ -170,3 +170,55 @@ describe("unknown caller on a doctor's number", () => {
     expect(r.replies[0]).toMatch(/is booked for/);
   });
 });
+
+describe('reminder consent right after booking', () => {
+  const book = async (phone: string) => {
+    await say(phone, 'book an appointment tomorrow morning', c.doctorIds[0]);
+    return say(phone, '1');
+  };
+  it('asks once; YES records both consents and schedules the reminder', async () => {
+    const phone = '+919500000091';
+    await addPatient(admin, c.clinicId, 'No Consent', phone, { whatsapp: false });
+    const r = await book(phone);
+    expect(r.replies.join(' ')).toMatch(/Would you like a WhatsApp reminder/);
+    const yes = await say(phone, 'yes');
+    expect(yes.replies[0]).toMatch(/remind you/);
+    const consents = await admin.query(
+      'SELECT purpose FROM consents WHERE patient_id=(SELECT id FROM patients WHERE phone=$1) AND withdrawn_at IS NULL ORDER BY purpose',
+      [phone],
+    );
+    expect(consents.rows.map((x) => x.purpose)).toEqual([
+      'reminders_followups',
+      'visit_data',
+      'whatsapp_messaging',
+    ]);
+    const f = await admin.query(
+      'SELECT kind, status FROM follow_ups WHERE patient_id=(SELECT id FROM patients WHERE phone=$1)',
+      [phone],
+    );
+    expect(f.rows).toEqual([{ kind: 'reminder', status: 'pending' }]);
+  });
+  it('NO records nothing and schedules nothing', async () => {
+    const phone = '+919500000092';
+    await addPatient(admin, c.clinicId, 'Declines', phone, { whatsapp: false });
+    await book(phone);
+    const no = await say(phone, 'no');
+    expect(no.replies[0]).toMatch(/no reminders/);
+    const n = await admin.query(
+      "SELECT count(*)::int n FROM consents WHERE patient_id=(SELECT id FROM patients WHERE phone=$1) AND purpose<>'visit_data'",
+      [phone],
+    );
+    expect(n.rows[0].n).toBe(0);
+  });
+  it('patients who already consented are not asked again', async () => {
+    const r = await book('+919500000002');
+    expect(r.replies.join(' ')).not.toMatch(/reminder/i);
+  });
+  it('ignoring the question and asking something else just moves on', async () => {
+    const phone = '+919500000093';
+    await addPatient(admin, c.clinicId, 'Ignores', phone, { whatsapp: false });
+    await book(phone);
+    const r = await say(phone, 'what are your timings');
+    expect(r.replies[0]).toMatch(/Clinic timings/);
+  });
+});

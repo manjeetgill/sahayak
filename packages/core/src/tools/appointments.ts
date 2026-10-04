@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Db } from '@sahayak/db';
 import { defineTool, ToolError } from './registry';
-import { assertOwn, clinicToday } from './common';
+import { assertOwn, clinicToday, hasConsent } from './common';
 import { planFollowups } from './followups';
 
 const STAFF = ['staff:doctor', 'staff:receptionist'];
@@ -159,6 +159,7 @@ export const bookAppointment = defineTool({
       r.emit({ type: 'queue_changed', doctorId: i.doctorId }); // doctor's "today" list refreshes live
       return {
         appointmentId: ins.rows[0].id as string,
+        remindersConsent: await hasConsent(db, i.patientId, 'reminders_followups'),
         startsAt: (ins.rows[0].starts_at as Date).toISOString(),
       };
     } catch (e: any) {

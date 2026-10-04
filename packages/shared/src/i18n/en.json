@@ -77,5 +77,8 @@
   "msg.ask_pref": "Which day and time suits you with {doctor}? For example \"tomorrow evening\", \"Monday 5 pm\", or \"earliest\".",
   "msg.pref_not_understood": "Sorry, I didn't catch the day or time. Please tell me like \"tomorrow morning\", \"Friday after 4 pm\", or say \"earliest\".",
   "msg.slots_nearest": "Nothing is free at that time. The nearest options with {doctor}: {options}. Reply with the number you want.",
-  "msg.confirm_single": "The next available time with {doctor} is {options}. Reply YES to book it, or tell me another day or time."
+  "msg.confirm_single": "The next available time with {doctor} is {options}. Reply YES to book it, or tell me another day or time.",
+  "msg.ask_reminders": "Would you like a WhatsApp reminder before your appointment? Reply YES to get one, or NO.",
+  "msg.reminders_on": "Done. I'll remind you before your appointment. Reply STOP any time to stop messages.",
+  "msg.reminders_off": "No problem, no reminders will be sent."
 }

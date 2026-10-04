@@ -204,7 +204,7 @@ export async function continueFlow(turn: Turn, agent = AGENT): Promise<boolean> 
           when: fmtTime(startsAt, info.timezone, turn.lang),
         });
       } else {
-        await call(turn, agent, 'book_appointment', {
+        const booked = await call(turn, agent, 'book_appointment', {
           doctorId: st.doctorId,
           patientId: turn.patientId,
           startsAt,
@@ -215,6 +215,14 @@ export async function continueFlow(turn: Turn, agent = AGENT): Promise<boolean> 
           doctor: st.doctorName,
           when: fmtTime(startsAt, info.timezone, turn.lang),
         });
+        // Reminders need their own consent. Ask once, right after booking, if the patient has not given it.
+        if (!booked.remindersConsent) {
+          await setState(turn, agent, {
+            flow: 'reminder_consent',
+            appointmentId: booked.appointmentId,
+          });
+          await say(turn, agent, 'msg.ask_reminders');
+        }
       }
     } catch (e) {
       if (e instanceof ToolError && e.code === 'slot_taken') {
@@ -222,6 +230,18 @@ export async function continueFlow(turn: Turn, agent = AGENT): Promise<boolean> 
         return true;
       }
       throw e;
+    }
+    return true;
+  }
+  if (st.flow === 'reminder_consent') {
+    const intent = classifyIntent(turn.text);
+    if (intent !== 'yes' && intent !== 'no') return false; // anything else: drop the question, handle as a new request
+    await setState(turn, agent, {});
+    if (intent === 'yes') {
+      await call(turn, agent, 'enable_reminders', { appointmentId: st.appointmentId });
+      await say(turn, agent, 'msg.reminders_on');
+    } else {
+      await say(turn, agent, 'msg.reminders_off');
     }
     return true;
   }

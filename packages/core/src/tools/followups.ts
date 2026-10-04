@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { defineTool, type ToolRun } from './registry';
+import { defineTool, ToolError, type ToolRun } from './registry';
 import { fmtTime, getSettings, hasConsent, notifyPatient } from './common';
 
 const STAFF = ['staff:doctor', 'staff:receptionist'];
@@ -161,4 +161,30 @@ export async function planFollowups(
     );
   }
 }
-export const followupTools = [scheduleFollowup, runFollowup, queueRecalls];
+export const enableReminders = defineTool({
+  name: 'enable_reminders',
+  description:
+    'The patient said YES to WhatsApp reminders: record the two consents (messaging and reminders) and schedule the reminder for this appointment.',
+  module: 'followups',
+  input: z.object({ appointmentId: z.string().uuid() }),
+  allow: ['agent:front_desk', 'agent:leads'],
+  async run(r, { appointmentId }) {
+    const { db, ctx } = r;
+    const a = (
+      await db.query('SELECT patient_id, starts_at FROM appointments WHERE id=$1', [appointmentId])
+    ).rows[0];
+    if (!a || a.patient_id !== ctx.patientId)
+      throw new ToolError('not_found', 'Appointment not found for this patient', 404);
+    for (const purpose of ['whatsapp_messaging', 'reminders_followups']) {
+      await db.query(
+        `INSERT INTO consents (clinic_id,patient_id,purpose,notice_version) SELECT $1,$2,$3,'v1'
+          WHERE NOT EXISTS (SELECT 1 FROM consents WHERE patient_id=$2 AND purpose=$3 AND withdrawn_at IS NULL)`,
+        [ctx.clinicId, a.patient_id, purpose],
+      );
+    }
+    await planFollowups(r, 'booked', a.patient_id, { id: appointmentId, startsAt: a.starts_at });
+    return { ok: true };
+  },
+});
+
+export const followupTools = [scheduleFollowup, runFollowup, queueRecalls, enableReminders];
