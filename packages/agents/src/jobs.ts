@@ -1,6 +1,6 @@
 import PgBoss from 'pg-boss';
 import type pg from 'pg';
-import { callTool, type EventBus, type MessagingChannel } from '@sahayak/core';
+import { callTool, deliverWebhooks, type EventBus, type MessagingChannel } from '@sahayak/core';
 import { withClinic } from '@sahayak/db';
 
 type Deps = {
@@ -106,17 +106,27 @@ export async function startJobs({ adminUrl, pool, bus, channel, log = () => {} }
     }
   };
 
-  for (const q of ['followups.sweep', 'recall.sweep', 'queue.sweep', 'retention.sweep'])
+  for (const q of [
+    'followups.sweep',
+    'recall.sweep',
+    'queue.sweep',
+    'retention.sweep',
+    'webhooks.sweep',
+  ])
     await boss.createQueue(q);
   await boss.schedule('followups.sweep', '* * * * *');
   await boss.schedule('queue.sweep', '* * * * *');
   await boss.schedule('recall.sweep', '0 10 * * *');
+  await boss.schedule('webhooks.sweep', '* * * * *');
   await boss.schedule('retention.sweep', '30 21 * * *'); // 03:00 IST
   await boss.work('followups.sweep', async () => {
     await followups();
   });
   await boss.work('queue.sweep', async () => {
     await eachClinic('sweep_no_shows', {});
+  });
+  await boss.work('webhooks.sweep', async () => {
+    await deliverWebhooks(pool, log);
   });
   await boss.work('retention.sweep', async () => {
     await eachClinic('apply_retention', {});
@@ -126,6 +136,10 @@ export async function startJobs({ adminUrl, pool, bus, channel, log = () => {} }
   });
   // Real vendors: drain the outbox every few seconds in-process (cron granularity is one minute).
   let timer: NodeJS.Timeout | undefined;
+  const hookTimer = setInterval(
+    () => deliverWebhooks(pool, log).catch((e) => log('webhook sweep failed', e)),
+    5000,
+  );
   if (channel?.queued)
     timer = setInterval(
       () => deliverOutbox(pool, channel, log).catch((e) => log('outbox sweep failed', e)),
@@ -136,6 +150,7 @@ export async function startJobs({ adminUrl, pool, bus, channel, log = () => {} }
     runFollowups: followups,
     stop: () => {
       clearInterval(timer);
+      clearInterval(hookTimer);
       return boss.stop({ graceful: true, timeout: 5000 });
     },
   };

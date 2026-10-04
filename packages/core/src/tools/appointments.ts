@@ -3,9 +3,10 @@ import type { Db } from '@sahayak/db';
 import { defineTool, ToolError } from './registry';
 import { assertOwn, clinicToday, hasConsent } from './common';
 import { planFollowups } from './followups';
+import { emitWebhook } from '../webhooks';
 
 const STAFF = ['staff:doctor', 'staff:receptionist'];
-const BOOKERS = [...STAFF, 'agent:front_desk', 'agent:leads', 'agent:schedule'];
+const BOOKERS = [...STAFF, 'agent:front_desk', 'agent:leads', 'agent:schedule', 'api'];
 
 export async function freeSlots(
   db: Db,
@@ -86,6 +87,7 @@ export const listFreeSlots = defineTool({
   name: 'list_free_slots',
   description:
     'Free appointment slots for a doctor. Optionally from a date onward and within a time-of-day window (clinic local time). Returns the earliest matches.',
+  scope: 'read',
   module: 'appointments',
   input: z.object({
     doctorId: z.string().uuid(),
@@ -123,7 +125,7 @@ export const bookAppointment = defineTool({
     patientId: z.string().uuid(),
     startsAt: z.string().datetime(),
     reason: z.string().max(200).optional(),
-    source: z.enum(['manual', 'whatsapp', 'walk_in', 'agent']).default('agent'),
+    source: z.enum(['manual', 'whatsapp', 'walk_in', 'agent', 'api']).default('agent'),
   }),
   allow: BOOKERS,
   async run(r, i) {
@@ -157,6 +159,19 @@ export const bookAppointment = defineTool({
         startsAt: ins.rows[0].starts_at,
       });
       r.emit({ type: 'queue_changed', doctorId: i.doctorId }); // doctor's "today" list refreshes live
+      await emitWebhook(
+        db,
+        ctx.clinicId,
+        'appointment.booked',
+        {
+          appointmentId: ins.rows[0].id,
+          doctorId: i.doctorId,
+          patientId: i.patientId,
+          startsAt: (ins.rows[0].starts_at as Date).toISOString(),
+          source: i.source,
+        },
+        { patientId: i.patientId, extra: { reason: i.reason ?? null } },
+      );
       return {
         appointmentId: ins.rows[0].id as string,
         remindersConsent: await hasConsent(db, i.patientId, 'reminders_followups'),
@@ -172,6 +187,7 @@ export const bookAppointment = defineTool({
 export const getPatientAppointments = defineTool({
   name: 'get_patient_appointments',
   description: "List a patient's upcoming appointments.",
+  scope: 'read',
   module: 'appointments',
   input: z.object({ patientId: z.string().uuid() }),
   allow: [...BOOKERS, 'patient', 'agent:records', 'agent:followup'],
@@ -208,6 +224,17 @@ export const cancelAppointment = defineTool({
     if (a.rows[0].patient_id) assertOwn(ctx, a.rows[0].patient_id);
     await db.query("UPDATE appointments SET status='cancelled' WHERE id=$1", [appointmentId]);
     emit({ type: 'queue_changed' });
+    await emitWebhook(
+      db,
+      ctx.clinicId,
+      'appointment.cancelled',
+      {
+        appointmentId,
+        patientId: a.rows[0].patient_id,
+        startsAt: (a.rows[0].starts_at as Date).toISOString(),
+      },
+      { patientId: a.rows[0].patient_id },
+    );
     return { ok: true, startsAt: (a.rows[0].starts_at as Date).toISOString() };
   },
 });
@@ -245,6 +272,18 @@ export const rescheduleAppointment = defineTool({
       [i.appointmentId, start, slot],
     );
     emit({ type: 'queue_changed', doctorId: a.rows[0].doctor_id });
+    await emitWebhook(
+      db,
+      ctx.clinicId,
+      'appointment.rescheduled',
+      {
+        appointmentId: i.appointmentId,
+        doctorId: a.rows[0].doctor_id,
+        patientId: a.rows[0].patient_id,
+        startsAt: start.toISOString(),
+      },
+      { patientId: a.rows[0].patient_id },
+    );
     return { ok: true, startsAt: start.toISOString() };
   },
 });

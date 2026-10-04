@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Lang } from '@sahayak/shared';
 import { defineTool, ToolError, type ToolRun } from './registry';
+import { emitWebhook } from '../webhooks';
 import { fmtTime, getSettings, notifyPatient } from './common';
 import { nextFreeSlots } from './appointments';
 
@@ -220,6 +221,13 @@ export const confirmScheduleShift = defineTool({
     }
     r.emit({ type: 'queue_changed', doctorId: p.doctor_id });
     r.emit({ type: 'schedule_proposal', proposalId });
+    await emitWebhook(db, ctx.clinicId, 'schedule.shifted', {
+      proposalId,
+      doctorId: p.doctor_id,
+      minutes: p.minutes,
+      moved: items.length,
+      notified,
+    });
     return { ok: true, moved: items.length, notified, noConsent };
   },
 });

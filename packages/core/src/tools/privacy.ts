@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { t, type Lang } from '@sahayak/shared';
 import { defineTool, ToolError, type ToolRun } from './registry';
+import { emitWebhook } from '../webhooks';
 import { assertOwn, deliver, getSettings } from './common';
 
 const STAFF = ['staff:doctor', 'staff:receptionist'];
@@ -79,6 +80,7 @@ export async function erasePatient(
     );
   }
   await logRequest(r, via === 'retention' ? 'retention_erase' : 'erase', via);
+  if (patientId) await emitWebhook(db, ctx.clinicId, 'patient.erased', { patientId }); // lets connected systems delete their copies
   r.emit({ type: 'queue_changed' });
 }
 

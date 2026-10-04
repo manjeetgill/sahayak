@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { defineTool, ToolError } from './registry';
+import { emitWebhook } from '../webhooks';
 import {
   assertOwn,
   clinicToday,
@@ -26,9 +27,10 @@ export const getClinicInfo = defineTool({
   name: 'get_clinic_info',
   description:
     'Clinic timings, address, directions, phone and doctors. This is the ONLY source for answering clinic questions.',
+  scope: 'read',
   module: 'core',
   input: z.object({}),
-  allow: [...AGENTS, ...STAFF, 'patient', 'system'],
+  allow: [...AGENTS, ...STAFF, 'patient', 'system', 'api'],
   async run({ db, ctx }) {
     const s = await getSettings(db, ctx.clinicId);
     const docs = await db.query(
@@ -71,6 +73,18 @@ export const flagToReceptionist = defineTool({
       ],
     );
     emit({ type: 'flag_raised', flagId: f.rows[0].id, severity: i.severity });
+    await emitWebhook(
+      db,
+      ctx.clinicId,
+      'flag.raised',
+      {
+        flagId: f.rows[0].id,
+        kind: i.kind,
+        severity: i.severity,
+        patientId: ctx.patientId ?? null,
+      },
+      { patientId: ctx.patientId, extra: { summary: i.summary } },
+    );
     return { flagId: f.rows[0].id as string };
   },
 });
@@ -97,6 +111,19 @@ export const raiseRedFlag = defineTool({
       ],
     );
     emit({ type: 'flag_raised', flagId: f.rows[0].id, severity: 'urgent' });
+    await emitWebhook(
+      db,
+      ctx.clinicId,
+      'flag.raised',
+      {
+        flagId: f.rows[0].id,
+        kind: 'red_flag',
+        severity: 'urgent',
+        topic: i.topic,
+        patientId: ctx.patientId ?? null,
+      },
+      { patientId: ctx.patientId, extra: { excerpt: i.excerpt } },
+    );
     return { flagId: f.rows[0].id as string, doctorNotified: true };
   },
 });
@@ -144,6 +171,18 @@ export const handoffToHuman = defineTool({
     );
     emit({ type: 'flag_raised', flagId: f.rows[0].id, severity: 'normal' });
     emit({ type: 'conversation_updated', conversationId: ctx.conversationId });
+    await emitWebhook(
+      db,
+      ctx.clinicId,
+      'flag.raised',
+      {
+        flagId: f.rows[0].id,
+        kind: i.reason,
+        severity: 'normal',
+        patientId: ctx.patientId ?? null,
+      },
+      { patientId: ctx.patientId, extra: { summary: i.summary } },
+    );
     return { flagId: f.rows[0].id as string };
   },
 });
@@ -300,6 +339,13 @@ export const receiveMessage = defineTool({
       )
     ).rows[0];
     emit({ type: 'conversation_updated', conversationId: conv.id });
+    await emitWebhook(
+      db,
+      ctx.clinicId,
+      'message.received',
+      { conversationId: c.id, patientId, channel: i.channel },
+      { patientId, extra: { text: i.text } },
+    );
     return {
       conversationId: c.id as string,
       patientId,

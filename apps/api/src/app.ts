@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import cors from '@fastify/cors';
@@ -15,6 +16,8 @@ import {
 } from '@sahayak/agents';
 import {
   callTool,
+  hashKey,
+  WEBHOOK_EVENTS,
   MockSpeechToText,
   MockTextToSpeech,
   type ChannelPlugin,
@@ -28,6 +31,7 @@ import {
   type ToolContext,
 } from '@sahayak/core';
 import { verifyPassword, withClinic } from '@sahayak/db';
+import { openApiSpec } from './openapi';
 import {
   BUILTIN_RED_FLAGS,
   CheckinInput,
@@ -428,6 +432,217 @@ export async function buildApp(deps: AppDeps) {
       text: z.object({ text: z.string().min(1).max(2000) }).parse(req.body).text,
     });
   });
+
+  // ---- integrations (doctor): API keys and webhooks ----
+  app.get('/staff/integrations', async (req) => {
+    const c = await claims(req, ['doctor']);
+    const [keys, hooks] = await Promise.all([
+      callTool(rt, staffCtx(c), 'list_api_keys', {}),
+      callTool(rt, staffCtx(c), 'list_webhooks', {}),
+    ]);
+    return { ...keys, ...hooks, events: WEBHOOK_EVENTS };
+  });
+  app.post('/staff/integrations/keys', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'create_api_key', req.body);
+  });
+  app.delete('/staff/integrations/keys/:id', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'revoke_api_key', { id: idParam(req) });
+  });
+  app.post('/staff/integrations/webhooks', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'create_webhook', req.body);
+  });
+  app.patch('/staff/integrations/webhooks/:id', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'update_webhook', {
+      ...(req.body as object),
+      id: idParam(req),
+    });
+  });
+  app.delete('/staff/integrations/webhooks/:id', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'delete_webhook', { id: idParam(req) });
+  });
+  app.get('/staff/integrations/webhooks/:id/deliveries', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'list_webhook_deliveries', { webhookId: idParam(req) });
+  });
+  app.post('/staff/integrations/test', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'test_webhook', {});
+  });
+
+  // ---- public API v1 (API key in "Authorization: Bearer shy_..."). Everything goes through the same tools as the agents. ----
+  const buckets = new Map<string, { n: number; reset: number }>();
+  const apiCtx = async (req: FastifyRequest): Promise<ToolContext> => {
+    const m = String(req.headers.authorization ?? '').match(
+      /^Bearer (shy_([0-9a-f]{8})_[0-9a-f]{32})$/,
+    );
+    if (!m)
+      throw new ToolError(
+        'unauthorized',
+        'Send your API key as "Authorization: Bearer shy_..."',
+        401,
+      );
+    const row = (await pool.query('SELECT * FROM auth_lookup_api_key($1)', [m[2]])).rows[0];
+    const given = Buffer.from(hashKey(m[1]));
+    const want = Buffer.from(row?.key_hash ?? '0'.repeat(64));
+    if (!row || given.length !== want.length || !timingSafeEqual(given, want))
+      throw new ToolError('unauthorized', 'Invalid or revoked API key', 401);
+    const now = Date.now();
+    const b = buckets.get(row.id);
+    if (!b || b.reset < now) buckets.set(row.id, { n: 1, reset: now + 60_000 });
+    else if (++b.n > 120)
+      throw new ToolError(
+        'rate_limited',
+        'Too many requests: limit is 120 per minute per key',
+        429,
+      );
+    if (!b || b.n === 1)
+      withClinic(pool, row.clinic_id, (db) =>
+        db.query('UPDATE api_keys SET last_used_at=now() WHERE id=$1', [row.id]),
+      ).catch(() => {});
+    return { clinicId: row.clinic_id, actor: { kind: 'api', keyId: row.id, scopes: row.scopes } };
+  };
+  const v1 =
+    <T>(fn: (ctx: ToolContext, req: FastifyRequest) => Promise<T>) =>
+    async (req: FastifyRequest) =>
+      fn(await apiCtx(req), req);
+
+  app.get(
+    '/v1/doctors',
+    v1(async (ctx) => (await callTool(rt, ctx, 'get_clinic_info', {})).doctors),
+  );
+  app.get(
+    '/v1/slots',
+    v1(async (ctx, req) => {
+      const q = z
+        .object({
+          doctorId: z.string().uuid(),
+          date: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/)
+            .optional(),
+          from: z
+            .string()
+            .regex(/^\d{2}:\d{2}$/)
+            .optional(),
+          to: z
+            .string()
+            .regex(/^\d{2}:\d{2}$/)
+            .optional(),
+          count: z.coerce.number().int().min(1).max(20).default(5),
+        })
+        .parse(req.query);
+      return callTool(rt, ctx, 'list_free_slots', q);
+    }),
+  );
+  app.get(
+    '/v1/appointments',
+    v1(async (ctx, req) =>
+      callTool(
+        rt,
+        ctx,
+        'list_appointments',
+        z
+          .object({
+            date: z
+              .string()
+              .regex(/^\d{4}-\d{2}-\d{2}$/)
+              .optional(),
+            doctorId: z.string().uuid().optional(),
+          })
+          .parse(req.query),
+      ),
+    ),
+  );
+  app.post(
+    '/v1/appointments',
+    v1(async (ctx, req) => {
+      const b = z
+        .object({
+          doctorId: z.string().uuid(),
+          startsAt: z.string().datetime(),
+          reason: z.string().max(200).optional(),
+          patient: z.object({
+            phone: PhoneSchema,
+            name: z.string().trim().min(1).max(100).optional(),
+            language: z.enum(['en', 'hi']).default('en'),
+          }),
+          consentVisitData: z.boolean().optional(),
+        })
+        .parse(req.body);
+      const found = await callTool(rt, ctx, 'lookup_patient_by_phone', { phone: b.patient.phone });
+      let patientId: string = found.patientId;
+      if (!found.returning) {
+        if (!b.patient.name)
+          throw new ToolError('name_required', 'patient.name is required for a new patient', 400);
+        if (b.consentVisitData !== true)
+          throw new ToolError(
+            'consent_required',
+            'Set consentVisitData: true only if the patient agreed to the clinic storing their details',
+            400,
+          );
+        patientId = (
+          await callTool(rt, ctx, 'create_patient', {
+            name: b.patient.name,
+            phone: b.patient.phone,
+            language: b.patient.language,
+            consentVisitData: true,
+          })
+        ).patientId;
+      }
+      return callTool(rt, ctx, 'book_appointment', {
+        doctorId: b.doctorId,
+        patientId,
+        startsAt: b.startsAt,
+        reason: b.reason,
+        source: 'api',
+      }).then((r) => ({ ...r, patientId }));
+    }),
+  );
+  app.post(
+    '/v1/appointments/:id/cancel',
+    v1(async (ctx, req) =>
+      callTool(rt, ctx, 'cancel_appointment', { appointmentId: idParam(req) }),
+    ),
+  );
+  app.post(
+    '/v1/appointments/:id/reschedule',
+    v1(async (ctx, req) =>
+      callTool(rt, ctx, 'reschedule_appointment', {
+        appointmentId: idParam(req),
+        newStartsAt: z.object({ newStartsAt: z.string().datetime() }).parse(req.body).newStartsAt,
+      }),
+    ),
+  );
+  app.get(
+    '/v1/queue',
+    v1(async (ctx) => callTool(rt, ctx, 'get_queue_overview', {})),
+  );
+  app.post(
+    '/v1/messages',
+    v1(async (ctx, req) => {
+      const b = z
+        .object({ phone: PhoneSchema, text: z.string().trim().min(1).max(1000) })
+        .parse(req.body);
+      const found = await callTool(rt, ctx, 'lookup_patient_by_phone', { phone: b.phone });
+      if (!found.returning)
+        throw new ToolError('not_found', 'No patient with that phone number', 404);
+      return callTool(rt, ctx, 'message_patient', { patientId: found.patientId, text: b.text });
+    }),
+  );
+  app.post(
+    '/v1/webhooks',
+    v1(async (ctx, req) => callTool(rt, ctx, 'create_webhook', req.body)),
+  );
+  app.delete(
+    '/v1/webhooks/:id',
+    v1(async (ctx, req) => callTool(rt, ctx, 'delete_webhook', { id: idParam(req) })),
+  );
+  app.get('/v1/openapi.json', async () => openApiSpec());
 
   // ---- safety report: live checks, activity, latest eval, audit log ----
   const evalFile = () => {

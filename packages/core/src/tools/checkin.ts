@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { CheckinInput, LangSchema } from '@sahayak/shared';
 import { defineTool, ToolError, type ToolRun } from './registry';
+import { emitWebhook } from '../webhooks';
 import { clinicToday, getSettings, notifyPatient, queueSnapshot } from './common';
 
 const CONSENT_NOTICE_VERSION = 'v1';
-const FRONT = ['patient', 'staff:receptionist', 'agent:checkin'];
+const FRONT = ['patient', 'staff:receptionist', 'agent:checkin', 'api'];
 
 /** Add the next token for the doctor's queue today. Serialised per clinic+day so numbers never clash. */
 export async function issueToken(
@@ -43,6 +44,7 @@ export const lookupPatientByPhone = defineTool({
   name: 'lookup_patient_by_phone',
   description:
     'Check whether a phone number belongs to a returning patient. Returns only a yes/no and the patient id.',
+  scope: 'read',
   module: 'checkin',
   input: z.object({ phone: CheckinInput.shape.phone }),
   allow: [
@@ -130,6 +132,14 @@ export const checkInPatient = defineTool({
         [apptId],
       );
     const tok = await issueToken(r, patientId, input.doctorId, apptId);
+    if (tok.created)
+      await emitWebhook(
+        db,
+        ctx.clinicId,
+        'patient.checked_in',
+        { patientId, queueEntryId: tok.id, doctorId: input.doctorId, token: tok.token, returning },
+        { patientId },
+      );
     const snap = await queueSnapshot(db, ctx.clinicId, input.doctorId);
     const me = snap.find((e) => e.id === tok.id);
     const wait = me?.wait_minutes ?? 0;
@@ -207,7 +217,7 @@ export const createPatient = defineTool({
     language: LangSchema.default('en'),
     consentVisitData: z.literal(true),
   }),
-  allow: ['agent:leads', 'agent:front_desk', 'staff:receptionist'],
+  allow: ['agent:leads', 'agent:front_desk', 'staff:receptionist', 'api'],
   async run({ db, ctx }, i) {
     const r = await db.query(
       `INSERT INTO patients (clinic_id,name,phone,language) VALUES ($1,$2,$3,$4)

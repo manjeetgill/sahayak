@@ -170,7 +170,7 @@ export function assertOwn(
   ctx: { actor: { kind: string }; patientId?: string | null },
   patientId: string,
 ) {
-  if (ctx.actor.kind === 'staff' || ctx.actor.kind === 'system') return;
+  if (ctx.actor.kind === 'staff' || ctx.actor.kind === 'system' || ctx.actor.kind === 'api') return;
   if (ctx.patientId !== patientId)
     throw new ToolError('forbidden', "You may only access the current patient's own data", 403);
 }

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { defineTool, ToolError, type ToolRun } from './registry';
 import { clinicToday, getSettings, notifyPatient, queueSnapshot } from './common';
 import { planFollowups } from './followups';
+import { emitWebhook } from '../webhooks';
 
 const STAFF = ['staff:doctor', 'staff:receptionist'];
 const id = z.object({ queueEntryId: z.string().uuid() });
@@ -26,14 +27,23 @@ export const callNextPatient = defineTool({
   input: z.object({ doctorId: z.string().uuid().optional() }),
   allow: [...STAFF, 'agent:queue'],
   async run(r, input) {
-    const { db } = r;
+    const { db, ctx } = r;
     const date = await lockDay(r);
     const doctorId = doctorFor(r, input.doctorId);
     const finished = await db.query(
-      `UPDATE queue_entries SET status='done', finished_at=now() WHERE doctor_id=$1 AND queue_date=$2 AND status IN ('called','in_consultation') RETURNING patient_id`,
+      `UPDATE queue_entries SET status='done', finished_at=now() WHERE doctor_id=$1 AND queue_date=$2 AND status IN ('called','in_consultation') RETURNING id, patient_id`,
       [doctorId, date],
     );
-    for (const f of finished.rows) await planFollowups(r, 'finished', f.patient_id);
+    for (const f of finished.rows) {
+      await planFollowups(r, 'finished', f.patient_id);
+      await emitWebhook(
+        db,
+        ctx.clinicId,
+        'visit.finished',
+        { queueEntryId: f.id, patientId: f.patient_id, doctorId },
+        { patientId: f.patient_id },
+      );
+    }
     const next = await db.query(
       `SELECT q.id,q.token_number,q.patient_id,p.name,p.phone,p.language,p.year_of_birth FROM queue_entries q JOIN patients p ON p.id=q.patient_id
         WHERE q.doctor_id=$1 AND q.queue_date=$2 AND q.status='waiting' ORDER BY q.position_key LIMIT 2`,
@@ -45,6 +55,13 @@ export const callNextPatient = defineTool({
     await db.query("UPDATE queue_entries SET status='called', called_at=now() WHERE id=$1", [
       cur.id,
     ]);
+    await emitWebhook(
+      db,
+      ctx.clinicId,
+      'queue.called',
+      { queueEntryId: cur.id, patientId: cur.patient_id, doctorId, token: cur.token_number },
+      { patientId: cur.patient_id },
+    );
     const doc = (await db.query('SELECT name FROM doctors WHERE id=$1', [doctorId])).rows[0].name;
     await notifyPatient(
       r,
@@ -95,6 +112,13 @@ export const finishVisit = defineTool({
     );
     if (!u.rowCount) throw new ToolError('not_found', 'No active visit with that id', 404);
     await planFollowups(r, 'finished', u.rows[0].patient_id);
+    await emitWebhook(
+      r.db,
+      r.ctx.clinicId,
+      'visit.finished',
+      { queueEntryId, patientId: u.rows[0].patient_id, doctorId: u.rows[0].doctor_id },
+      { patientId: u.rows[0].patient_id },
+    );
     r.emit({ type: 'queue_changed', doctorId: u.rows[0].doctor_id });
     return { ok: true };
   },

@@ -7,6 +7,7 @@ import type { EventBus } from '../events';
 export type Actor =
   | { kind: 'staff'; role: 'doctor' | 'receptionist'; userId: string; doctorId?: string | null }
   | { kind: 'agent'; agent: string }
+  | { kind: 'api'; keyId: string; scopes: string[] }
   | { kind: 'patient' }
   | { kind: 'system'; name?: string };
 
@@ -21,7 +22,9 @@ export function actorLabel(a: Actor): string {
       ? `agent:${a.agent}`
       : a.kind === 'system'
         ? `system${a.name ? ':' + a.name : ''}`
-        : 'patient';
+        : a.kind === 'api'
+          ? `api:${a.keyId}`
+          : 'patient';
 }
 
 export interface ToolContext {
@@ -51,6 +54,8 @@ export interface ToolDef<I extends z.ZodTypeAny = z.ZodTypeAny, O = unknown> {
   module: 'checkin' | 'queue' | 'appointments' | 'followups' | 'leads' | 'core';
   input: I;
   allow: string[];
+  /** For API keys: minimum scope needed (read < write < admin). Defaults to write. */
+  scope?: 'read' | 'write' | 'admin';
   /** What to keep in the audit log instead of the full output (keep personal data out of the log). */
   auditOutput?: (output: O) => unknown;
   run: (r: ToolRun, input: z.infer<I>) => Promise<O>;
@@ -125,6 +130,25 @@ export async function callTool(
   if (!tool.allow.includes(actorKey(ctx.actor))) {
     await audit(rt, ctx, name, rawInput, { error: 'permission_denied' }, false);
     throw new ToolError('forbidden', `${actorKey(ctx.actor)} may not call ${name}`, 403);
+  }
+  if (ctx.actor.kind === 'api') {
+    const rank = { read: 1, write: 2, admin: 3 } as const;
+    const have = Math.max(0, ...ctx.actor.scopes.map((s) => rank[s as keyof typeof rank] ?? 0));
+    if (have < rank[tool.scope ?? 'write']) {
+      await audit(
+        rt,
+        ctx,
+        name,
+        rawInput,
+        { error: 'permission_denied', need: tool.scope ?? 'write' },
+        false,
+      );
+      throw new ToolError(
+        'forbidden',
+        `This API key needs "${tool.scope ?? 'write'}" access for ${name}`,
+        403,
+      );
+    }
   }
   const parsed = tool.input.safeParse(rawInput);
   if (!parsed.success) {
