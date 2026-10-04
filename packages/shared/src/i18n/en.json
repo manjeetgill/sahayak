@@ -151,5 +151,11 @@
   "doc.disclaimer": "Electronically generated document, valid only with its verification code.",
   "msg.document_ready": "{doctor} has issued your {kind} (no. {number}). Download it here: {link} . The link works for {days} days.",
   "doc.kind.certificate": "medical certificate",
-  "doc.kind.prescription": "prescription"
+  "doc.kind.prescription": "prescription",
+  "msg.review_ask": "Hello {name}, how was your visit with {doctor} at {clinic}? Reply with a number from 1 (poor) to 5 (excellent). Your answer goes to the clinic team.",
+  "msg.review_thanks": "Thank you for your feedback!",
+  "msg.review_link": "If you would like to share your experience publicly, you can do it here (optional): {link}",
+  "msg.review_sorry": "Sorry we did not meet your expectations. If you like, tell us what we could do better. The clinic team will read it.",
+  "msg.review_comment_thanks": "Thank you, I have passed your comment to the clinic team.",
+  "ask.ratings": "Average rating {label}: {avg} out of 5 from {n} rating(s); {low} low (3 or below)."
 }

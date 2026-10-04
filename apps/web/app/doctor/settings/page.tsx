@@ -309,6 +309,60 @@ export default function Settings() {
         </div>
 
         <div className="card" style={{ marginTop: '1rem' }}>
+          <h2>Patient feedback and public page</h2>
+          <p className="muted">
+            After a visit the assistant asks the patient to rate it from 1 to 5 (only patients who
+            agreed to follow-up messages). Everyone who rates is offered your review link; low
+            ratings alert the receptionist so you can reach out personally.
+          </p>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={cfg.reputation?.enabled === true}
+              onChange={(e) => set('reputation', { ...cfg.reputation, enabled: e.target.checked })}
+            />
+            Ask for feedback after visits
+          </label>
+          <label htmlFor="rurl">Your Google review link (optional)</label>
+          <input
+            id="rurl"
+            value={cfg.reputation?.review_url ?? ''}
+            onChange={(e) => set('reputation', { ...cfg.reputation, review_url: e.target.value })}
+            placeholder="https://g.page/r/..."
+          />
+          <label htmlFor="rdel">Ask this many hours after the visit</label>
+          <input
+            id="rdel"
+            type="number"
+            value={cfg.reputation?.delay_hours ?? 3}
+            onChange={(e) =>
+              set('reputation', { ...cfg.reputation, delay_hours: Number(e.target.value) })
+            }
+          />
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={cfg.reputation?.show_rating === true}
+              onChange={(e) =>
+                set('reputation', { ...cfg.reputation, show_rating: e.target.checked })
+              }
+            />
+            Show the average rating on my public page (needs at least 10 ratings; every rating
+            counts, nothing is hidden)
+          </label>
+          <label htmlFor="about">About the clinic (shown on your public page)</label>
+          <textarea
+            id="about"
+            rows={3}
+            value={cfg.publicPage?.about ?? ''}
+            onChange={(e) => set('publicPage', { about: e.target.value })}
+          />
+          <p>
+            <button onClick={() => save(['reputation', 'publicPage'])}>Save</button>
+          </p>
+        </div>
+
+        <div className="card" style={{ marginTop: '1rem' }}>
           <h2>Your professional details</h2>
           <p className="muted">
             Printed on every certificate and prescription you sign. Your medical registration number
@@ -348,7 +402,7 @@ export default function Settings() {
                 }
               }}
             >
-              Save
+              Save professional details
             </button>
           </p>
         </div>

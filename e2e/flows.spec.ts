@@ -333,7 +333,7 @@ test('certificate: doctor drafts, signs with password, sends on WhatsApp; anyone
   await doc.getByRole('link', { name: 'Agent builder' }).click();
   await doc.getByLabel('Medical registration number').fill('PMC-12345');
   await doc.getByLabel('Qualifications').fill('MBBS, MD');
-  await doc.getByRole('button', { name: 'Save', exact: true }).first().click();
+  await doc.getByRole('button', { name: 'Save professional details' }).click();
   await expect(doc.getByRole('status').first()).toHaveText('Saved');
   await doc.getByRole('link', { name: /Back to doctor screen/ }).click();
   await doc.getByLabel('Find a patient').fill('Vivaan');
@@ -375,4 +375,21 @@ test('certificate: doctor drafts, signs with password, sends on WhatsApp; anyone
   await expect(pub.getByTestId('verify-ok')).not.toContainText('Rest advised');
   await pub.goto('/verify/AAAAAAAAAAAA');
   await expect(pub.getByTestId('verify-bad')).toBeVisible();
+});
+
+test('public clinic page shows what the clinic published, with a booking link', async ({
+  page,
+}) => {
+  await page.goto('/c/dr-sharma');
+  await expect(page.getByRole('heading', { name: "Dr. Sharma's Clinic" })).toBeVisible();
+  await expect(page.getByText('Dr. Anil Sharma')).toBeVisible();
+  await expect(page.getByText('Opening hours')).toBeVisible();
+  await expect(page.getByRole('link', { name: /Check in/ })).toHaveAttribute(
+    'href',
+    '/c/dr-sharma/checkin',
+  );
+  await expect(page.getByText('Open in Maps')).toBeVisible();
+  expect(await page.locator('script[type="application/ld+json"]').innerText()).toContain(
+    'MedicalClinic',
+  );
 });

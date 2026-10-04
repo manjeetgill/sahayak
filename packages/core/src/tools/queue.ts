@@ -35,7 +35,7 @@ export const callNextPatient = defineTool({
       [doctorId, date],
     );
     for (const f of finished.rows) {
-      await planFollowups(r, 'finished', f.patient_id);
+      await planFollowups(r, 'finished', f.patient_id, undefined, f.id);
       await emitWebhook(
         db,
         ctx.clinicId,
@@ -111,7 +111,7 @@ export const finishVisit = defineTool({
       [queueEntryId],
     );
     if (!u.rowCount) throw new ToolError('not_found', 'No active visit with that id', 404);
-    await planFollowups(r, 'finished', u.rows[0].patient_id);
+    await planFollowups(r, 'finished', u.rows[0].patient_id, undefined, queueEntryId);
     await emitWebhook(
       r.db,
       r.ctx.clinicId,

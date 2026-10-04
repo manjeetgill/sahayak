@@ -135,6 +135,11 @@ export default function Setup() {
     <div>
       <div className="topbar">
         <b>Set up {cfg.clinicName}</b>
+        <a href={`/c/${status.slug}`} target="_blank" rel="noreferrer">
+          <button type="button" className="ghost">
+            See your public page
+          </button>
+        </a>
         <a href="/doctor">Skip for now</a>
       </div>
       <div className="wrap" style={{ maxWidth: 720 }}>

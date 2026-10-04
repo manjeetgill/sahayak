@@ -40,6 +40,7 @@ export const getClinicInfo = defineTool({
       clinic: s.clinic_name,
       timezone: s.timezone,
       faqs: (s as any).faqs ?? [],
+      reviewUrl: (s as any).reputation?.review_url || null,
       agents: (s as any).agents ?? {},
       address: s.address,
       directions: s.directions,

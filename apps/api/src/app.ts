@@ -178,6 +178,14 @@ export async function buildApp(deps: AppDeps) {
       ).rows,
     }));
   });
+  app.get('/public/:slug/profile', async (req) => {
+    limitPublic(req.ip);
+    const r = (
+      await pool.query('SELECT public_clinic_profile($1) AS p', [(req.params as any).slug])
+    ).rows[0].p;
+    if (!r) throw new ToolError('not_found', 'Clinic not found', 404);
+    return r;
+  });
   app.post('/public/:slug/lookup', async (req) => {
     const c = await clinicBySlug((req.params as any).slug);
     const phone = z.object({ phone: PhoneSchema }).parse(req.body).phone;

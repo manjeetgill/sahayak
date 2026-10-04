@@ -8,6 +8,9 @@ export default function Home() {
       <p className="muted">AI front desk for clinics. Demo clinic: Dr. Sharma&apos;s Clinic.</p>
       <div className="card list">
         <div>
+          <Link href={`/c/${slug}`}>Public clinic page</Link>
+        </div>
+        <div>
           <Link href={`/c/${slug}/checkin`}>Patient check-in (QR page)</Link>
         </div>
         <div>

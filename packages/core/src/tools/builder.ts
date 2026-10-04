@@ -31,6 +31,8 @@ export const getClinicSettings = defineTool({
       retentionRules: s.retention_rules,
       brief: s.brief,
       aiFeatures: s.ai_features,
+      reputation: s.reputation,
+      publicPage: s.public_page,
       myPhone:
         (
           await db.query('SELECT phone FROM staff_users WHERE id=$1', [
@@ -63,6 +65,8 @@ const COLUMN: Record<string, string> = {
   retentionRules: 'retention_rules',
   brief: 'brief',
   aiFeatures: 'ai_features',
+  reputation: 'reputation',
+  publicPage: 'public_page',
   agents: 'agents',
   modules: 'modules',
 };

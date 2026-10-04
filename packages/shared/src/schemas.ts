@@ -84,6 +84,20 @@ export const AGENT_NAMES = [
 export const ClinicSettingsUpdate = z
   .object({
     clinicName: z.string().trim().min(2).max(80),
+    reputation: z.object({
+      enabled: z.boolean(),
+      review_url: z.union([
+        z.literal(''),
+        z
+          .string()
+          .url()
+          .max(300)
+          .refine((u) => u.startsWith('https://'), 'Use an https link'),
+      ]),
+      delay_hours: z.number().int().min(1).max(72),
+      show_rating: z.boolean(),
+    }),
+    publicPage: z.object({ about: z.string().max(600) }),
     aiFeatures: z.object({ scribe: z.boolean() }),
     brief: z.object({ enabled: z.boolean(), time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/) }),
     address: z.string().max(300),

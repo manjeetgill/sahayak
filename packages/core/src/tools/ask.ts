@@ -18,6 +18,7 @@ export const METRICS = [
   'upcoming',
   'flags',
   'messages',
+  'ratings',
 ] as const;
 export type Metric = (typeof METRICS)[number];
 export interface Range {
@@ -96,6 +97,7 @@ const KEYWORDS: [Metric, RegExp][] = [
     /consult(ation)? (time|duration)|how long (per|each|for each)|per patient time|average (consult|visit) time|परामर्श समय/,
   ],
   ['busiest', /busiest|peak|rush|busy hours|vyast|व्यस्त|भीड़/],
+  ['ratings', /ratings?|feedback|reviews?|stars?|satisfaction|रेटिंग|फीडबैक/],
   ['flags', /alerts?|emergenc|flags?|pending (issues|items)|attention|अलर्ट|आपातकाल/],
   ['messages', /messages?|chats?|whatsapp|संदेश|मैसेज/],
   [
@@ -222,6 +224,14 @@ export async function runMetric(
       )[0].n;
       return { n, names: rows.map((r) => (r.name ?? 'Walk-in') as string) };
     }
+    case 'ratings': {
+      const r = (
+        await q(
+          'SELECT count(*)::int n, COALESCE(round(avg(rating)::numeric,1),0)::float avg, count(*) FILTER (WHERE rating <= 3)::int low FROM visit_feedback WHERE (created_at AT TIME ZONE $4)::date BETWEEN $1 AND $2 AND ($3::uuid IS NULL OR doctor_id=$3)',
+        )
+      )[0];
+      return r;
+    }
     case 'flags': {
       const r = (
         await q(
@@ -278,6 +288,10 @@ export function formatMetric(lang: Lang, metric: Metric, r: Range, d: MetricResu
       return t(lang, 'ask.upcoming', { n: d.n, label: l, names: names(d.names) });
     case 'flags':
       return t(lang, 'ask.flags', d as any);
+    case 'ratings':
+      return d.n
+        ? t(lang, 'ask.ratings', { ...d, label: l })
+        : t(lang, 'ask.no_data', { label: l });
     case 'messages':
       return t(lang, 'ask.messages', { ...d, label: l });
   }

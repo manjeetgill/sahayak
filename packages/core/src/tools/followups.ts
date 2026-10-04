@@ -76,6 +76,35 @@ export const runFollowup = defineTool({
         { clinic: s.clinic_name, when: fmtTime(a.starts_at, s.timezone, p.language) },
         { sender: 'agent:followup' },
       );
+    } else if (f.kind === 'review_request') {
+      const q = (
+        await db.query(
+          'SELECT q.doctor_id, d.name AS doctor FROM queue_entries q JOIN doctors d ON d.id=q.doctor_id WHERE q.id=$1',
+          [f.queue_entry_id],
+        )
+      ).rows[0];
+      if (!q) return skip('visit_missing');
+      if (
+        (await db.query('SELECT 1 FROM visit_feedback WHERE queue_entry_id=$1', [f.queue_entry_id]))
+          .rowCount
+      )
+        return skip('already_rated');
+      await notifyPatient(
+        r,
+        p,
+        'msg.review_ask',
+        { name: p.name.split(' ')[0], doctor: q.doctor, clinic: s.clinic_name },
+        { sender: 'agent:followup' },
+      );
+      await db.query('UPDATE conversations SET state=$2 WHERE clinic_id=$1 AND contact=$3', [
+        ctx.clinicId,
+        JSON.stringify({
+          flow: 'review_rating',
+          queueEntryId: f.queue_entry_id,
+          doctorId: q.doctor_id,
+        }),
+        p.phone,
+      ]);
     } else if (f.kind === 'post_visit') {
       await notifyPatient(
         r,
@@ -139,6 +168,7 @@ export async function planFollowups(
   kind: 'booked' | 'finished',
   patientId: string,
   appt?: { id: string; startsAt: Date },
+  queueEntryId?: string,
 ) {
   const { db, ctx } = r;
   if (!(await hasConsent(db, patientId, 'reminders_followups'))) return;
@@ -159,6 +189,19 @@ export async function planFollowups(
       "INSERT INTO follow_ups (clinic_id,patient_id,kind,run_at) VALUES ($1,$2,'post_visit', now() + make_interval(hours => $3))",
       [ctx.clinicId, patientId, rules.post_visit_hours ?? 24],
     );
+    // Ask for private feedback a few hours after the visit, at most once every 60 days per patient.
+    const rep = s.reputation ?? {};
+    if (rep.enabled && queueEntryId) {
+      const recent = await db.query(
+        "SELECT 1 FROM follow_ups WHERE patient_id=$1 AND kind='review_request' AND created_at > now() - interval '60 days'",
+        [patientId],
+      );
+      if (!recent.rowCount)
+        await db.query(
+          "INSERT INTO follow_ups (clinic_id,patient_id,kind,run_at,queue_entry_id) VALUES ($1,$2,'review_request', now() + make_interval(hours => $3), $4)",
+          [ctx.clinicId, patientId, rep.delay_hours ?? 3, queueEntryId],
+        );
+    }
   }
 }
 export const enableReminders = defineTool({
@@ -187,4 +230,75 @@ export const enableReminders = defineTool({
   },
 });
 
-export const followupTools = [scheduleFollowup, runFollowup, queueRecalls, enableReminders];
+export const recordFeedback = defineTool({
+  name: 'record_feedback',
+  description:
+    "Store the patient's 1-5 rating of a visit. Low ratings alert the receptionist for a personal follow-up.",
+  module: 'followups',
+  input: z.object({
+    rating: z.number().int().min(1).max(5),
+    queueEntryId: z.string().uuid().optional(),
+    doctorId: z.string().uuid().optional(),
+  }),
+  allow: ['agent:followup', 'system'],
+  async run(r, i) {
+    const { db, ctx } = r;
+    if (!ctx.patientId) throw new ToolError('no_patient', 'No patient in this conversation');
+    const f = await db.query(
+      'INSERT INTO visit_feedback (clinic_id,patient_id,doctor_id,queue_entry_id,rating) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+      [ctx.clinicId, ctx.patientId, i.doctorId ?? null, i.queueEntryId ?? null, i.rating],
+    );
+    if (i.rating <= 3) {
+      const p = (await db.query('SELECT name FROM patients WHERE id=$1', [ctx.patientId])).rows[0];
+      const fl = await db.query(
+        "INSERT INTO flags (clinic_id,conversation_id,patient_id,kind,severity,summary) VALUES ($1,$2,$3,'other','normal',$4) RETURNING id",
+        [
+          ctx.clinicId,
+          ctx.conversationId ?? null,
+          ctx.patientId,
+          `Low rating (${i.rating}/5) from ${p.name} after their visit. Please reach out personally.`,
+        ],
+      );
+      r.emit({ type: 'flag_raised', flagId: fl.rows[0].id, severity: 'normal' });
+    }
+    return { feedbackId: f.rows[0].id as string };
+  },
+});
+
+export const addFeedbackComment = defineTool({
+  name: 'add_feedback_comment',
+  description:
+    "Attach the patient's comment to their latest rating and show it to the receptionist.",
+  module: 'followups',
+  input: z.object({ comment: z.string().trim().min(1).max(500) }),
+  allow: ['agent:followup', 'system'],
+  auditInput: (i) => ({ chars: i.comment.length }),
+  async run(r, { comment }) {
+    const { db, ctx } = r;
+    if (!ctx.patientId) throw new ToolError('no_patient', 'No patient in this conversation');
+    await db.query(
+      'UPDATE visit_feedback SET comment=$2 WHERE id = (SELECT id FROM visit_feedback WHERE patient_id=$1 ORDER BY created_at DESC LIMIT 1)',
+      [ctx.patientId, comment],
+    );
+    const fl = await db.query(
+      "INSERT INTO flags (clinic_id,conversation_id,patient_id,kind,severity,summary) VALUES ($1,$2,$3,'other','normal',$4) RETURNING id",
+      [
+        ctx.clinicId,
+        ctx.conversationId ?? null,
+        ctx.patientId,
+        `Feedback comment: "${comment.slice(0, 300)}"`,
+      ],
+    );
+    r.emit({ type: 'flag_raised', flagId: fl.rows[0].id, severity: 'normal' });
+    return { ok: true };
+  },
+});
+
+export const followupTools = [
+  recordFeedback,
+  addFeedbackComment,
+  scheduleFollowup,
+  runFollowup,
+  queueRecalls,
+  enableReminders,
+];

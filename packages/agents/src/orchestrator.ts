@@ -6,7 +6,7 @@ import { continueIntake, findConversation, startIntake } from './agents/intake';
 import { continueLead, leads } from './agents/leads';
 import { queueStatus, refuseReorder } from './agents/queue';
 import { continueSchedule } from './agents/schedule';
-import { continueFollowup } from './agents/followup';
+import { continueFollowup, continueReview } from './agents/followup';
 import { answerStaffQuestion } from './agents/staff';
 import { continueErase, detectPrivacyRequest, handlePrivacy } from './agents/privacy';
 import { classifyIntent } from './intent';
@@ -156,6 +156,8 @@ export async function handleInbound(
     }
     if (turn.state.flow?.startsWith('lead_') && (await continueLead(turn))) return result();
     if (turn.state.flow?.startsWith('late_') && turn.patientId && (await continueSchedule(turn)))
+      return result();
+    if (turn.state.flow?.startsWith('review_') && turn.patientId && (await continueReview(turn)))
       return result();
     if (
       turn.state.flow?.startsWith('followup_') &&
