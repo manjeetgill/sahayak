@@ -51,6 +51,8 @@ export interface ToolDef<I extends z.ZodTypeAny = z.ZodTypeAny, O = unknown> {
   module: 'checkin' | 'queue' | 'appointments' | 'followups' | 'leads' | 'core';
   input: I;
   allow: string[];
+  /** What to keep in the audit log instead of the full output (keep personal data out of the log). */
+  auditOutput?: (output: O) => unknown;
   run: (r: ToolRun, input: z.infer<I>) => Promise<O>;
 }
 
@@ -164,7 +166,7 @@ export async function callTool(
           actorLabel(ctx.actor),
           name,
           JSON.stringify(parsed.data),
-          JSON.stringify(out ?? null),
+          JSON.stringify((tool.auditOutput ? tool.auditOutput(out) : out) ?? null),
         ],
       );
       return out;

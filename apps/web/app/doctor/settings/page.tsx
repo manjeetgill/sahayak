@@ -33,6 +33,10 @@ export default function Settings() {
     setMsg('');
     const body: any = {};
     for (const k of keys) body[k] = k === 'avgConsultMinutes' ? Number(cfg[k]) : cfg[k];
+    if (body.retentionRules)
+      body.retentionRules = Object.fromEntries(
+        Object.entries(body.retentionRules).map(([a, b]) => [a, Number(b)]),
+      );
     if (body.followupRules)
       body.followupRules = Object.fromEntries(
         Object.entries(body.followupRules).map(([a, b]) => [a, Number(b)]),
@@ -313,6 +317,38 @@ export default function Settings() {
             >
               Save number
             </button>
+          </p>
+        </div>
+
+        <div className="card" style={{ marginTop: '1rem' }}>
+          <h2>How long we keep data</h2>
+          <p className="muted">
+            Older data is deleted automatically every night (India's DPDP Act expects data not to be
+            kept longer than needed). Audit entries are never deleted, only stripped of personal
+            content.
+          </p>
+          {(
+            [
+              ['messages_days', 'Chat messages: days (min 30)'],
+              ['intake_days', 'Intake answers: days (min 30)'],
+              ['audit_days', 'Audit log personal content: days (min 365)'],
+              ['inactive_patient_days', 'Erase patients with no visit for: days (min 365)'],
+            ] as const
+          ).map(([k, label]) => (
+            <div key={k}>
+              <label htmlFor={k}>{label}</label>
+              <input
+                id={k}
+                type="number"
+                value={cfg.retentionRules?.[k] ?? ''}
+                onChange={(e) =>
+                  set('retentionRules', { ...cfg.retentionRules, [k]: e.target.value })
+                }
+              />
+            </div>
+          ))}
+          <p>
+            <button onClick={() => save(['retentionRules'])}>Save retention</button>
           </p>
         </div>
 

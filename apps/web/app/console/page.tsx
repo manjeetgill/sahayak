@@ -69,7 +69,10 @@ export default function Console() {
   return (
     <div>
       <div className="topbar">
-        <b>{s.user.name}</b>
+        <b>{s.user.name}</b>{' '}
+        <a href="/console/privacy" style={{ marginLeft: 16 }}>
+          Privacy requests
+        </a>
         <button
           className="ghost small"
           onClick={() => {

@@ -163,3 +163,19 @@ describe('patient check-in → queue → doctor', () => {
     expect((await app.inject({ url: '/staff/flags', headers: h('recB') })).json()).toEqual([]);
   });
 });
+
+describe('privacy requests at the desk', () => {
+  it('receptionist finds a patient, exports a copy, erases; clinic B cannot', async () => {
+    await app.inject({ method: 'POST', url: `/public/${A.slug}/checkin`, payload: { name: 'Desk Privacy', phone: '9811100077', doctorId: A.doctorIds[0], consent: { visit_data: true } } });
+    const found = (await app.inject({ url: '/staff/patients?phone=9811100077', headers: h('recA') })).json();
+    expect(found).toHaveLength(1);
+    expect((await app.inject({ url: '/staff/patients?phone=9811100077', headers: h('recB') })).json()).toEqual([]);
+    const exp = await app.inject({ url: `/staff/patients/${found[0].id}/export`, headers: h('recA') });
+    expect(exp.headers['content-disposition']).toMatch(/patient-data\.json/);
+    expect(exp.json().patient.name).toBe('Desk Privacy');
+    expect((await app.inject({ url: `/staff/patients/${found[0].id}/export`, headers: h('recB') })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'POST', url: `/staff/patients/${found[0].id}/erase`, headers: h('recB') })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'POST', url: `/staff/patients/${found[0].id}/erase`, headers: h('recA') })).statusCode).toBe(200);
+    expect((await app.inject({ url: '/staff/patients?phone=9811100077', headers: h('recA') })).json()).toEqual([]);
+  });
+});

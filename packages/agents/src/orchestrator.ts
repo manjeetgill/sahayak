@@ -7,6 +7,7 @@ import { continueLead, leads } from './agents/leads';
 import { queueStatus, refuseReorder } from './agents/queue';
 import { continueSchedule } from './agents/schedule';
 import { continueFollowup } from './agents/followup';
+import { continueErase, detectPrivacyRequest, handlePrivacy } from './agents/privacy';
 import { classifyIntent } from './intent';
 import {
   checkRedFlag,
@@ -95,6 +96,14 @@ export async function handleInbound(
       await say(turn, 'system', 'msg.red_flag');
       return result(true);
     }
+
+    // Privacy requests come right after the safety check: STOP must always work, and erasure needs a clear confirmation.
+    if (turn.state.flow === 'erase_confirm') {
+      await continueErase(turn);
+      return result();
+    }
+    const privacy = detectPrivacyRequest(turn.text);
+    if (privacy && (await handlePrivacy(turn, privacy))) return result();
 
     if (wantsHuman(turn.text) || isUpset(turn.text)) {
       const reason = wantsHuman(turn.text) ? 'human_requested' : 'upset';

@@ -426,6 +426,33 @@ export async function buildApp(deps: AppDeps) {
     });
   });
 
+  // ---- privacy requests handled at the desk (patient asks in person) ----
+  app.get('/staff/patients', async (req) => {
+    const c = await claims(req);
+    const phone = PhoneSchema.safeParse((req.query as any).phone);
+    if (!phone.success) throw new ToolError('invalid_input', 'Enter a valid phone number', 400);
+    return read(
+      c.clinicId,
+      async (db) =>
+        (
+          await db.query('SELECT id, name, phone, language FROM patients WHERE phone=$1', [
+            phone.data,
+          ])
+        ).rows,
+    );
+  });
+  app.get('/staff/patients/:id/export', async (req, reply) => {
+    const c = await claims(req);
+    const out = await callTool(rt, staffCtx(c), 'export_patient_data', { patientId: idParam(req) });
+    return reply
+      .header('content-disposition', 'attachment; filename="patient-data.json"')
+      .send(out);
+  });
+  app.post('/staff/patients/:id/erase', async (req) => {
+    const c = await claims(req);
+    return callTool(rt, staffCtx(c), 'erase_patient_data', { patientId: idParam(req) });
+  });
+
   // ---- agent builder: doctor-configurable behaviour ----
   app.get('/staff/settings', async (req) => {
     const c = await claims(req);

@@ -106,15 +106,20 @@ export async function startJobs({ adminUrl, pool, bus, channel, log = () => {} }
     }
   };
 
-  for (const q of ['followups.sweep', 'recall.sweep', 'queue.sweep']) await boss.createQueue(q);
+  for (const q of ['followups.sweep', 'recall.sweep', 'queue.sweep', 'retention.sweep'])
+    await boss.createQueue(q);
   await boss.schedule('followups.sweep', '* * * * *');
   await boss.schedule('queue.sweep', '* * * * *');
   await boss.schedule('recall.sweep', '0 10 * * *');
+  await boss.schedule('retention.sweep', '30 21 * * *'); // 03:00 IST
   await boss.work('followups.sweep', async () => {
     await followups();
   });
   await boss.work('queue.sweep', async () => {
     await eachClinic('sweep_no_shows', {});
+  });
+  await boss.work('retention.sweep', async () => {
+    await eachClinic('apply_retention', {});
   });
   await boss.work('recall.sweep', async () => {
     await eachClinic('queue_recalls', {});

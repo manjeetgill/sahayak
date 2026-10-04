@@ -26,6 +26,7 @@ export const getClinicSettings = defineTool({
       intakeQuestions: s.intake_questions,
       faqs: s.faqs,
       followupRules: s.followup_rules,
+      retentionRules: s.retention_rules,
       agents: s.agents,
       modules: s.modules,
       whatsappNumber: s.whatsapp_number,
@@ -49,6 +50,7 @@ const COLUMN: Record<string, string> = {
   intakeQuestions: 'intake_questions',
   faqs: 'faqs',
   followupRules: 'followup_rules',
+  retentionRules: 'retention_rules',
   agents: 'agents',
   modules: 'modules',
 };

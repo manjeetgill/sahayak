@@ -80,5 +80,12 @@
   "msg.confirm_single": "The next available time with {doctor} is {options}. Reply YES to book it, or tell me another day or time.",
   "msg.ask_reminders": "Would you like a WhatsApp reminder before your appointment? Reply YES to get one, or NO.",
   "msg.reminders_on": "Done. I'll remind you before your appointment. Reply STOP any time to stop messages.",
-  "msg.reminders_off": "No problem, no reminders will be sent."
+  "msg.reminders_off": "No problem, no reminders will be sent.",
+  "msg.my_data": "Here is what the clinic holds about you: name {name}, phone {phone}, {visits} visit(s), {appointments} appointment(s), {messages} chat message(s). Consents active: {consents}. To delete everything, reply DELETE MY DATA. To stop messages, reply STOP.",
+  "msg.confirm_erase": "This will permanently erase your name, phone number, chats and intake answers from the clinic's system. Reply DELETE to confirm, or anything else to cancel.",
+  "msg.erased": "Your data has been erased from the clinic's system. Thank you.",
+  "msg.erase_cancelled": "OK, nothing was deleted.",
+  "msg.stopped": "You will not receive any more messages from {clinic}, except replies when you write to us. Reply START if you change your mind.",
+  "msg.started": "Thanks, messages are back on for reminders and updates.",
+  "msg.no_data_held": "I don't have a patient record for this number. If you want this chat removed, reply DELETE."
 }

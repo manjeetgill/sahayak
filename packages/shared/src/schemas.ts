@@ -112,6 +112,12 @@ export const ClinicSettingsUpdate = z
       post_visit_hours: z.number().int().min(1).max(168),
       recall_days: z.number().int().min(14).max(730),
     }),
+    retentionRules: z.object({
+      messages_days: z.number().int().min(30).max(3650),
+      intake_days: z.number().int().min(30).max(3650),
+      audit_days: z.number().int().min(365).max(3650),
+      inactive_patient_days: z.number().int().min(365).max(3650),
+    }),
     agents: z
       .object(
         Object.fromEntries(AGENT_NAMES.map((a) => [a, z.boolean()])) as Record<
