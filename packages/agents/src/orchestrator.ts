@@ -6,6 +6,7 @@ import { continueIntake, findConversation, startIntake } from './agents/intake';
 import { continueLead, leads } from './agents/leads';
 import { queueStatus, refuseReorder } from './agents/queue';
 import { continueSchedule } from './agents/schedule';
+import { continueFollowup } from './agents/followup';
 import { classifyIntent } from './intent';
 import { checkRedFlag, detectLang, isMedicalQuestion, isUpset, wantsHuman, wantsQueueJump } from './safety';
 import { call, ctxFor, say, setState, type AgentEnv, type Turn } from './turn';
@@ -63,6 +64,7 @@ export async function handleInbound(env: AgentEnv, input: { clinicId: string; fr
     if (turn.state.agent === 'intake' && turn.patientId) { await continueIntake(turn); return result(); }
     if (turn.state.flow?.startsWith('lead_') && await continueLead(turn)) return result();
     if (turn.state.flow?.startsWith('late_') && turn.patientId && await continueSchedule(turn)) return result();
+    if (turn.state.flow?.startsWith('followup_') && turn.patientId && await continueFollowup(turn)) return result();
     if (turn.state.flow && turn.patientId && await continueFlow(turn)) return result();
     if (turn.state.flow) await setState(turn, 'system', {}); // message did not fit the flow: drop it and treat as new
 

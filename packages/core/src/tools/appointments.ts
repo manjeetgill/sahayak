@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Db } from '@sahayak/db';
 import { defineTool, ToolError } from './registry';
 import { assertOwn, clinicToday } from './common';
+import { planFollowups } from './followups';
 
 const STAFF = ['staff:doctor', 'staff:receptionist'];
 const BOOKERS = [...STAFF, 'agent:front_desk', 'agent:leads', 'agent:schedule'];
@@ -70,6 +71,7 @@ export const bookAppointment = defineTool({
         `INSERT INTO appointments (clinic_id,doctor_id,patient_id,starts_at,ends_at,source,reason)
          VALUES ($1,$2,$3,$4,$4::timestamptz + make_interval(mins => $5),$6,$7) RETURNING id, starts_at`,
         [ctx.clinicId, i.doctorId, i.patientId, start, slot, i.source, i.reason ?? null]);
+      await planFollowups(r, 'booked', i.patientId, { id: ins.rows[0].id, startsAt: ins.rows[0].starts_at });
       return { appointmentId: ins.rows[0].id as string, startsAt: (ins.rows[0].starts_at as Date).toISOString() };
     } catch (e: any) {
       if (e.code === '23505') throw new ToolError('slot_taken', 'That slot was just taken');

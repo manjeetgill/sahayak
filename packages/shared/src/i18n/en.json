@@ -69,5 +69,9 @@
   "msg.late_reply_options": "Other slots with {doctor}: {options}. Reply with the number you want.",
   "msg.late_rebooked": "Your appointment is now {when}.",
   "msg.recall": "Hello {name}, it has been a while since your last visit to {clinic}. Reply BOOK if you would like a check-up.",
-  "msg.thanks_ack": "You're welcome!"
+  "msg.thanks_ack": "You're welcome!",
+  "msg.followup_ack": "Thank you, I've passed this to the doctor's team.",
+  "msg.followup_worse": "I've alerted the doctor's team right away. If this feels like an emergency, go to the nearest hospital or call 108.",
+  "msg.come_now": "{name}, we called your token {token}. Please come to {doctor}'s room now.",
+  "msg.no_show": "Your token {token} was marked as missed. Please speak to the receptionist to rejoin the queue."
 }

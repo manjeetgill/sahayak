@@ -4,7 +4,7 @@ import websocket from '@fastify/websocket';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { z, ZodError } from 'zod';
-import { handleInbound, startIntakeFor, type AgentEnv, type LlmGate } from '@sahayak/agents';
+import { handleInbound, parseLateRequest, startIntakeFor, type AgentEnv, type LlmGate } from '@sahayak/agents';
 import { callTool, queueSnapshot, registerAllTools, ToolError, type Actor, type EventBus, type ToolContext } from '@sahayak/core';
 import { verifyPassword, withClinic } from '@sahayak/db';
 import { CheckinInput, InboundMessageInput, LoginInput, PhoneSchema, type LiveEvent } from '@sahayak/shared';
@@ -124,8 +124,10 @@ export async function buildApp(deps: AppDeps) {
   app.get('/staff/doctors', async (req) => { const c = await claims(req); return read(c.clinicId, async (db) => (await db.query('SELECT id, name, speciality FROM doctors WHERE active ORDER BY name')).rows); });
   app.get('/staff/queue', async (req) => { const c = await claims(req); return read(c.clinicId, async (db) => {
     const rows = await queueSnapshot(db, c.clinicId, c.role === 'doctor' ? c.doctorId ?? undefined : undefined);
-    const ph = new Map((await db.query('SELECT id, phone FROM patients')).rows.map((p) => [p.id, p.phone]));
-    return rows.map((r) => ({ ...r, phone: c.role === 'receptionist' ? ph.get(r.patient_id) : undefined }));
+    const ph = new Map((await db.query('SELECT id, phone, year_of_birth FROM patients')).rows.map((p) => [p.id, p]));
+    const intake = new Map((await db.query('SELECT queue_entry_id, summary FROM intake_summaries WHERE queue_entry_id IS NOT NULL')).rows.map((i) => [i.queue_entry_id, i.summary]));
+    return rows.map((r) => ({ ...r, phone: c.role === 'receptionist' ? ph.get(r.patient_id)?.phone : undefined,
+      age: ph.get(r.patient_id)?.year_of_birth ? new Date().getFullYear() - ph.get(r.patient_id).year_of_birth : null, intake_summary: intake.get(r.id) ?? null }));
   }); });
   app.get('/staff/today', async (req) => { const c = await claims(req); return read(c.clinicId, async (db) => (await db.query(
     `SELECT a.id, a.starts_at, a.status, a.reason, d.name AS doctor, d.id AS doctor_id, p.name AS patient
@@ -133,9 +135,19 @@ export async function buildApp(deps: AppDeps) {
       WHERE (a.starts_at AT TIME ZONE (SELECT timezone FROM clinics WHERE id=$1))::date = (now() AT TIME ZONE (SELECT timezone FROM clinics WHERE id=$1))::date
         AND ($2::uuid IS NULL OR a.doctor_id=$2) ORDER BY a.starts_at`, [c.clinicId, c.role === 'doctor' ? c.doctorId : null])).rows); });
   app.post('/staff/queue/call-next', async (req) => { const c = await claims(req); return callTool(rt, staffCtx(c), 'call_next_patient', { doctorId: (req.body as any)?.doctorId }); });
-  for (const [path, tool] of [['skip', 'skip_patient'], ['hold', 'hold_patient'], ['resume', 'resume_patient'], ['finish', 'finish_visit'], ['no-show', 'mark_no_show']] as const) {
+  for (const [path, tool] of [['skip', 'skip_patient'], ['hold', 'hold_patient'], ['resume', 'resume_patient'], ['finish', 'finish_visit'], ['start', 'start_consultation'], ['no-show', 'mark_no_show']] as const) {
     app.post(`/staff/queue/:id/${path}`, async (req) => { const c = await claims(req); return callTool(rt, staffCtx(c), tool, { queueEntryId: idParam(req) }); });
   }
+  // Running late: doctor says it (text, or a voice note transcribed upstream) -> impact -> ONE tap confirms -> patients notified.
+  app.post('/staff/schedule/propose', async (req) => { const c = await claims(req, ['doctor']);
+    const b = z.object({ text: z.string().max(300).optional(), minutes: z.number().int().optional() }).parse(req.body);
+    const minutes = b.minutes ?? (b.text ? await parseLateRequest(gate, b.text) : null);
+    if (!minutes) throw new ToolError('not_understood', 'Say how late you are running, e.g. "running 30 minutes late"');
+    return callTool(rt, staffCtx(c), 'propose_schedule_shift', { minutes, requestedText: b.text }); });
+  app.post('/staff/schedule/:id/confirm', async (req) => { const c = await claims(req, ['doctor']); return callTool(rt, staffCtx(c), 'confirm_schedule_shift', { proposalId: idParam(req) }); });
+  app.post('/staff/schedule/:id/cancel', async (req) => { const c = await claims(req, ['doctor']); return callTool(rt, staffCtx(c), 'cancel_schedule_shift', { proposalId: idParam(req) }); });
+  app.get('/staff/schedule/summary', async (req) => { const c = await claims(req); return callTool(rt, staffCtx(c), 'get_shift_summary', {}); });
+
   app.post('/staff/checkin', async (req) => { const c = await claims(req, ['receptionist']);
     const input = CheckinInput.parse(req.body);
     const out = await callTool(rt, staffCtx(c), 'check_in_patient', input);

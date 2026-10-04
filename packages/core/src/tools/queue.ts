@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineTool, ToolError, type ToolRun } from './registry';
 import { clinicToday, getSettings, notifyPatient, queueSnapshot } from './common';
+import { planFollowups } from './followups';
 
 const STAFF = ['staff:doctor', 'staff:receptionist'];
 const id = z.object({ queueEntryId: z.string().uuid() });
@@ -27,7 +28,8 @@ export const callNextPatient = defineTool({
     const { db, ctx } = r;
     const date = await lockDay(r);
     const doctorId = doctorFor(r, input.doctorId);
-    await db.query(`UPDATE queue_entries SET status='done', finished_at=now() WHERE doctor_id=$1 AND queue_date=$2 AND status IN ('called','in_consultation')`, [doctorId, date]);
+    const finished = await db.query(`UPDATE queue_entries SET status='done', finished_at=now() WHERE doctor_id=$1 AND queue_date=$2 AND status IN ('called','in_consultation') RETURNING patient_id`, [doctorId, date]);
+    for (const f of finished.rows) await planFollowups(r, 'finished', f.patient_id);
     const next = await db.query(
       `SELECT q.id,q.token_number,q.patient_id,p.name,p.phone,p.language,p.year_of_birth FROM queue_entries q JOIN patients p ON p.id=q.patient_id
         WHERE q.doctor_id=$1 AND q.queue_date=$2 AND q.status='waiting' ORDER BY q.position_key LIMIT 2`, [doctorId, date]);
@@ -53,8 +55,9 @@ export const callNextPatient = defineTool({
 export const finishVisit = defineTool({
   name: 'finish_visit', description: 'Mark the visit finished.', module: 'queue', input: id, allow: STAFF,
   async run(r, { queueEntryId }) {
-    const u = await r.db.query("UPDATE queue_entries SET status='done', finished_at=now() WHERE id=$1 AND status IN ('called','in_consultation') RETURNING doctor_id", [queueEntryId]);
+    const u = await r.db.query("UPDATE queue_entries SET status='done', finished_at=now() WHERE id=$1 AND status IN ('called','in_consultation') RETURNING doctor_id, patient_id", [queueEntryId]);
     if (!u.rowCount) throw new ToolError('not_found', 'No active visit with that id', 404);
+    await planFollowups(r, 'finished', u.rows[0].patient_id);
     r.emit({ type: 'queue_changed', doctorId: u.rows[0].doctor_id });
     return { ok: true };
   },
@@ -126,4 +129,46 @@ export const getMyQueueStatus = defineTool({
   },
 });
 
-export const queueTools = [callNextPatient, finishVisit, skipPatient, holdPatient, resumePatient, markNoShow, getMyQueueStatus];
+export const startConsultation = defineTool({
+  name: 'start_consultation', description: 'The called patient is here and the consultation has started.', module: 'queue', input: id, allow: STAFF,
+  async run(r, { queueEntryId }) {
+    const u = await r.db.query("UPDATE queue_entries SET status='in_consultation' WHERE id=$1 AND status='called' RETURNING doctor_id", [queueEntryId]);
+    if (!u.rowCount) throw new ToolError('not_found', 'That patient is not in the called state', 404);
+    r.emit({ type: 'queue_changed', doctorId: u.rows[0].doctor_id });
+    return { ok: true };
+  },
+});
+
+/**
+ * Queue agent housekeeping: a called patient who has not started within 8 minutes gets a nudge;
+ * after 15 minutes the token is marked a no-show and the receptionist is told. (Never reorders anyone.)
+ */
+export const sweepNoShows = defineTool({
+  name: 'sweep_no_shows', description: 'Nudge or mark no-show for called patients who have not come in.', module: 'queue',
+  input: z.object({ nudgeAfterMinutes: z.number().default(8), noShowAfterMinutes: z.number().default(15) }), allow: ['agent:queue', 'system'],
+  async run(r, i) {
+    const { db, ctx } = r;
+    const rows = (await db.query(
+      `SELECT q.id, q.doctor_id, q.token_number, q.reminded_at, q.called_at, p.id AS pid, p.name, p.phone, p.language, d.name AS doctor
+         FROM queue_entries q JOIN patients p ON p.id=q.patient_id JOIN doctors d ON d.id=q.doctor_id WHERE q.status='called' AND q.called_at IS NOT NULL`)).rows;
+    let nudged = 0, noShows = 0;
+    for (const q of rows) {
+      const mins = (Date.now() - new Date(q.called_at).getTime()) / 60_000;
+      const patient = { id: q.pid, phone: q.phone, language: q.language };
+      if (mins >= i.noShowAfterMinutes) {
+        await db.query("UPDATE queue_entries SET status='no_show' WHERE id=$1", [q.id]);
+        await notifyPatient(r, patient, 'msg.no_show', { token: q.token_number }, { sender: 'agent:queue' });
+        const f = await db.query("INSERT INTO flags (clinic_id,patient_id,kind,summary) VALUES ($1,$2,'system',$3) RETURNING id", [ctx.clinicId, q.pid, `Token ${q.token_number} (${q.name}) did not show up after being called and was marked a no-show.`]);
+        r.emit({ type: 'flag_raised', flagId: f.rows[0].id, severity: 'normal' }); r.emit({ type: 'queue_changed', doctorId: q.doctor_id });
+        noShows++;
+      } else if (mins >= i.nudgeAfterMinutes && !q.reminded_at) {
+        await db.query('UPDATE queue_entries SET reminded_at=now() WHERE id=$1', [q.id]);
+        await notifyPatient(r, patient, 'msg.come_now', { name: q.name, token: q.token_number, doctor: q.doctor }, { sender: 'agent:queue' });
+        nudged++;
+      }
+    }
+    return { nudged, noShows };
+  },
+});
+
+export const queueTools = [startConsultation, sweepNoShows, callNextPatient, finishVisit, skipPatient, holdPatient, resumePatient, markNoShow, getMyQueueStatus];

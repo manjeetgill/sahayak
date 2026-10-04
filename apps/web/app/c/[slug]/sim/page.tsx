@@ -1,0 +1,42 @@
+'use client';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { api, useLive } from '../../../../lib/api';
+
+type Msg = { direction: 'in' | 'out'; sender: string; body: string; created_at: string };
+
+/** A phone-shaped chat that stands in for WhatsApp, so the demo needs no vendor account. */
+export default function Sim({ params }: { params: { slug: string } }) {
+  const [phone, setPhone] = useState('9876501000');
+  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [text, setText] = useState('');
+  const end = useRef<HTMLDivElement>(null);
+  const load = useCallback(() => { api<Msg[]>(`/sim/${params.slug}/messages?phone=${encodeURIComponent(phone)}`).then(setMsgs).catch(() => setMsgs([])); }, [params.slug, phone]);
+  useEffect(() => { load(); }, [load]);
+  useLive(`/ws/public/${params.slug}`, (e) => { if (e.type === 'conversation_updated') load(); });
+  useEffect(() => { end.current?.scrollIntoView(); }, [msgs]);
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const v = text.trim(); if (!v) return;
+    setText('');
+    await api(`/sim/${params.slug}/message`, { body: { from: phone, text: v } }).catch(() => {});
+    load();
+  };
+  return (
+    <div className="wrap" style={{ maxWidth: 480 }}>
+      <label htmlFor="ph">Simulate a patient with phone number</label>
+      <input id="ph" value={phone} onChange={(e) => setPhone(e.target.value)} />
+      <div className="phone">
+        <header>Sahayak · Clinic</header>
+        <div className="chat" data-testid="chat">
+          {msgs.map((m, i) => <div key={i} className={`bubble ${m.direction}`}>{m.body}</div>)}
+          <div ref={end} />
+        </div>
+        <form className="compose" onSubmit={send}>
+          <input aria-label="Message" value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a message" />
+          <button type="submit">Send</button>
+        </form>
+      </div>
+      <p className="muted">Try: &quot;what are your timings?&quot;, &quot;book appointment&quot;, &quot;मुझे सीने में दर्द है&quot;. Seeded patients: 9876501000-9876501024.</p>
+    </div>
+  );
+}
