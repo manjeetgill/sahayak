@@ -36,7 +36,7 @@ pnpm dev:web                             # screens on :3000
 pnpm test                                # unit + integration (needs Postgres up)
 pnpm e2e                                 # Playwright (uses installed Google Chrome; resets demo data)
 pnpm eval                                # ~50 Hindi/English messages, pass/fail per safety rule
-pnpm ci                                  # lint + typecheck + tests
+pnpm check                                  # lint + typecheck + tests
 docker compose up --build                # everything in containers (api migrates + seeds on start)
 ```
 

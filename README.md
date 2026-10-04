@@ -41,5 +41,5 @@ Without `LLM_API_KEY` the assistant runs on deterministic logic (scripted, works
 pnpm test    # 85 tests: row-level security, safety rules, agents, API
 pnpm e2e     # Playwright: new patient journey, running late, red-flag escalation
 pnpm eval    # ~50 sample messages (Hindi/English): pass/fail per safety rule
-pnpm ci      # lint + typecheck + tests
+pnpm check      # lint + typecheck + tests
 ```

@@ -65,12 +65,10 @@ export async function buildApp(deps: AppDeps) {
     if (err instanceof ToolError)
       return reply.status(err.status).send({ error: err.code, message: err.message });
     if (err instanceof ZodError)
-      return reply
-        .status(400)
-        .send({
-          error: 'invalid_input',
-          message: err.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
-        });
+      return reply.status(400).send({
+        error: 'invalid_input',
+        message: err.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
+      });
     if (err.statusCode && err.statusCode < 500)
       return reply
         .status(err.statusCode)
