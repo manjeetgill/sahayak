@@ -1,7 +1,7 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 export default tseslint.config(
-  { ignores: ['**/node_modules/**', '**/.next/**', '**/dist/**', 'apps/web/next-env.d.ts'] },
+  { ignores: ['**/node_modules/**', '**/.next/**', '**/dist/**', 'apps/web/next-env.d.ts', 'packages/n8n-nodes-sahayak/index.js'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

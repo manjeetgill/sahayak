@@ -70,7 +70,7 @@ export async function api<T = any>(
   }
   return j as T;
 }
-export const staff = <T = any>(path: string, body?: unknown, method?: 'PUT' | 'DELETE') =>
+export const staff = <T = any>(path: string, body?: unknown, method?: 'PUT' | 'DELETE' | 'PATCH') =>
   api<T>(path, { auth: true, body, method: method ?? (body !== undefined ? 'POST' : 'GET') });
 
 /** Live updates over WebSocket with automatic reconnect. `path` is e.g. /ws/public/slug or /ws?token=... */

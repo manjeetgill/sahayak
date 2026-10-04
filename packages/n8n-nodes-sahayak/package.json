@@ -1,0 +1,39 @@
+{
+  "name": "n8n-nodes-sahayak",
+  "version": "0.1.0",
+  "description": "n8n community nodes for Sahayak, the AI front desk for clinics: book appointments, read the queue, message patients, and trigger flows on clinic events.",
+  "keywords": [
+    "n8n-community-node-package",
+    "sahayak",
+    "clinic",
+    "appointments",
+    "whatsapp"
+  ],
+  "license": "MIT",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-icons.mjs",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/SahayakApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/Sahayak/Sahayak.node.js",
+      "dist/nodes/SahayakTrigger/SahayakTrigger.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "n8n-workflow": "*",
+    "@sahayak/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}

@@ -177,3 +177,27 @@ test('safety report page shows protections, eval results and the audit log', asy
   await rec.getByLabel('Filter').selectOption('red_flag');
   await expect(rec.getByTestId('audit')).toContainText('red_flag');
 });
+
+test('integrations: doctor creates an API key (shown once) and the key works', async ({
+  browser,
+  request,
+}) => {
+  const doc = await (await browser.newContext()).newPage();
+  await login(doc, 'anil@demo.sahayak.in');
+  await doc.getByRole('link', { name: 'Integrations' }).click();
+  await doc.getByLabel('Key name').fill('e2e');
+  await doc.getByLabel('Key access').selectOption('read');
+  await doc.getByRole('button', { name: 'Create key' }).click();
+  const key = (await doc.getByTestId('new-key').locator('div').first().innerText()).trim();
+  expect(key).toMatch(/^shy_[0-9a-f]{8}_[0-9a-f]{32}$/);
+  const r = await request.get('http://127.0.0.1:4000/v1/doctors', {
+    headers: { authorization: `Bearer ${key}` },
+  });
+  expect(r.status()).toBe(200);
+  expect((await r.json()).length).toBe(2);
+  await doc.getByRole('button', { name: 'I saved it' }).click();
+  await expect(doc.getByTestId('new-key')).toHaveCount(0);
+  doc.once('dialog', (d) => d.accept());
+  await doc.getByRole('button', { name: 'Revoke' }).click();
+  await expect(doc.getByText('revoked')).toBeVisible();
+});
