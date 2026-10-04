@@ -288,3 +288,38 @@ test('ask your clinic: doctor asks in plain words and gets an answer', async ({ 
   await doc.getByRole('button', { name: 'Ask', exact: true }).click();
   await expect(doc.getByTestId('ask-clinic')).toContainText('मरीज़ देखे गए');
 });
+
+test('visit-note scribe: doctor dictates, reviews, signs; patient sends a report on WhatsApp', async ({
+  browser,
+}) => {
+  const doc = await (await browser.newContext()).newPage();
+  await login(doc, 'anil@demo.sahayak.in');
+  await doc.getByLabel('Find a patient').fill('Aarav');
+  await doc.getByRole('button', { name: 'Search' }).click();
+  await doc.getByRole('link', { name: /Aarav/ }).click();
+  await expect(doc.getByRole('heading', { name: /Aarav/ }).first()).toBeVisible();
+
+  await doc
+    .getByLabel('Dictation', { exact: true })
+    .fill(
+      'Complaint: knee pain two weeks. Diagnosis: mild strain. Plan: rest and warm compress. Follow up: 10 days',
+    );
+  await doc.getByRole('button', { name: 'Arrange note' }).click();
+  await expect(doc.getByLabel('Diagnosis')).toHaveValue('mild strain');
+  await expect(doc.getByLabel('Complaint')).toHaveValue('knee pain two weeks');
+  // the doctor corrects a word before signing
+  await doc.getByLabel('Diagnosis').fill('mild ligament strain');
+  doc.once('dialog', (d) => d.accept());
+  await doc.getByRole('button', { name: 'Save and sign' }).click();
+  await expect(doc.getByTestId('signed-notes')).toContainText('mild ligament strain');
+
+  // the patient sends a report on WhatsApp; it shows up on the record
+  const sim = await (await browser.newContext()).newPage();
+  await sim.goto('/c/dr-sharma/sim');
+  await sim.getByLabel(/Simulate a patient/).fill('9876501000');
+  await sim.getByLabel('Attach file').setInputFiles('e2e/files/report.pdf');
+  await expect(sim.getByTestId('chat')).toContainText(/Received your PDF|आपकी PDF मिल गई/);
+  await doc.reload();
+  await expect(doc.getByTestId('documents')).toContainText('report.pdf');
+  await expect(doc.getByTestId('documents')).toContainText('New');
+});

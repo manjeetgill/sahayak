@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { t } from '@sahayak/shared';
 import { AskClinic } from '../components/AskClinic';
+import { PatientSearch } from '../components/PatientSearch';
 import { beep, session, staff, useLive, useSession } from '../../lib/api';
 
 export default function Doctor() {
@@ -121,6 +122,9 @@ export default function Doctor() {
           <div style={{ marginBottom: '1rem' }}>
             <AskClinic />
           </div>
+          <div style={{ marginBottom: '1rem' }}>
+            <PatientSearch />
+          </div>
           <div className="card" style={{ marginBottom: '1rem' }} data-testid="late-box">
             <form className="row" onSubmit={proposeLate}>
               <input
@@ -184,6 +188,11 @@ export default function Doctor() {
                   <span className="tag called">Token {current.token_number}</span>
                 </div>
                 <p className="muted">{current.age ? `Age ${current.age}` : ''}</p>
+                <p>
+                  <a href={`/doctor/patients/${current.patient_id}`}>
+                    Open record and write note →
+                  </a>
+                </p>
                 <p>
                   <b>Intake:</b>{' '}
                   {current.intake_summary ?? <span className="muted">No intake answers yet</span>}

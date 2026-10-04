@@ -10,6 +10,8 @@ import { z, ZodError } from 'zod';
 import {
   answerStaffQuestion,
   handleInbound,
+  handleInboundMedia,
+  structureNote,
   parseLateRequest,
   startIntakeFor,
   type AgentEnv,
@@ -71,6 +73,7 @@ export async function buildApp(deps: AppDeps) {
   const tts = deps.tts ?? new MockTextToSpeech();
   const env: AgentEnv = { rt, gate };
   const app = Fastify({
+    bodyLimit: 12_000_000, // photo/PDF uploads (8 MB file as base64)
     logger:
       process.env.NODE_ENV !== 'test'
         ? { level: 'info', redact: ['req.headers.authorization'] }
@@ -447,6 +450,99 @@ export async function buildApp(deps: AppDeps) {
   app.put('/staff/phone', async (req) => {
     const c = await claims(req);
     return callTool(rt, staffCtx(c), 'set_my_phone', req.body);
+  });
+
+  // ---- patient records: search, record view, visit notes (scribe), documents ----
+  app.get('/staff/patients/search', async (req) => {
+    const c = await claims(req);
+    const q = z.object({ q: z.string().trim().min(2).max(60) }).parse(req.query).q;
+    return (await callTool(rt, staffCtx(c), 'search_patients', { q })).patients;
+  });
+  app.get('/staff/patients/:id/record', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'get_patient_record', { patientId: idParam(req) });
+  });
+  app.put('/staff/patients/:id/tags', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'set_patient_tags', {
+      patientId: idParam(req),
+      tags: z.object({ tags: z.array(z.string()) }).parse(req.body).tags,
+    });
+  });
+  app.post('/staff/notes/draft', async (req) => {
+    const c = await claims(req, ['doctor']);
+    const b = z
+      .object({
+        patientId: z.string().uuid(),
+        transcript: z.string().trim().min(1).max(12000),
+        source: z.enum(['typed', 'dictated']).default('typed'),
+        queueEntryId: z.string().uuid().optional(),
+      })
+      .parse(req.body);
+    const aiOn =
+      (
+        await read(
+          c.clinicId,
+          async (db) =>
+            (
+              await db.query('SELECT ai_features FROM clinic_settings WHERE clinic_id=$1', [
+                c.clinicId,
+              ])
+            ).rows[0],
+        )
+      )?.ai_features?.scribe === true;
+    const s = await structureNote(gate, b.transcript, aiOn);
+    const out = await callTool(rt, staffCtx(c), 'save_visit_note_draft', {
+      ...b,
+      note: s.note,
+      flags: s.flags,
+    });
+    return { noteId: out.noteId, note: s.note, flags: s.flags, usedAi: s.usedAi };
+  });
+  app.patch('/staff/notes/:id', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'update_visit_note', {
+      noteId: idParam(req),
+      note: (req.body as any)?.note,
+    });
+  });
+  app.post('/staff/notes/:id/sign', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'sign_visit_note', { noteId: idParam(req) });
+  });
+  app.post('/staff/notes/:id/amend', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'amend_visit_note', {
+      noteId: idParam(req),
+      reason: (req.body as any)?.reason,
+    });
+  });
+  app.delete('/staff/notes/:id', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'delete_visit_note_draft', { noteId: idParam(req) });
+  });
+  app.post('/staff/patients/:id/documents', async (req) => {
+    const c = await claims(req);
+    const b = z
+      .object({
+        filename: z.string(),
+        base64: z.string(),
+        caption: z.string().optional(),
+        kind: z.enum(['report', 'photo', 'xray', 'other']).optional(),
+      })
+      .parse(req.body);
+    return callTool(rt, staffCtx(c), 'store_patient_document', { patientId: idParam(req), ...b });
+  });
+  app.get('/staff/documents/:id', async (req, reply) => {
+    const c = await claims(req, ['doctor']);
+    const d = await callTool(rt, staffCtx(c), 'get_patient_document', { documentId: idParam(req) });
+    // Served as a download of a sniffed type, never rendered by the browser as a page.
+    return reply
+      .header('content-type', d.mime)
+      .header('content-disposition', `inline; filename="${encodeURIComponent(d.filename)}"`)
+      .header('x-content-type-options', 'nosniff')
+      .header('content-security-policy', "default-src 'none'; sandbox")
+      .send(d.data);
   });
 
   // ---- guided setup: signup (invite only), checklist, doctors, team ----
@@ -1012,7 +1108,17 @@ export async function buildApp(deps: AppDeps) {
         const from = PhoneSchema.safeParse(m.from);
         if (!from.success) continue;
         results.push(
-          await handleInbound(env, { clinicId, from: from.data, text: m.text, doctorId }).then(
+          await (
+            m.media
+              ? handleInboundMedia(env, {
+                  clinicId,
+                  from: from.data,
+                  filename: m.media.filename,
+                  base64: m.media.base64,
+                  caption: m.text || undefined,
+                })
+              : handleInbound(env, { clinicId, from: from.data, text: m.text, doctorId })
+          ).then(
             () => 'ok',
             (e) => {
               app.log.error(e, 'inbound failed');
@@ -1099,6 +1205,24 @@ export async function buildApp(deps: AppDeps) {
         from: i.from,
         text: i.text,
         doctorId: i.doctorId,
+      });
+    });
+    app.post('/sim/:slug/media', async (req) => {
+      const c = await clinicBySlug((req.params as any).slug);
+      const b = z
+        .object({
+          from: PhoneSchema,
+          filename: z.string().max(120),
+          base64: z.string(),
+          caption: z.string().max(200).optional(),
+        })
+        .parse(req.body);
+      return handleInboundMedia(env, {
+        clinicId: c.id,
+        from: b.from,
+        filename: b.filename,
+        base64: b.base64,
+        caption: b.caption,
       });
     });
     app.get('/sim/:slug/messages', async (req) => {

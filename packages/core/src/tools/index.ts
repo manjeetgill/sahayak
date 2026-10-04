@@ -10,6 +10,7 @@ import { privacyTools } from './privacy';
 import { integrationTools } from './integrations';
 import { setupTools } from './setup';
 import { askTools } from './ask';
+import { recordTools } from './records';
 
 let done = false;
 /** Register every tool module once. Called by the API/agent runtime at startup. */
@@ -27,6 +28,7 @@ export function registerAllTools() {
     ...integrationTools,
     ...setupTools,
     ...askTools,
+    ...recordTools,
   ]);
   done = true;
 }
@@ -36,3 +38,4 @@ export { planFollowups } from './followups';
 export { freeSlots, nextFreeSlots } from './appointments';
 export { hashKey } from './integrations';
 export { parseClinicQuestion, parseRange, formatMetric, METRICS } from './ask';
+export { sniffMime, NOTE_FIELDS, type NoteContent } from './records';

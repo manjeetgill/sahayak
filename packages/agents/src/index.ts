@@ -8,3 +8,4 @@ export * from './agents/schedule';
 export * from './agents/slotpref';
 export * from './agents/privacy';
 export * from './agents/staff';
+export * from './agents/scribe';

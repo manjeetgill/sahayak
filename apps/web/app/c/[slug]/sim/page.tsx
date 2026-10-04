@@ -47,6 +47,32 @@ export default function Sim({ params }: { params: { slug: string } }) {
           <div ref={end} />
         </div>
         <form className="compose" onSubmit={send}>
+          <label
+            title="Send a photo or PDF"
+            style={{ margin: 0, cursor: 'pointer', alignSelf: 'center' }}
+          >
+            📎
+            <input
+              aria-label="Attach file"
+              type="file"
+              accept="image/*,application/pdf"
+              style={{ display: 'none' }}
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                const base64 = await new Promise<string>((res) => {
+                  const r = new FileReader();
+                  r.onload = () => res(String(r.result).split(',')[1] ?? '');
+                  r.readAsDataURL(f);
+                });
+                await api(`/sim/${params.slug}/media`, {
+                  body: { from: phone, filename: f.name, base64 },
+                }).catch(() => {});
+                e.target.value = '';
+                load();
+              }}
+            />
+          </label>
           <input
             aria-label="Message"
             value={text}

@@ -235,3 +235,104 @@ export async function startIntakeFor(
   };
   await startIntake(turn);
 }
+
+/**
+ * A patient sends a photo, scan or PDF on WhatsApp. It is attached to their record only if we know who they are,
+ * the file type is checked from its contents, and the doctor and receptionist are told. Never trusted by name or claimed type.
+ */
+export async function handleInboundMedia(
+  env: AgentEnv,
+  input: { clinicId: string; from: string; filename: string; base64: string; caption?: string },
+): Promise<InboundResult> {
+  const { rt } = env;
+  const sys = { clinicId: input.clinicId, actor: { kind: 'patient' } as const };
+  const rec = await callTool(rt, sys, 'receive_message', {
+    from: input.from,
+    text: `[Attachment: ${input.filename.slice(0, 60)}]${input.caption ? ' ' + input.caption.slice(0, 200) : ''}`,
+    channel: 'whatsapp',
+  });
+  const turn: Turn = {
+    env,
+    clinicId: input.clinicId,
+    conversationId: rec.conversationId,
+    patientId: rec.patientId,
+    contact: input.from,
+    lang: rec.language,
+    text: input.caption ?? '',
+    state: rec.state,
+    replies: [],
+  };
+  const result = (): InboundResult => ({
+    replies: turn.replies,
+    handledBy: rec.handledBy,
+    redFlag: false,
+    conversationId: turn.conversationId,
+  });
+  try {
+    if (input.caption) {
+      const phrases = await withClinic(
+        rt.pool,
+        turn.clinicId,
+        async (db) =>
+          (await db.query('SELECT phrase FROM red_flag_phrases')).rows as { phrase: string }[],
+      );
+      const rf = await checkRedFlag(env.gate, input.caption, phrases);
+      if (rf.hit) {
+        await call(turn, 'system', 'raise_red_flag', {
+          topic: rf.topic ?? 'unspecified',
+          source: rf.source ?? 'keywords',
+          excerpt: input.caption.slice(0, 300),
+        });
+        await say(turn, 'system', 'msg.red_flag');
+        return { ...result(), redFlag: true };
+      }
+    }
+    if (!turn.patientId) {
+      await say(turn, 'system', 'msg.media_unknown');
+      return result();
+    }
+    try {
+      const doc = await callTool(
+        rt,
+        {
+          clinicId: turn.clinicId,
+          actor: { kind: 'system', name: 'media' },
+          patientId: turn.patientId,
+          conversationId: turn.conversationId,
+        },
+        'store_patient_document',
+        {
+          patientId: turn.patientId,
+          filename: input.filename,
+          base64: input.base64,
+          caption: input.caption,
+          kind: 'report',
+        },
+      );
+      await call(turn, 'system', 'flag_to_receptionist', {
+        kind: 'other',
+        summary: `Patient sent a ${doc.mime === 'application/pdf' ? 'PDF' : 'photo'}: ${input.filename.slice(0, 60)}. It is on their record for the doctor.`,
+      });
+      if (rec.handledBy !== 'human')
+        await say(turn, 'system', 'msg.media_received', {
+          file: doc.mime === 'application/pdf' ? 'PDF' : 'photo',
+        });
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      if (code === 'unsupported_file') await say(turn, 'system', 'msg.media_unsupported');
+      else if (code === 'file_too_large') await say(turn, 'system', 'msg.media_too_large');
+      else throw e;
+    }
+    return result();
+  } catch (e) {
+    await auditEvent(rt, ctxFor(turn, 'system'), 'error', { message: (e as Error).message }).catch(
+      () => {},
+    );
+    await call(turn, 'system', 'flag_to_receptionist', {
+      kind: 'system',
+      summary:
+        'A file a patient sent could not be saved. Please ask them to bring it to the clinic.',
+    }).catch(() => {});
+    return result();
+  }
+}

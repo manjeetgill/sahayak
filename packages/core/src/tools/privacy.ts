@@ -37,7 +37,8 @@ export async function erasePatient(
   patientId: string | null,
   contact: string | null,
   via: string,
-) {
+  opts: { final?: boolean } = {},
+): Promise<{ partial: boolean; holdUntil: string | null }> {
   const { db, ctx } = r;
   let phone = contact;
   let name: string | null = null;
@@ -63,25 +64,52 @@ export async function erasePatient(
     await db.query('DELETE FROM conversations WHERE id = ANY($1)', [convs]);
   }
   if (phone) await db.query('DELETE FROM outbox WHERE to_contact=$1', [phone]);
+  let partial = false;
+  let holdUntil: string | null = null;
   if (patientId) {
+    // Signed clinical records (notes, uploaded reports) must be kept for the legal retention period.
+    // Erasure then removes everything else now and the rest when that period ends.
+    const years = Number(
+      ((await getSettings(db, ctx.clinicId)) as any).retention_rules?.clinical_years ?? 3,
+    );
+    const last = (
+      await db.query(
+        `SELECT to_char((GREATEST((SELECT max(signed_at) FROM visit_notes WHERE patient_id=$1 AND status='signed'),
+                                  (SELECT max(created_at) FROM patient_documents WHERE patient_id=$1)) + make_interval(years => $2))::date,'YYYY-MM-DD') AS until,
+                (GREATEST((SELECT max(signed_at) FROM visit_notes WHERE patient_id=$1 AND status='signed'),
+                          (SELECT max(created_at) FROM patient_documents WHERE patient_id=$1)) + make_interval(years => $2))::date > now()::date AS held`,
+        [patientId, years],
+      )
+    ).rows[0];
+    partial = !opts.final && last.until !== null && last.held === true;
+    holdUntil = partial ? last.until : null;
     await db.query("UPDATE flags SET summary='[removed on request]' WHERE patient_id=$1", [
       patientId,
     ]);
-    await db.query('DELETE FROM intake_summaries WHERE patient_id=$1', [patientId]);
     await db.query('DELETE FROM follow_ups WHERE patient_id=$1', [patientId]);
-    await db.query('UPDATE appointments SET reason=NULL WHERE patient_id=$1', [patientId]);
     await db.query(
       'UPDATE consents SET withdrawn_at=COALESCE(withdrawn_at, now()) WHERE patient_id=$1',
       [patientId],
     );
-    await db.query(
-      "UPDATE patients SET name='Erased patient', phone='erased:' || id::text, year_of_birth=NULL WHERE id=$1",
-      [patientId],
-    );
+    if (partial) {
+      await db.query(
+        'UPDATE patients SET tags=$2, clinical_hold_until=$3, erasure_requested_at=now() WHERE id=$1',
+        [patientId, [], holdUntil],
+      );
+    } else {
+      await db.query('SELECT purge_patient_clinical($1,$2)', [ctx.clinicId, patientId]);
+      await db.query('DELETE FROM intake_summaries WHERE patient_id=$1', [patientId]);
+      await db.query('UPDATE appointments SET reason=NULL WHERE patient_id=$1', [patientId]);
+      await db.query(
+        "UPDATE patients SET name='Erased patient', phone='erased:' || id::text, year_of_birth=NULL, tags='{}', clinical_hold_until=NULL WHERE id=$1",
+        [patientId],
+      );
+    }
   }
   await logRequest(r, via === 'retention' ? 'retention_erase' : 'erase', via);
-  if (patientId) await emitWebhook(db, ctx.clinicId, 'patient.erased', { patientId }); // lets connected systems delete their copies
+  if (patientId) await emitWebhook(db, ctx.clinicId, 'patient.erased', { patientId, partial }); // lets connected systems delete their copies
   r.emit({ type: 'queue_changed' });
+  return { partial, holdUntil };
 }
 
 export const getMyData = defineTool({
@@ -161,6 +189,12 @@ export const exportPatientData = defineTool({
       messages: await rows(
         'SELECT m.created_at, m.direction, m.sender, m.body FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE c.patient_id=$1 ORDER BY m.created_at',
       ),
+      visitNotes: await rows(
+        "SELECT created_at, signed_at, status, note FROM visit_notes WHERE patient_id=$1 AND status='signed' ORDER BY created_at",
+      ),
+      documents: await rows(
+        'SELECT created_at, kind, filename, mime, size_bytes FROM patient_documents WHERE patient_id=$1 ORDER BY created_at',
+      ),
       followUps: await rows(
         'SELECT kind, run_at, status FROM follow_ups WHERE patient_id=$1 ORDER BY run_at',
       ),
@@ -189,11 +223,13 @@ export const erasePatientData = defineTool({
         ctx.conversationId ?? null,
       ])
     ).rows[0]?.language ?? 'en') as Lang;
-    await erasePatient(r, patientId, ctx.actor.kind === 'staff' ? null : contact, via);
-    const text = t(lang, 'msg.erased');
+    const res = await erasePatient(r, patientId, ctx.actor.kind === 'staff' ? null : contact, via);
+    const text = res.partial
+      ? t(lang, 'msg.erased_partial', { date: res.holdUntil ?? '' })
+      : t(lang, 'msg.erased');
     // The chat is gone, so the confirmation is delivered but not stored.
     if (contact && ctx.actor.kind !== 'staff') await deliver(r, { to: contact, text, lang });
-    return { ok: true, text };
+    return { ok: true, text, partial: res.partial, holdUntil: res.holdUntil };
   },
 });
 
@@ -258,11 +294,15 @@ export const applyRetention = defineTool({
         `SELECT p.id FROM patients p
           WHERE p.name <> 'Erased patient' AND p.created_at < now() - make_interval(days => $1)
             AND NOT EXISTS (SELECT 1 FROM queue_entries q WHERE q.patient_id=p.id AND q.queue_date > (now() - make_interval(days => $1))::date)
-            AND NOT EXISTS (SELECT 1 FROM appointments a WHERE a.patient_id=p.id AND a.starts_at > now() - make_interval(days => $1))`,
-        [rules.inactive_patient_days ?? 1095],
+            AND NOT EXISTS (SELECT 1 FROM appointments a WHERE a.patient_id=p.id AND a.starts_at > now() - make_interval(days => $1))
+            AND NOT EXISTS (SELECT 1 FROM visit_notes n WHERE n.patient_id=p.id AND n.status='signed' AND n.signed_at > now() - make_interval(years => $2))
+            AND NOT EXISTS (SELECT 1 FROM patient_documents d WHERE d.patient_id=p.id AND d.created_at > now() - make_interval(years => $2))
+          UNION
+          SELECT id FROM patients WHERE name <> 'Erased patient' AND clinical_hold_until IS NOT NULL AND clinical_hold_until <= now()::date`,
+        [rules.inactive_patient_days ?? 1095, rules.clinical_years ?? 3],
       )
     ).rows;
-    for (const p of inactive) await erasePatient(r, p.id, null, 'retention');
+    for (const p of inactive) await erasePatient(r, p.id, null, 'retention', { final: true });
     return {
       messages: messages.rowCount,
       intake: intake.rowCount,

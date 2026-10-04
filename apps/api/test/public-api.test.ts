@@ -377,7 +377,7 @@ describe('outbound webhooks', () => {
     received.length = 0;
     await deliverWebhooks(pool);
     const er = ev().find((x) => x.type === 'patient.erased');
-    expect(er.data).toEqual({ patientId: pid });
+    expect(er.data).toEqual({ patientId: pid, partial: false });
   });
   it('failures are retried with backoff, then reported to the receptionist', async () => {
     respond = 500;

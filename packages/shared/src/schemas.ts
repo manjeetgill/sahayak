@@ -84,6 +84,7 @@ export const AGENT_NAMES = [
 export const ClinicSettingsUpdate = z
   .object({
     clinicName: z.string().trim().min(2).max(80),
+    aiFeatures: z.object({ scribe: z.boolean() }),
     brief: z.object({ enabled: z.boolean(), time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/) }),
     address: z.string().max(300),
     directions: z.string().max(500),
@@ -119,6 +120,7 @@ export const ClinicSettingsUpdate = z
       intake_days: z.number().int().min(30).max(3650),
       audit_days: z.number().int().min(365).max(3650),
       inactive_patient_days: z.number().int().min(365).max(3650),
+      clinical_years: z.number().int().min(3).max(30).optional(),
     }),
     agents: z
       .object(

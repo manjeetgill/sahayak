@@ -14,6 +14,8 @@ export interface InboundMessage {
   businessNumber: string;
   from: string;
   text: string;
+  /** A photo or PDF the patient sent, already downloaded by the adapter (base64). */
+  media?: { filename: string; base64: string };
 }
 
 /**

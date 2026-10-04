@@ -45,10 +45,18 @@ export function genericHttpPlugin(cfg: {
             m &&
             typeof m.to === 'string' &&
             typeof m.from === 'string' &&
-            typeof m.text === 'string' &&
-            m.text.trim(),
+            ((typeof m.text === 'string' && m.text.trim()) ||
+              (m.media && typeof m.media.base64 === 'string')),
         )
-        .map((m: any) => ({ businessNumber: m.to, from: m.from, text: m.text.slice(0, 2000) }));
+        .map((m: any) => ({
+          businessNumber: m.to,
+          from: m.from,
+          text: typeof m.text === 'string' ? m.text.slice(0, 2000) : '',
+          media:
+            m.media && typeof m.media.base64 === 'string'
+              ? { filename: String(m.media.filename ?? 'file'), base64: m.media.base64 }
+              : undefined,
+        }));
     },
   };
   return { messaging, inbound };

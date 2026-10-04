@@ -15,6 +15,7 @@ export const WEBHOOK_EVENTS = [
   'schedule.shifted',
   'message.received',
   'patient.erased',
+  'document.received',
   'ping',
 ] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];

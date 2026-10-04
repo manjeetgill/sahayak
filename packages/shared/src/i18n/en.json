@@ -120,5 +120,10 @@
   "brief.tomorrow": "Appointments tomorrow: {n}",
   "brief.alerts": "Emergency alerts today: {n}. Open items on the console: {open}",
   "brief.messages": "Patient messages today: {n} ({human} handled by a person)",
-  "brief.quiet": "A quiet day: nothing needs your attention."
+  "brief.quiet": "A quiet day: nothing needs your attention.",
+  "msg.erased_partial": "Your chats, contact preferences and reminders have been deleted. Medical records signed by the doctor must be kept until {date} as medical-record rules require; they are visible only to the clinic and will be deleted automatically after that date.",
+  "msg.media_received": "Received your {file}. It has been added to your record and the doctor will see it.",
+  "msg.media_unknown": "I can't attach files for this number yet. Please check in at the clinic or book an appointment first.",
+  "msg.media_unsupported": "Sorry, I can only accept photos (JPEG, PNG, WebP) and PDF files.",
+  "msg.media_too_large": "That file is too large. Please send a file under 8 MB."
 }
