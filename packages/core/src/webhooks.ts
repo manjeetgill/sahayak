@@ -16,6 +16,7 @@ export const WEBHOOK_EVENTS = [
   'message.received',
   'patient.erased',
   'document.received',
+  'document.issued',
   'ping',
 ] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];

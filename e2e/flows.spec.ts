@@ -323,3 +323,56 @@ test('visit-note scribe: doctor dictates, reviews, signs; patient sends a report
   await expect(doc.getByTestId('documents')).toContainText('report.pdf');
   await expect(doc.getByTestId('documents')).toContainText('New');
 });
+
+test('certificate: doctor drafts, signs with password, sends on WhatsApp; anyone can verify it', async ({
+  browser,
+}) => {
+  const doc = await (await browser.newContext()).newPage();
+  await login(doc, 'anil@demo.sahayak.in');
+  // professional details are required before signing
+  await doc.getByRole('link', { name: 'Agent builder' }).click();
+  await doc.getByLabel('Medical registration number').fill('PMC-12345');
+  await doc.getByLabel('Qualifications').fill('MBBS, MD');
+  await doc.getByRole('button', { name: 'Save', exact: true }).first().click();
+  await expect(doc.getByRole('status').first()).toHaveText('Saved');
+  await doc.getByRole('link', { name: /Back to doctor screen/ }).click();
+  await doc.getByLabel('Find a patient').fill('Vivaan');
+  await doc.getByRole('button', { name: 'Search' }).click();
+  await doc.getByRole('link', { name: /Vivaan/ }).click();
+  await doc.getByRole('button', { name: 'New sick-leave certificate' }).click();
+  await doc.getByLabel('Remarks (optional)').fill('Rest advised');
+  await doc.getByRole('button', { name: 'Create draft' }).click();
+  await expect(doc.getByTestId('doc-draft')).toContainText('Sick-leave certificate');
+  await doc.getByRole('button', { name: 'Review and sign' }).click();
+  await doc.getByLabel('Enter your password to sign').fill('wrong-password');
+  await doc.getByTestId('sign-dialog').getByRole('button', { name: 'Sign', exact: true }).click();
+  await expect(doc.locator('.error')).toContainText('password is not correct');
+  await doc.getByLabel('Enter your password to sign').fill('demo1234');
+  await doc.getByTestId('sign-dialog').getByRole('button', { name: 'Sign', exact: true }).click();
+  await expect(doc.getByTestId('doc-signed')).toContainText('CERT-');
+  await doc.getByRole('button', { name: 'Send on WhatsApp' }).click();
+  await expect(doc.getByRole('status').filter({ hasText: 'Sent to the patient' })).toBeVisible();
+
+  // the patient got a private link on WhatsApp
+  const sim = await (await browser.newContext()).newPage();
+  await sim.goto('/c/dr-sharma/sim');
+  await sim.getByLabel(/Simulate a patient/).fill('9876501001');
+  await expect(sim.getByTestId('chat')).toContainText(/\/d\//);
+
+  // anyone with the code can verify it, and sees no medical content
+  const db = DB();
+  await db.connect();
+  const code = (
+    await db.query(
+      "SELECT verify_code FROM issued_documents WHERE status='signed' ORDER BY signed_at DESC LIMIT 1",
+    )
+  ).rows[0].verify_code;
+  await db.end();
+  const pub = await (await browser.newContext()).newPage();
+  await pub.goto(`/verify/${code}`);
+  await expect(pub.getByTestId('verify-ok')).toContainText('genuine');
+  await expect(pub.getByTestId('verify-ok')).toContainText('PMC-12345');
+  await expect(pub.getByTestId('verify-ok')).not.toContainText('Rest advised');
+  await pub.goto('/verify/AAAAAAAAAAAA');
+  await expect(pub.getByTestId('verify-bad')).toBeVisible();
+});

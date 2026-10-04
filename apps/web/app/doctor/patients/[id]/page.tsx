@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { API, session, staff, useSession } from '../../../../lib/api';
+import { IssuedDocs } from '../../../components/IssuedDocs';
 
 const FIELDS: [string, string][] = [
   ['complaint', 'Complaint'],
@@ -340,6 +341,8 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
             ))}
           </div>
         </div>
+
+        <IssuedDocs patientId={params.id} />
 
         <div className="card" style={{ marginTop: '1rem' }} data-testid="documents">
           <div className="row between">

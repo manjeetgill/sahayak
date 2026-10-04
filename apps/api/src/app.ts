@@ -1,4 +1,4 @@
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import cors from '@fastify/cors';
@@ -545,6 +545,125 @@ export async function buildApp(deps: AppDeps) {
       .send(d.data);
   });
 
+  // ---- certificates and prescriptions (doctor drafts with the assistant, signs with password re-entry) ----
+  app.get('/staff/patients/:id/issued', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'list_issued_documents', { patientId: idParam(req) });
+  });
+  app.post('/staff/patients/:id/certificates', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'draft_certificate', {
+      ...(req.body as object),
+      patientId: idParam(req),
+    });
+  });
+  app.post('/staff/patients/:id/prescriptions', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'draft_prescription', {
+      ...(req.body as object),
+      patientId: idParam(req),
+    });
+  });
+  app.patch('/staff/issued/:id', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'update_issued_document', {
+      ...(req.body as object),
+      documentId: idParam(req),
+    });
+  });
+  app.delete('/staff/issued/:id', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'delete_issued_draft', { documentId: idParam(req) });
+  });
+  app.post('/staff/issued/:id/sign', async (req) => {
+    const c = await claims(req, ['doctor']);
+    const b = z
+      .object({ password: z.string().min(1), acknowledgeWarnings: z.boolean().optional() })
+      .parse(req.body);
+    // Signing is a deliberate act: the doctor confirms with their password again.
+    const row = await read(
+      c.clinicId,
+      async (db) =>
+        (await db.query('SELECT password_hash FROM staff_users WHERE id=$1', [c.uid])).rows[0],
+    );
+    if (!row || !(await verifyPassword(b.password, row.password_hash)))
+      throw new ToolError('wrong_password', 'That password is not correct', 403);
+    return callTool(rt, staffCtx(c), 'sign_issued_document', {
+      documentId: idParam(req),
+      acknowledgeWarnings: b.acknowledgeWarnings ?? false,
+    });
+  });
+  app.post('/staff/issued/:id/void', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'void_issued_document', {
+      documentId: idParam(req),
+      reason: (req.body as any)?.reason,
+    });
+  });
+  app.post('/staff/issued/:id/send', async (req) => {
+    const c = await claims(req);
+    return callTool(rt, staffCtx(c), 'send_issued_document', { documentId: idParam(req) });
+  });
+  app.get('/staff/issued/:id/pdf', async (req, reply) => {
+    const c = await claims(req);
+    const d = await callTool(rt, staffCtx(c), 'get_issued_document_pdf', {
+      documentId: idParam(req),
+    });
+    return reply
+      .header('content-type', 'application/pdf')
+      .header('content-disposition', `inline; filename="${d.number}.pdf"`)
+      .header('x-content-type-options', 'nosniff')
+      .send(d.pdf);
+  });
+
+  // ---- public: private download links and document verification ----
+  const hits = new Map<string, { n: number; reset: number }>();
+  const limitPublic = (ip: string) => {
+    const now = Date.now(),
+      b = hits.get(ip);
+    if (!b || b.reset < now) hits.set(ip, { n: 1, reset: now + 60_000 });
+    else if (++b.n > 30)
+      throw new ToolError('rate_limited', 'Too many requests. Please wait a minute.', 429);
+  };
+  app.get('/d/:token', async (req, reply) => {
+    limitPublic(req.ip);
+    const token = String((req.params as any).token ?? '');
+    const r = await pool.query('SELECT * FROM fetch_document_link($1)', [
+      createHash('sha256').update(token).digest('hex'),
+    ]);
+    if (!r.rowCount || !r.rows[0].pdf)
+      throw new ToolError(
+        'not_found',
+        'This link has expired or is not valid. Ask the clinic to send it again.',
+        404,
+      );
+    return reply
+      .header('content-type', 'application/pdf')
+      .header('content-disposition', `attachment; filename="${r.rows[0].doc_number}.pdf"`)
+      .header('x-content-type-options', 'nosniff')
+      .header('cache-control', 'private, no-store')
+      .send(r.rows[0].pdf);
+  });
+  app.get('/public/verify/:code', async (req) => {
+    limitPublic(req.ip);
+    const code = String((req.params as any).code ?? '').toUpperCase();
+    if (!/^[0-9A-F]{12}$/.test(code)) return { valid: false };
+    const r = (await pool.query('SELECT * FROM verify_document($1)', [code])).rows[0];
+    if (!r) return { valid: false };
+    return {
+      valid: r.status === 'signed',
+      status: r.status,
+      kind: r.kind,
+      subtype: r.subtype,
+      number: r.doc_number,
+      issuedOn: r.issued_on,
+      doctor: r.doctor_name,
+      registrationNo: r.registration_no,
+      clinic: r.clinic_name,
+      patientInitials: r.patient_initials,
+    };
+  });
+
   // ---- guided setup: signup (invite only), checklist, doctors, team ----
   const signups = new Map<string, { n: number; reset: number }>();
   app.post('/signup', async (req) => {
@@ -624,7 +743,7 @@ export async function buildApp(deps: AppDeps) {
       async (db) =>
         (
           await db.query(
-            'SELECT id, name, speciality, slot_minutes, active, whatsapp_number FROM doctors ORDER BY name',
+            'SELECT id, name, speciality, slot_minutes, active, whatsapp_number, registration_no, qualifications FROM doctors ORDER BY name',
           )
         ).rows,
     );

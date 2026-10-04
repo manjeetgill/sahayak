@@ -75,8 +75,10 @@ export async function erasePatient(
     const last = (
       await db.query(
         `SELECT to_char((GREATEST((SELECT max(signed_at) FROM visit_notes WHERE patient_id=$1 AND status='signed'),
+                                  (SELECT max(signed_at) FROM issued_documents WHERE patient_id=$1),
                                   (SELECT max(created_at) FROM patient_documents WHERE patient_id=$1)) + make_interval(years => $2))::date,'YYYY-MM-DD') AS until,
                 (GREATEST((SELECT max(signed_at) FROM visit_notes WHERE patient_id=$1 AND status='signed'),
+                          (SELECT max(signed_at) FROM issued_documents WHERE patient_id=$1),
                           (SELECT max(created_at) FROM patient_documents WHERE patient_id=$1)) + make_interval(years => $2))::date > now()::date AS held`,
         [patientId, years],
       )
@@ -192,6 +194,9 @@ export const exportPatientData = defineTool({
       visitNotes: await rows(
         "SELECT created_at, signed_at, status, note FROM visit_notes WHERE patient_id=$1 AND status='signed' ORDER BY created_at",
       ),
+      issuedDocuments: await rows(
+        "SELECT doc_number, kind, subtype, status, signed_at FROM issued_documents WHERE patient_id=$1 AND status IN ('signed','void') ORDER BY signed_at",
+      ),
       documents: await rows(
         'SELECT created_at, kind, filename, mime, size_bytes FROM patient_documents WHERE patient_id=$1 ORDER BY created_at',
       ),
@@ -297,6 +302,7 @@ export const applyRetention = defineTool({
             AND NOT EXISTS (SELECT 1 FROM appointments a WHERE a.patient_id=p.id AND a.starts_at > now() - make_interval(days => $1))
             AND NOT EXISTS (SELECT 1 FROM visit_notes n WHERE n.patient_id=p.id AND n.status='signed' AND n.signed_at > now() - make_interval(years => $2))
             AND NOT EXISTS (SELECT 1 FROM patient_documents d WHERE d.patient_id=p.id AND d.created_at > now() - make_interval(years => $2))
+            AND NOT EXISTS (SELECT 1 FROM issued_documents x WHERE x.patient_id=p.id AND x.signed_at > now() - make_interval(years => $2))
           UNION
           SELECT id FROM patients WHERE name <> 'Erased patient' AND clinical_hold_until IS NOT NULL AND clinical_hold_until <= now()::date`,
         [rules.inactive_patient_days ?? 1095, rules.clinical_years ?? 3],

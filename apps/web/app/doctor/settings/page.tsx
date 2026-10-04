@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { AGENT_NAMES } from '@sahayak/shared';
-import { staff, useSession } from '../../../lib/api';
+import { session, staff, useSession } from '../../../lib/api';
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 const AGENT_LABEL: Record<string, string> = {
@@ -22,9 +22,22 @@ export default function Settings() {
   const [msg, setMsg] = useState(''),
     [err, setErr] = useState('');
   const [phrase, setPhrase] = useState('');
+  const [prof, setProf] = useState({ registrationNo: '', qualifications: '' });
   const load = () => staff('/staff/settings').then(setCfg);
   useEffect(() => {
-    if (s) load().catch((e) => setErr(e.message));
+    if (s) {
+      load().catch((e) => setErr(e.message));
+      staff('/staff/doctors/all')
+        .then((d: any[]) => {
+          const me = d.find((x) => x.id === session.get()?.user.doctorId);
+          if (me)
+            setProf({
+              registrationNo: me.registration_no ?? '',
+              qualifications: me.qualifications ?? '',
+            });
+        })
+        .catch(() => {});
+    }
   }, [s]);
   if (!s || !cfg) return null;
   const set = (k: string, v: unknown) => setCfg({ ...cfg, [k]: v });
@@ -292,6 +305,51 @@ export default function Settings() {
           />
           <p>
             <button onClick={() => save(['followupRules'])}>Save follow-up timing</button>
+          </p>
+        </div>
+
+        <div className="card" style={{ marginTop: '1rem' }}>
+          <h2>Your professional details</h2>
+          <p className="muted">
+            Printed on every certificate and prescription you sign. Your medical registration number
+            is required before you can sign.
+          </p>
+          <label htmlFor="reg">Medical registration number</label>
+          <input
+            id="reg"
+            value={prof.registrationNo}
+            onChange={(e) => setProf({ ...prof, registrationNo: e.target.value })}
+            placeholder="e.g. PMC-12345"
+          />
+          <label htmlFor="qual">Qualifications</label>
+          <input
+            id="qual"
+            value={prof.qualifications}
+            onChange={(e) => setProf({ ...prof, qualifications: e.target.value })}
+            placeholder="e.g. MBBS, MD (Medicine)"
+          />
+          <p>
+            <button
+              onClick={async () => {
+                setErr('');
+                setMsg('');
+                try {
+                  await staff(
+                    `/staff/doctors/${session.get()?.user.doctorId}`,
+                    {
+                      registrationNo: prof.registrationNo || undefined,
+                      qualifications: prof.qualifications || undefined,
+                    },
+                    'PATCH',
+                  );
+                  setMsg('Saved');
+                } catch (x: any) {
+                  setErr(x.message);
+                }
+              }}
+            >
+              Save
+            </button>
           </p>
         </div>
 

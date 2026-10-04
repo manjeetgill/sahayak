@@ -11,6 +11,7 @@ import { integrationTools } from './integrations';
 import { setupTools } from './setup';
 import { askTools } from './ask';
 import { recordTools } from './records';
+import { issuedTools } from './issued';
 
 let done = false;
 /** Register every tool module once. Called by the API/agent runtime at startup. */
@@ -29,6 +30,7 @@ export function registerAllTools() {
     ...setupTools,
     ...askTools,
     ...recordTools,
+    ...issuedTools,
   ]);
   done = true;
 }

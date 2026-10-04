@@ -47,9 +47,20 @@ export const updateDoctor = defineTool({
     slotMinutes: z.number().int().min(5).max(120).optional(),
     active: z.boolean().optional(),
     whatsappNumber: z.string().regex(NUM).optional(),
+    registrationNo: z.string().trim().min(3).max(40).optional(),
+    qualifications: z.string().trim().max(120).optional(),
   }),
   allow: DOCTOR,
-  async run({ db }, i) {
+  async run({ db, ctx }, i) {
+    if (
+      (i.registrationNo !== undefined || i.qualifications !== undefined) &&
+      !(ctx.actor.kind === 'staff' && ctx.actor.doctorId === i.doctorId)
+    )
+      throw new ToolError(
+        'forbidden',
+        'A doctor can only set their own registration number and qualifications',
+        403,
+      );
     if (i.active === false) {
       const others = await db.query('SELECT count(*)::int n FROM doctors WHERE active AND id<>$1', [
         i.doctorId,
@@ -59,7 +70,7 @@ export const updateDoctor = defineTool({
     }
     try {
       const u = await db.query(
-        `UPDATE doctors SET name=COALESCE($2,name), speciality=COALESCE($3,speciality), slot_minutes=COALESCE($4,slot_minutes), active=COALESCE($5,active),
+        `UPDATE doctors SET name=COALESCE($2,name), speciality=COALESCE($3,speciality), slot_minutes=COALESCE($4,slot_minutes), active=COALESCE($5,active), registration_no=COALESCE($7,registration_no), qualifications=COALESCE($8,qualifications),
            whatsapp_number = CASE WHEN $6::text IS NULL THEN whatsapp_number WHEN $6 = '' THEN NULL ELSE $6 END WHERE id=$1 RETURNING id`,
         [
           i.doctorId,
@@ -68,6 +79,8 @@ export const updateDoctor = defineTool({
           i.slotMinutes ?? null,
           i.active ?? null,
           i.whatsappNumber ?? null,
+          i.registrationNo ?? null,
+          i.qualifications ?? null,
         ],
       );
       if (!u.rowCount) throw new ToolError('not_found', 'Doctor not found', 404);
