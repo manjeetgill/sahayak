@@ -49,6 +49,9 @@ export async function startBooking(
   if (fixed) return askOrOffer(turn, agent, fixed, rescheduleId, pref);
   await setState(turn, agent, {
     flow: 'pick_doctor',
+    managedBooking: turn.state.managedBooking,
+    visitKind: turn.state.visitKind,
+    flowVersion: turn.state.flowVersion,
     doctors: info.doctors.map((d) => ({ id: d.id, name: d.name })),
     rescheduleId,
     pref,
@@ -67,6 +70,9 @@ export async function askOrOffer(
   if (pref) return offerForPreference(turn, agent, doctor, pref, rescheduleId);
   await setState(turn, agent, {
     flow: 'ask_pref',
+    managedBooking: turn.state.managedBooking,
+    visitKind: turn.state.visitKind,
+    flowVersion: turn.state.flowVersion,
     doctorId: doctor.id,
     doctorName: doctor.name,
     rescheduleId,
@@ -121,6 +127,9 @@ export async function offerForPreference(
   const exact = sameDay && slots.every(inWindow);
   await setState(turn, agent, {
     flow: 'pick_slot',
+    managedBooking: turn.state.managedBooking,
+    visitKind: turn.state.visitKind,
+    flowVersion: turn.state.flowVersion,
     doctorId: doctor.id,
     doctorName: doctor.name,
     slots,
@@ -174,6 +183,24 @@ export async function continueFlow(turn: Turn, agent = AGENT): Promise<boolean> 
     await say(turn, agent, 'msg.pref_not_understood');
     return true;
   }
+  if (st.flow === 'confirm_clinic_slot') {
+    const intent = classifyIntent(turn.text);
+    if (intent === 'no') {
+      await offerSlots(turn, agent, { id: st.doctorId, name: st.doctorName });
+      return true;
+    }
+    if (intent !== 'yes') {
+      await say(turn, agent, 'msg.clinic_confirm', {
+        doctor: st.doctorName,
+        when: fmtTime(st.slots[st.choice - 1], info.timezone, turn.lang),
+      });
+      return true;
+    }
+    // Execute the persisted selection only after a positive response; availability is rechecked by the tool.
+    turn.state = { ...st, flow: 'pick_slot', bookingConfirmed: true };
+    turn.text = String(st.choice);
+    return continueFlow(turn, agent);
+  }
   if (st.flow === 'pick_slot') {
     let c = parseChoice(turn.text, st.slots.length);
     if (!c && st.slots.length === 1 && classifyIntent(turn.text) === 'yes') c = 1;
@@ -193,6 +220,14 @@ export async function continueFlow(turn: Turn, agent = AGENT): Promise<boolean> 
       return false;
     }
     const startsAt = st.slots[c - 1];
+    if (st.managedBooking && !st.bookingConfirmed && !st.rescheduleId) {
+      await setState(turn, agent, { ...st, flow: 'confirm_clinic_slot', choice: c });
+      await say(turn, agent, 'msg.clinic_confirm', {
+        doctor: st.doctorName,
+        when: fmtTime(startsAt, info.timezone, turn.lang),
+      });
+      return true;
+    }
     try {
       if (st.rescheduleId) {
         await call(turn, agent, 'reschedule_appointment', {
@@ -209,6 +244,9 @@ export async function continueFlow(turn: Turn, agent = AGENT): Promise<boolean> 
           patientId: turn.patientId,
           startsAt,
           source: 'whatsapp',
+          ...(st.visitKind
+            ? { reason: st.visitKind === 'follow_up' ? 'Follow-up visit' : 'First visit' }
+            : {}),
         });
         await setState(turn, agent, {});
         await say(turn, agent, 'msg.booked', {

@@ -8,5 +8,9 @@ export default async function setup() {
     const m = l.match(/^([A-Z_]+)=(.*)$/);
     if (m && !(m[1] in env)) env[m[1]] = m[2];
   }
+  for (const key of ['DATABASE_URL', 'ADMIN_DATABASE_URL']) {
+    if (env.E2E_ISOLATED !== '1' || !/^\/sahayak_e2e_\d+$/.test(new URL(env[key] ?? '').pathname))
+      throw new Error('Browser tests require an isolated database. Run pnpm e2e.');
+  }
   execSync('pnpm db:reset', { stdio: 'inherit', env });
 }

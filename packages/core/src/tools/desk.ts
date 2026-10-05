@@ -196,6 +196,20 @@ export const takeOverConversation = defineTool({
   allow: ['staff:receptionist'],
   async run({ db, ctx, emit }, i) {
     const a = ctx.actor;
+    if (
+      i.to === 'agent' &&
+      (
+        await db.query(
+          "SELECT 1 FROM flags WHERE conversation_id=$1 AND status='open' AND severity='urgent' LIMIT 1",
+          [i.conversationId],
+        )
+      ).rowCount
+    )
+      throw new ToolError(
+        'urgent_flag_open',
+        'Resolve the urgent flag before returning this conversation to the agent.',
+        409,
+      );
     const u = await db.query(
       'UPDATE conversations SET handled_by=$2, human_user_id=$3 WHERE id=$1 RETURNING id',
       [i.conversationId, i.to, i.to === 'human' && a.kind === 'staff' ? a.userId : null],

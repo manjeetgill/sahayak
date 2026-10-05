@@ -66,6 +66,145 @@ afterAll(async () => {
   await app.close();
 });
 const h = (k: string) => ({ authorization: `Bearer ${tok[k]}` });
+it('never sends a queued cancellation offer after it expires', async () => {
+  const patient = (
+    await admin.query('SELECT id FROM patients WHERE clinic_id=$1 LIMIT 1', [c.clinicId])
+  ).rows[0].id;
+  const waiting = (
+    await admin.query(
+      'INSERT INTO appointment_waitlist(clinic_id,patient_id,doctor_id,from_date,to_date) VALUES ($1,$2,$3,current_date,current_date+1) RETURNING id',
+      [c.clinicId, patient, c.doctorIds[0]],
+    )
+  ).rows[0].id;
+  try {
+    const offer = (
+      await admin.query(
+        "INSERT INTO slot_offers(clinic_id,waitlist_id,doctor_id,patient_id,starts_at,expires_at,code) VALUES ($1,$2,$3,$4,now()+interval '1 day',now()-interval '1 minute','0000000ABC') RETURNING id",
+        [c.clinicId, waiting, c.doctorIds[0], patient],
+      )
+    ).rows[0].id;
+    const message = (
+      await admin.query(
+        "INSERT INTO outbox(clinic_id,to_contact,body,slot_offer_id) VALUES ($1,'+199900011111','expired test offer',$2) RETURNING id",
+        [c.clinicId, offer],
+      )
+    ).rows[0].id;
+    const scopedPool = {
+      query: async () => ({ rows: [{ id: message, clinic_id: c.clinicId }] }),
+      connect: pool.connect.bind(pool),
+    } as unknown as pg.Pool;
+    let delivered = 0;
+    await deliverOutbox(scopedPool, {
+      name: 'test',
+      queued: true,
+      send: async () => {
+        delivered++;
+      },
+    });
+    expect(delivered).toBe(0);
+    expect(
+      (await admin.query('SELECT status FROM outbox WHERE id=$1', [message])).rows[0].status,
+    ).toBe('failed');
+  } finally {
+    await admin.query('DELETE FROM appointment_waitlist WHERE id=$1', [waiting]);
+  }
+});
+it('guided tests require staff and never queue a provider delivery', async () => {
+  const payload = {
+    from: '+199900012345',
+    text: 'What are your clinic timings?',
+    channel: 'whatsapp',
+    language: 'en',
+  };
+  expect(
+    (await app.inject({ method: 'POST', url: '/staff/agents/test', payload })).statusCode,
+  ).toBe(401);
+  const before = (await admin.query('SELECT count(*) FROM outbox WHERE clinic_id=$1', [c.clinicId]))
+    .rows[0].count;
+  const result = await app.inject({
+    method: 'POST',
+    url: '/staff/agents/test',
+    headers: h('doc'),
+    payload,
+  });
+  expect(result.statusCode).toBe(200);
+  expect(result.json().replies.length).toBeGreaterThan(0);
+  expect(
+    (await admin.query('SELECT count(*) FROM outbox WHERE clinic_id=$1', [c.clinicId])).rows[0]
+      .count,
+  ).toBe(before);
+});
+it('diagnostics exclude recipient, message bodies, and raw provider errors', async () => {
+  const id = (
+    await admin.query(
+      `INSERT INTO outbox(clinic_id,to_contact,body,status,last_error)
+    VALUES ($1,'+199900012345','private body','failed','private vendor response') RETURNING id`,
+      [c.clinicId],
+    )
+  ).rows[0].id;
+  try {
+    expect((await app.inject({ url: '/staff/agents/diagnostics' })).statusCode).toBe(401);
+    const result = await app.inject({ url: '/staff/agents/diagnostics', headers: h('doc') });
+    expect(result.statusCode).toBe(200);
+    expect(result.json().messages.find((m: any) => m.id === id).has_error).toBe(true);
+    expect(result.body).not.toContain('private');
+    expect(result.body).not.toContain('+199900012345');
+  } finally {
+    await admin.query('DELETE FROM outbox WHERE id=$1', [id]);
+  }
+});
+it('urgent handoffs require resolution before return to agent', async () => {
+  const test = await app.inject({
+    method: 'POST',
+    url: '/staff/agents/test',
+    headers: h('rec'),
+    payload: {
+      from: '+199900098765',
+      text: 'severe chest pain and cannot breathe',
+      channel: 'voice',
+      language: 'en',
+    },
+  });
+  expect(test.statusCode).toBe(200);
+  const id = test.json().conversationId;
+  const path = `/staff/conversations/${id}/takeover`;
+  expect(
+    (await app.inject({ url: `/staff/conversations/${id}`, headers: h('rec') })).statusCode,
+  ).toBe(200);
+  expect(
+    (await app.inject({ method: 'POST', url: path, headers: h('rec'), payload: { to: 'agent' } }))
+      .statusCode,
+  ).toBe(409);
+  const flags = (await app.inject({ url: '/staff/flags', headers: h('rec') }))
+    .json()
+    .filter((f: any) => f.conversation_id === id);
+  for (const flag of flags)
+    await app.inject({
+      method: 'POST',
+      url: `/staff/flags/${flag.id}/resolve`,
+      headers: h('rec'),
+      payload: {},
+    });
+  expect(
+    (await app.inject({ method: 'POST', url: path, headers: h('rec'), payload: { to: 'agent' } }))
+      .statusCode,
+  ).toBe(200);
+});
+it('shows staff only their clinic connection configuration without secrets', async () => {
+  expect((await app.inject({ url: '/staff/agents/connections' })).statusCode).toBe(401);
+  const response = await app.inject({ url: '/staff/agents/connections', headers: h('rec') });
+  expect(response.statusCode).toBe(200);
+  expect(response.json()).toEqual({
+    liveChannelOwner: 'local',
+    slug: c.slug,
+    simulator: true,
+    voiceSimulator: true,
+    platform: { configured: false },
+    whatsapp: { configured: true, provider: plugin.messaging.name },
+    phone: { configured: false },
+  });
+  expect(response.body).not.toContain(SECRET);
+});
 const sim = (text: string, from = '9400000001') =>
   app
     .inject({ method: 'POST', url: `/sim/${c.slug}/message`, payload: { from, text } })

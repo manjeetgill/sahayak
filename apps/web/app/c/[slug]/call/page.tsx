@@ -22,7 +22,7 @@ export default function Call({ params }: { params: { slug: string } }) {
   };
   return (
     <div className="wrap">
-      <h1>Phone call simulator</h1>
+      <h1>Try a phone conversation</h1>
       <label htmlFor="ph">Caller number</label>
       <input id="ph" value={phone} onChange={(e) => setPhone(e.target.value)} />
       <div className="card" style={{ margin: '1rem 0', minHeight: 200 }} data-testid="call-log">
@@ -33,7 +33,7 @@ export default function Call({ params }: { params: { slug: string } }) {
             </span>
           </p>
         ))}
-        {transfer && <p className="banner warn">Transferring the call to the receptionist…</p>}
+        {transfer && <p className="banner warn">The assistant has asked the reception team to help. No real call is transferred.</p>}
       </div>
       <form className="row" onSubmit={speak}>
         <input
@@ -42,11 +42,10 @@ export default function Call({ params }: { params: { slug: string } }) {
           onChange={(e) => setText(e.target.value)}
           placeholder="What the caller says"
         />
-        <button type="submit">Speak</button>
+        <button type="submit">Send</button>
       </form>
       <p className="muted">
-        Real telephony and speech-to-text/text-to-speech vendors plug in behind the same endpoint (
-        <code>/voice/:slug/turn</code>).
+        This is a practice conversation. Type what a patient might say to see the reply. No real phone call is made.
       </p>
     </div>
   );

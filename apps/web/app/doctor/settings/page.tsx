@@ -1,20 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { AGENT_NAMES } from '@sahayak/shared';
 import { session, staff, useSession } from '../../../lib/api';
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
-const AGENT_LABEL: Record<string, string> = {
-  checkin: 'Check-in',
-  queue: 'Queue',
-  intake: 'Intake questions',
-  front_desk: 'WhatsApp front desk',
-  schedule: 'Running-late handling',
-  followup: 'Follow-ups',
-  leads: 'New enquiries',
-  records: 'Records',
-};
-
 /** Agent builder: the doctor decides how the front-desk agents behave. Safety rules are not configurable here. */
 export default function Settings() {
   const s = useSession('doctor');
@@ -68,7 +56,7 @@ export default function Settings() {
   return (
     <div>
       <div className="topbar">
-        <b>Agent builder</b>
+        <b>Clinic settings</b>
         <a href="/doctor">← Back to doctor screen</a>
       </div>
       <div className="wrap" style={{ maxWidth: 760 }}>
@@ -85,7 +73,7 @@ export default function Settings() {
 
         <div className="card">
           <h2>Clinic information</h2>
-          <p className="muted">Agents answer patients only from this information.</p>
+          <p className="muted">The clinic assistant uses these details when answering patients.</p>
           <label htmlFor="addr">Address</label>
           <input
             id="addr"
@@ -131,10 +119,10 @@ export default function Settings() {
         </div>
 
         <div className="card" style={{ marginTop: '1rem' }}>
-          <h2>Intake questions</h2>
+          <h2>Before-visit questions</h2>
           <p className="muted">
             Asked on WhatsApp while the patient waits. Both languages required. Questions only:
-            agents never give advice.
+            the assistant never gives medical advice.
           </p>
           {cfg.intakeQuestions.map((q: any, i: number) => (
             <div key={i} className="row" style={{ margin: '4px 0' }}>
@@ -194,7 +182,7 @@ export default function Settings() {
         <div className="card" style={{ marginTop: '1rem' }}>
           <h2>Answers to common questions (FAQ)</h2>
           <p className="muted">
-            When a patient message contains one of the keywords, the agent sends your answer. Clinic
+            When a patient message contains one of the keywords, the assistant sends your answer. Clinic
             information only, no medical advice.
           </p>
           {cfg.faqs.map((f: any, i: number) => (
@@ -482,14 +470,14 @@ export default function Settings() {
           <h2>How long we keep data</h2>
           <p className="muted">
             Older data is deleted automatically every night (India's DPDP Act expects data not to be
-            kept longer than needed). Audit entries are never deleted, only stripped of personal
+            kept longer than needed). Activity history is never deleted; we only remove personal
             content.
           </p>
           {(
             [
               ['messages_days', 'Chat messages: days (min 30)'],
               ['intake_days', 'Intake answers: days (min 30)'],
-              ['audit_days', 'Audit log personal content: days (min 365)'],
+              ['audit_days', 'Personal details in activity history: days (at least 365)'],
               ['inactive_patient_days', 'Erase patients with no visit for: days (min 365)'],
             ] as const
           ).map(([k, label]) => (
@@ -511,26 +499,22 @@ export default function Settings() {
         </div>
 
         <div className="card" style={{ marginTop: '1rem' }}>
-          <h2>Agents</h2>
-          <p className="muted">
-            A switched-off agent hands its chats to the receptionist. Emergency (red-flag) detection
-            is always on.
-          </p>
-          {AGENT_NAMES.map((a) => (
-            <label key={a} className="check">
-              <input
-                type="checkbox"
-                checked={cfg.agents[a] !== false}
-                onChange={(e) => set('agents', { ...cfg.agents, [a]: e.target.checked })}
-              />
-              {AGENT_LABEL[a]}
-            </label>
-          ))}
+          <h2>Clinic assistants</h2>
           <p>
-            <button onClick={() => save(['agents'])}>Save agents</button>
+            Choose which everyday tasks the clinic assistant helps with, and review reminders before
+            turning them on.
           </p>
+          <a href="/doctor/agents">Manage clinic assistants</a>
         </div>
 
+        <details className="card" style={{ marginTop: '1rem' }}>
+          <summary>Connected software — for your setup team</summary>
+          <p>
+            Optional technical setup for exchanging information with another clinic system. Your
+            daily work does not require this.
+          </p>
+          <a href="/doctor/integrations">Open connected software settings</a>
+        </details>
         <div className="card" style={{ marginTop: '1rem' }}>
           <h2>Emergency phrases</h2>
           <p className="muted">

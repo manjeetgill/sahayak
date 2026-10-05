@@ -5,22 +5,22 @@ export default function Home() {
   return (
     <div className="wrap">
       <h1>Sahayak · सहायक</h1>
-      <p className="muted">AI front desk for clinics. Demo clinic: Dr. Sharma&apos;s Clinic.</p>
+      <p className="muted">Your clinic’s digital assistant. Example clinic: Dr. Sharma&apos;s Clinic.</p>
       <div className="card list">
         <div>
           <Link href={`/c/${slug}`}>Public clinic page</Link>
         </div>
         <div>
-          <Link href={`/c/${slug}/checkin`}>Patient check-in (QR page)</Link>
+          <Link href={`/c/${slug}/checkin`}>Patient check-in</Link>
         </div>
         <div>
           <Link href={`/c/${slug}/tv`}>Waiting-room TV</Link>
         </div>
         <div>
-          <Link href={`/c/${slug}/sim`}>WhatsApp simulator</Link>
+          <Link href={`/c/${slug}/sim`}>Try a WhatsApp conversation</Link>
         </div>
         <div>
-          <Link href="/login">Staff sign-in (doctor screen · receptionist console)</Link>
+          <Link href="/login">Doctor and reception sign-in</Link>
         </div>
       </div>
     </div>

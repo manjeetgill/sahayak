@@ -57,9 +57,16 @@ export async function erasePatient(
     name,
   ]);
   if (convs.length) {
+    await db.query('DELETE FROM inbox_reviews WHERE item_key = ANY($1::text[])', [
+      convs.flatMap((id) => [`conversation:${id}`, `alert:${id}`]),
+    ]);
     await db.query('UPDATE flags SET conversation_id=NULL WHERE conversation_id = ANY($1)', [
       convs,
     ]);
+    await db.query(
+      "UPDATE agent_platform_receipts SET response=NULL,state='UNKNOWN' WHERE conversation_id=ANY($1)",
+      [convs],
+    );
     await db.query('DELETE FROM messages WHERE conversation_id = ANY($1)', [convs]);
     await db.query('DELETE FROM conversations WHERE id = ANY($1)', [convs]);
   }
@@ -76,10 +83,14 @@ export async function erasePatient(
       await db.query(
         `SELECT to_char((GREATEST((SELECT max(signed_at) FROM visit_notes WHERE patient_id=$1 AND status='signed'),
                                   (SELECT max(signed_at) FROM issued_documents WHERE patient_id=$1),
-                                  (SELECT max(created_at) FROM patient_documents WHERE patient_id=$1)) + make_interval(years => $2))::date,'YYYY-MM-DD') AS until,
+                                  (SELECT max(created_at) FROM patient_documents WHERE patient_id=$1),
+                                  (SELECT max(created_at) FROM clinical_entries WHERE patient_id=$1),
+                                  (SELECT max(approved_at) FROM patient_instructions WHERE patient_id=$1)) + make_interval(years => $2))::date,'YYYY-MM-DD') AS until,
                 (GREATEST((SELECT max(signed_at) FROM visit_notes WHERE patient_id=$1 AND status='signed'),
                           (SELECT max(signed_at) FROM issued_documents WHERE patient_id=$1),
-                          (SELECT max(created_at) FROM patient_documents WHERE patient_id=$1)) + make_interval(years => $2))::date > now()::date AS held`,
+                          (SELECT max(created_at) FROM patient_documents WHERE patient_id=$1),
+                                  (SELECT max(created_at) FROM clinical_entries WHERE patient_id=$1),
+                                  (SELECT max(approved_at) FROM patient_instructions WHERE patient_id=$1)) + make_interval(years => $2))::date > now()::date AS held`,
         [patientId, years],
       )
     ).rows[0];
@@ -88,6 +99,18 @@ export async function erasePatient(
     await db.query("UPDATE flags SET summary='[removed on request]' WHERE patient_id=$1", [
       patientId,
     ]);
+    await db.query(
+      "UPDATE clinic_charges SET patient_id=NULL,description='Clinic charge (patient details removed)' WHERE patient_id=$1",
+      [patientId],
+    );
+    await db.query('DELETE FROM inbox_reviews WHERE patient_id=$1', [patientId]);
+    await db.query('DELETE FROM insurance_cases WHERE patient_id=$1', [patientId]);
+    await db.query('DELETE FROM care_plans WHERE patient_id=$1', [patientId]);
+    await db.query("DELETE FROM patient_instructions WHERE patient_id=$1 AND status='draft'", [
+      patientId,
+    ]);
+    await db.query('DELETE FROM care_tasks WHERE patient_id=$1', [patientId]);
+    await db.query('DELETE FROM appointment_waitlist WHERE patient_id=$1', [patientId]);
     await db.query('DELETE FROM follow_ups WHERE patient_id=$1', [patientId]);
     await db.query(
       'UPDATE consents SET withdrawn_at=COALESCE(withdrawn_at, now()) WHERE patient_id=$1',
@@ -99,6 +122,8 @@ export async function erasePatient(
         [patientId, [], holdUntil],
       );
     } else {
+      await db.query('DELETE FROM clinical_entries WHERE patient_id=$1', [patientId]);
+      await db.query('DELETE FROM patient_instructions WHERE patient_id=$1', [patientId]);
       await db.query('SELECT purge_patient_clinical($1,$2)', [ctx.clinicId, patientId]);
       await db.query('DELETE FROM intake_summaries WHERE patient_id=$1', [patientId]);
       await db.query('UPDATE appointments SET reason=NULL WHERE patient_id=$1', [patientId]);
@@ -200,6 +225,40 @@ export const exportPatientData = defineTool({
       documents: await rows(
         'SELECT created_at, kind, filename, mime, size_bytes FROM patient_documents WHERE patient_id=$1 ORDER BY created_at',
       ),
+      charges: await rows(
+        'SELECT id,description,amount_paise,status,created_at FROM clinic_charges WHERE patient_id=$1',
+      ),
+      payments: await rows(
+        'SELECT p.amount_paise,p.method,p.created_at,p.voided_at,p.correction_reason FROM clinic_payments p JOIN clinic_charges c ON c.id=p.charge_id WHERE c.patient_id=$1',
+      ),
+      insuranceCases: await rows('SELECT * FROM insurance_cases WHERE patient_id=$1'),
+      insuranceHistory: await rows(
+        'SELECT h.* FROM insurance_case_history h JOIN insurance_cases c ON c.id=h.case_id WHERE c.patient_id=$1',
+      ),
+      clinicalEntries: await rows(
+        'SELECT kind,data,status,occurred_on::text,verified_at,document_id,result_reviewed_at,result_review_note FROM clinical_entries WHERE patient_id=$1 ORDER BY occurred_on',
+      ),
+      instructions: await rows(
+        'SELECT language,body,status,approved_at,translated_from,translation_source FROM patient_instructions WHERE patient_id=$1 ORDER BY created_at',
+      ),
+      carePlans: await rows(
+        'SELECT id,title,status,approved_at FROM care_plans WHERE patient_id=$1',
+      ),
+      careStepHistory: await rows(
+        'SELECT step_id,status,response,created_at FROM care_step_history WHERE patient_id=$1 ORDER BY created_at',
+      ),
+      careSteps: await rows(
+        'SELECT plan_id,title,message,due_at,status,response,response_due_at FROM care_plan_steps WHERE patient_id=$1',
+      ),
+      careTasks: await rows(
+        'SELECT kind,title,status,due_at,reviewed_at,informed_at FROM care_tasks WHERE patient_id=$1 ORDER BY created_at',
+      ),
+      waitingList: await rows(
+        'SELECT from_date,to_date,status,opted_in_at FROM appointment_waitlist WHERE patient_id=$1 ORDER BY created_at',
+      ),
+      slotOffers: await rows(
+        'SELECT starts_at,expires_at,status FROM slot_offers WHERE patient_id=$1 ORDER BY created_at',
+      ),
       followUps: await rows(
         'SELECT kind, run_at, status FROM follow_ups WHERE patient_id=$1 ORDER BY run_at',
       ),
@@ -293,6 +352,9 @@ export const applyRetention = defineTool({
       ctx.clinicId,
       rules.audit_days ?? 730,
     ]);
+    await db.query(
+      "UPDATE agent_platform_receipts SET response=NULL,state='UNKNOWN' WHERE created_at < now()-interval '1 day' AND response IS NOT NULL",
+    );
     // Patients with no visit or appointment for a long time: erase (storage limitation).
     const inactive = (
       await db.query(
@@ -303,6 +365,8 @@ export const applyRetention = defineTool({
             AND NOT EXISTS (SELECT 1 FROM visit_notes n WHERE n.patient_id=p.id AND n.status='signed' AND n.signed_at > now() - make_interval(years => $2))
             AND NOT EXISTS (SELECT 1 FROM patient_documents d WHERE d.patient_id=p.id AND d.created_at > now() - make_interval(years => $2))
             AND NOT EXISTS (SELECT 1 FROM issued_documents x WHERE x.patient_id=p.id AND x.signed_at > now() - make_interval(years => $2))
+            AND NOT EXISTS (SELECT 1 FROM clinical_entries e WHERE e.patient_id=p.id AND e.created_at > now() - make_interval(years => $2))
+            AND NOT EXISTS (SELECT 1 FROM patient_instructions i WHERE i.patient_id=p.id AND i.approved_at > now() - make_interval(years => $2))
           UNION
           SELECT id FROM patients WHERE name <> 'Erased patient' AND clinical_hold_until IS NOT NULL AND clinical_hold_until <= now()::date`,
         [rules.inactive_patient_days ?? 1095, rules.clinical_years ?? 3],

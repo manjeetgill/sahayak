@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { bundles, detectRedFlagKeywords, t } from '../src';
+import { bundles, detectRedFlagKeywords, t, violatesMedicalPolicy } from '../src';
+
+it('blocks plural medicine instructions in generated text', () => {
+  expect(violatesMedicalPolicy('Take two tablets now.')).toBe(true);
+  expect(violatesMedicalPolicy('Take your capsules each morning.')).toBe(true);
+});
 
 describe('translations', () => {
   it('Hindi and English have exactly the same keys, none empty', () => {

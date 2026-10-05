@@ -1,3 +1,9 @@
+import { extractReport, searchRecord } from './record-search';
+import { localWorkflowTools } from './local-workflows';
+import { whatsappSetupTools } from './whatsapp-setup';
+import { searchMedicalReferences } from './reference-search';
+import { workbenchTools } from './clinical-workbench';
+import { inboxTools } from './inbox';
 import { registerTools } from './registry';
 import { checkinTools } from './checkin';
 import { queueTools } from './queue';
@@ -12,6 +18,8 @@ import { setupTools } from './setup';
 import { askTools } from './ask';
 import { recordTools } from './records';
 import { issuedTools } from './issued';
+import { careTools } from './care';
+import { waitlistTools } from './waitlist';
 import { customAgentTools } from './custom_agents';
 
 let done = false;
@@ -19,6 +27,7 @@ let done = false;
 export function registerAllTools() {
   if (done) return;
   registerTools([
+    ...whatsappSetupTools,
     ...checkinTools,
     ...queueTools,
     ...appointmentTools,
@@ -33,6 +42,13 @@ export function registerAllTools() {
     ...recordTools,
     ...issuedTools,
     ...customAgentTools,
+    ...careTools,
+    ...inboxTools,
+    ...workbenchTools,
+    ...localWorkflowTools,
+    extractReport, searchRecord,
+    searchMedicalReferences,
+    ...waitlistTools,
   ]);
   done = true;
 }

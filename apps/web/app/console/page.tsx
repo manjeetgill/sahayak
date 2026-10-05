@@ -1,5 +1,6 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { displayLabel } from '../../lib/labels';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '@sahayak/shared';
 import { AskClinic } from '../components/AskClinic';
 import { beep, session, staff, useLive, useSession } from '../../lib/api';
@@ -13,6 +14,8 @@ export default function Console() {
   const [open, setOpen] = useState<string | null>(null),
     [thread, setThread] = useState<any[]>([]),
     [reply, setReply] = useState('');
+  const selectedConversation = useRef<string | null>(null);
+  const [attentionOnly, setAttentionOnly] = useState(true);
   const [llmDown, setLlmDown] = useState(false),
     [err, setErr] = useState('');
   const [mc, setMc] = useState({ name: '', phone: '', doctorId: '', whatsapp: false });
@@ -25,7 +28,15 @@ export default function Console() {
     ]);
     setQueue(q);
     setFlags(f);
-    setConvs(c);
+    if (
+      selectedConversation.current &&
+      !c.some((row: any) => row.id === selectedConversation.current)
+    ) {
+      const selected = await staff(`/staff/conversations/${selectedConversation.current}`).catch(
+        () => null,
+      );
+      setConvs(selected ? [selected, ...c] : c);
+    } else setConvs(c);
   }, []);
   const loadThread = useCallback(
     async (id: string) => setThread(await staff(`/staff/conversations/${id}/messages`)),
@@ -62,17 +73,31 @@ export default function Console() {
     }
   };
   const openConv = async (id: string) => {
-    setOpen(id);
-    await loadThread(id);
+    setErr('');
+    setThread([]);
+    setOpen(null);
+    try {
+      const [conversation, messages] = await Promise.all([
+        staff(`/staff/conversations/${id}`),
+        staff(`/staff/conversations/${id}/messages`),
+      ]);
+      setConvs((previous) => [conversation, ...previous.filter((c) => c.id !== id)]);
+      setThread(messages);
+      selectedConversation.current = id;
+      setOpen(id);
+    } catch (e: any) {
+      setErr(e.message);
+    }
   };
   const cur = convs.find((c) => c.id === open);
 
   return (
     <div>
       <div className="topbar">
-        <b>{s.user.name}</b>{' '}
+        <b>{s.user.name}</b>
+        <a href="/doctor/waitlist">Waiting list</a>{' '}
         <a href="/doctor/agents" style={{ marginLeft: 16 }}>
-          Custom agents
+          Clinic assistants
         </a>{' '}
         <a href="/console/privacy" style={{ marginLeft: 16 }}>
           Privacy requests
@@ -208,14 +233,12 @@ export default function Console() {
           </form>
         </div>
         <div className="card">
-          <h2>
-            {t('en', 'console.flags')} ({flags.length})
-          </h2>
+          <h2>Needs attention ({flags.length})</h2>
           <div className="list">
             {flags.map((f) => (
               <div key={f.id} className={`flag ${f.severity}`}>
                 <div className="row between">
-                  <b>{f.kind.replace('_', ' ')}</b>
+                  <b>{displayLabel(f.kind)}</b>
                   <span className="muted">
                     {new Date(f.created_at).toLocaleTimeString('en-IN', {
                       hour: 'numeric',
@@ -228,14 +251,29 @@ export default function Console() {
                 <div className="row" style={{ marginTop: 6 }}>
                   {f.conversation_id && (
                     <button className="small ghost" onClick={() => openConv(f.conversation_id)}>
-                      Open chat
+                      Review conversation
+                    </button>
+                  )}
+                  {f.conversation_id && (
+                    <button
+                      className="small ghost"
+                      onClick={() =>
+                        act(async () => {
+                          await staff(`/staff/conversations/${f.conversation_id}/takeover`, {
+                            to: 'human',
+                          });
+                          await openConv(f.conversation_id);
+                        })
+                      }
+                    >
+                      Reply myself
                     </button>
                   )}
                   <button
                     className="small"
                     onClick={() => act(() => staff(`/staff/flags/${f.id}/resolve`, {}))}
                   >
-                    Resolve
+                    Mark handled
                   </button>
                 </div>
               </div>
@@ -245,23 +283,51 @@ export default function Console() {
         </div>
         <div className="card">
           <h2>Conversations</h2>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={attentionOnly}
+              onChange={(e) => setAttentionOnly(e.target.checked)}
+            />
+            Needs attention only
+          </label>
+          <p className="muted">
+            Marking an alert as handled does not let the assistant reply again. Review the conversation first, then
+            use Let the assistant reply.
+          </p>
           <div className="list" style={{ maxHeight: 180, overflow: 'auto' }}>
-            {convs.map((c) => (
-              <div
-                key={c.id}
-                className="row between"
-                style={{ cursor: 'pointer' }}
-                onClick={() => openConv(c.id)}
-              >
-                <span>
-                  <b>{c.patient_name ?? c.contact}</b>{' '}
-                  <span className={`tag ${c.handled_by === 'human' ? 'on_hold' : ''}`}>
-                    {c.handled_by}
+            {convs
+              .filter(
+                (c) =>
+                  !attentionOnly ||
+                  c.handled_by === 'human' ||
+                  flags.some((f) => f.conversation_id === c.id),
+              )
+              .map((c) => (
+                <button
+                  type="button"
+                  className="ghost"
+                  key={c.id}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => openConv(c.id)}
+                >
+                  <span>
+                    <b>{c.patient_name ?? c.contact}</b>{' '}
+                    <span className={`tag ${c.handled_by === 'human' ? 'on_hold' : ''}`}>
+                      {displayLabel(c.handled_by)}
+                    </span>
+                    <span className="muted">
+                      {flags
+                        .filter((f) => f.conversation_id === c.id)
+                        .map((f) => displayLabel(f.kind))
+                        .join(' · ') ||
+                        (c.handled_by === 'human' ? 'Reception team is replying' : 'Assistant is replying')}
+                      <br />
+                      {(c.last_message ?? '').slice(0, 50)}
+                    </span>
                   </span>
-                  <div className="muted">{(c.last_message ?? '').slice(0, 50)}</div>
-                </span>
-              </div>
-            ))}
+                </button>
+              ))}
           </div>
           {cur && (
             <>
@@ -288,7 +354,7 @@ export default function Console() {
                       })
                     }
                   >
-                    Hand back to assistant
+                    Let the assistant reply
                   </button>
                 )}
               </div>

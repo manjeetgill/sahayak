@@ -27,7 +27,7 @@ export default function Privacy() {
     const res = await fetch(`${API}/staff/patients/${id}/export`, {
       headers: { authorization: `Bearer ${sess?.token}` },
     });
-    if (!res.ok) return setErr('Could not export');
+    if (!res.ok) return setErr('Could not download the patient’s information');
     const url = URL.createObjectURL(await res.blob());
     const a = document.createElement('a');
     a.href = url;
@@ -39,7 +39,7 @@ export default function Privacy() {
   const erase = async (p: any) => {
     if (
       !confirm(
-        `Permanently erase ${p.name}'s name, phone, chats and intake answers? This cannot be undone.`,
+        `Permanently erase ${p.name}'s name, phone, chats and before-visit answers? This cannot be undone.`,
       )
     )
       return;
@@ -54,7 +54,7 @@ export default function Privacy() {
   return (
     <div>
       <div className="topbar">
-        <b>Privacy requests</b>
+        <b>Patient information requests</b>
         <a href={s.user.role === 'doctor' ? '/doctor' : '/console'}>← Back</a>
       </div>
       <div className="wrap">
@@ -98,7 +98,7 @@ export default function Privacy() {
                     Download copy
                   </button>
                   <button className="small danger" onClick={() => erase(p)}>
-                    Erase
+                    Delete patient information
                   </button>
                 </span>
               </div>

@@ -526,12 +526,12 @@ export default function Setup() {
           <div className="card">
             <h2>Try it</h2>
             <p className="muted">
-              Open the WhatsApp simulator and chat as a patient. Try "what are your timings", "I
+              Open the WhatsApp practice chat and chat as a patient. Try "what are your timings", "I
               need an appointment tomorrow evening", and a Hindi message.
             </p>
             <p className="row">
               <a href={`${origin}/c/${status.slug}/sim`} target="_blank" rel="noreferrer">
-                <button type="button">Open WhatsApp simulator</button>
+                <button type="button">Open WhatsApp practice chat</button>
               </a>
               <a href={`${origin}/c/${status.slug}/checkin`} target="_blank" rel="noreferrer">
                 <button type="button" className="ghost">
@@ -540,7 +540,7 @@ export default function Setup() {
               </a>
             </p>
             <p className="muted">
-              The simulator stands in for WhatsApp until a real WhatsApp Business number is
+              The practice chat lets you try the assistant until a real WhatsApp Business number is
               connected to your account by your Sahayak administrator.
             </p>
             <p>

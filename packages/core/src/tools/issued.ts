@@ -46,7 +46,7 @@ const CertContent = z.object({
   confirm_fit: z.boolean().optional(),
 });
 
-/** Possible clash between a prescribed medicine and the allergies the patient listed at intake. A prompt to look, never a verdict. */
+/** Bounded exact/word checks against patient supplied and doctor verified records. A prompt to look, never a verdict. */
 async function allergyWarnings(
   r: ToolRun,
   patientId: string,
@@ -65,7 +65,33 @@ async function allergyWarnings(
   const noted = texts[0] ?? null;
   const hay = texts.join(' ').toLowerCase();
   const warnings: string[] = [];
+  const verified = (
+    await r.db.query(
+      "SELECT id,kind,data FROM clinical_entries WHERE patient_id=$1 AND status='active' AND verified_at IS NOT NULL AND kind IN ('medication','allergy')",
+      [patientId],
+    )
+  ).rows;
+  const exact = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ');
+  const allergies = verified
+    .filter((entry) => entry.kind === 'allergy')
+    .map((entry) => ({ id: entry.id, substance: exact(entry.data.substance) }));
+  const medicines = verified
+    .filter((entry) => entry.kind === 'medication')
+    .map((entry) => ({ id: entry.id, ingredient: exact(entry.data.ingredient) }));
+  const seen = new Map<string, number>();
   for (const it of items) {
+    const prescribed = exact(it.drug);
+    seen.set(prescribed, (seen.get(prescribed) ?? 0) + 1);
+    for (const allergy of allergies)
+      if (prescribed === allergy.substance)
+        warnings.push(
+          `This prescription exactly matches the verified allergy record “${allergy.substance}”. Review the allergy and prescription before signing.`,
+        );
+    for (const medicine of medicines)
+      if (prescribed === medicine.ingredient)
+        warnings.push(
+          `“${it.drug}” exactly matches a verified active medicine ingredient. Review whether this is an intentional continuation or a duplicate before signing.`,
+        );
     for (const w of it.drug
       .toLowerCase()
       .split(/\s+/)
@@ -76,6 +102,11 @@ async function allergyWarnings(
         );
     }
   }
+  for (const [drug, count] of seen)
+    if (count > 1)
+      warnings.push(
+        `“${drug}” appears ${count} times in this prescription. Review whether the duplicate is intentional.`,
+      );
   return { warnings: [...new Set(warnings)], noted };
 }
 

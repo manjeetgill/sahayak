@@ -49,7 +49,7 @@ export class NemotronProvider implements LlmProvider {
     return new NemotronProvider({
       baseUrl: env.LLM_BASE_URL ?? 'https://integrate.api.nvidia.com/v1',
       apiKey: env.LLM_API_KEY,
-      model: env.LLM_MODEL ?? 'nemotron-3-ultra-550b-a55b',
+      model: env.LLM_MODEL ?? 'nvidia/nemotron-3-ultra-550b-a55b',
       timeoutMs: Number(env.LLM_TIMEOUT_MS ?? 8000),
     });
   }

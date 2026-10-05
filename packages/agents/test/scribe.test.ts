@@ -95,7 +95,31 @@ describe("the AI path (optional) is held to the doctor's own words", () => {
     expect((await structureNote(llm({}), t, true)).usedAi).toBe(false);
   });
   it('grounding check', () => {
-    expect(isGrounded({ plan: 'warm water gargles' }, t)).toBe(true);
+    expect(isGrounded({ plan: 'warm water gargles' }, t)).toBe(false); // omitted other dictated findings
+    expect(isGrounded(structureDeterministic(t).note, t)).toBe(true);
     expect(isGrounded({ plan: 'strong antibiotics immediately' }, t)).toBe(false);
   });
+});
+
+it('rejects changed doses and dropped negation even when vocabulary overlaps', () => {
+  const transcript = 'History: no fever. Plan: tablet 5 mg once daily';
+  expect(isGrounded({ history: 'fever', plan: 'tablet 5 mg once daily' }, transcript)).toBe(false);
+  expect(isGrounded({ history: 'no fever', plan: 'tablet 50 mg once daily' }, transcript)).toBe(
+    false,
+  );
+  expect(isGrounded({ history: 'no fever', plan: 'tablet 5 mg twice daily' }, transcript)).toBe(
+    false,
+  );
+});
+it('preserves doctor-stated assessment, differential, investigation and instructions', () => {
+  const source =
+    'Assessment: Needs review. Differential: Doctor recorded possibilities. Investigations: Bring existing report. Instructions: Call clinic tomorrow.';
+  const result = structureDeterministic(source);
+  expect(result.note).toMatchObject({
+    assessment: 'Needs review',
+    differential: 'Doctor recorded possibilities',
+    investigations: 'Bring existing report',
+    instructions: 'Call clinic tomorrow',
+  });
+  expect(result.note).not.toHaveProperty('plan');
 });

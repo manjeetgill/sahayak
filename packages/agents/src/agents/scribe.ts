@@ -1,9 +1,17 @@
-import { normalise } from '@sahayak/shared';
 import type { NoteContent } from '@sahayak/core';
 import type { LlmGate } from '../llm';
 
 export type NoteField =
-  'complaint' | 'history' | 'examination' | 'diagnosis' | 'plan' | 'follow_up';
+  | 'complaint'
+  | 'history'
+  | 'examination'
+  | 'diagnosis'
+  | 'plan'
+  | 'follow_up'
+  | 'assessment'
+  | 'differential'
+  | 'investigations'
+  | 'instructions';
 export interface Structured {
   note: NoteContent;
   flags: string[];
@@ -20,6 +28,10 @@ const LABELS: [NoteField, string][] = [
   ['examination', 'on examination|examination|exam|o\\/e|findings|vitals|जांच|परीक्षण'],
   ['diagnosis', 'provisional diagnosis|diagnosis|dx|impression|निदान'],
   ['follow_up', 'follow[ -]?up|f\\/u|review after|फॉलो[ -]?अप'],
+  ['assessment', 'assessment|आकलन'],
+  ['differential', 'differential diagnosis|differential|संभावित निदान'],
+  ['investigations', 'investigations|tests requested|जांच के अनुरोध'],
+  ['instructions', 'patient instructions|instructions|मरीज़ के निर्देश'],
   ['plan', 'treatment plan|plan|advice|advised|management|treatment|rx|सलाह|उपचार|योजना'],
 ];
 const ALT = LABELS.map(([f, re]) => `(?<${f}>${re})`).join('|');
@@ -75,26 +87,43 @@ export function structureDeterministic(transcript: string): Structured {
   return { note: note as NoteContent, flags, usedAi: false };
 }
 
-const words = (s: string) =>
-  normalise(s)
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter((w) => w.length >= 4);
-
-/** Every word the model wrote must come from the doctor's own words. Anything invented fails this check. */
+// Compare complete source segments, retaining short words, numbers and negation.
+// A word-overlap score could accept changed doses or a dropped "no".
+const canonical = (s: string) =>
+  s
+    .toLocaleLowerCase()
+    .replace(/[\s.;।]+/gu, ' ')
+    .trim();
+const segments = (s: string) =>
+  s
+    .split(/(?:[.;।]\s+|\n+)/u)
+    .map(canonical)
+    .filter(Boolean);
 export function isGrounded(note: NoteContent, transcript: string): boolean {
-  const have = new Set(words(transcript));
-  for (const v of Object.values(note)) {
-    if (typeof v !== 'string') continue;
-    const w = words(v);
-    if (!w.length) continue;
-    if (w.filter((x) => have.has(x)).length / w.length < 0.85) return false;
+  const base = structureDeterministic(transcript);
+  if (
+    !base.flags.length &&
+    Object.entries(note).some(
+      ([field, value]) =>
+        canonical(value ?? '') !== canonical((base.note as Record<string, string>)[field] ?? ''),
+    )
+  )
+    return false;
+  const source = Object.values(base.note).flatMap((v) => segments(v ?? ''));
+  const output = Object.values(note).flatMap((v) => segments(v ?? ''));
+  if (source.length !== output.length) return false;
+  const remaining = [...source];
+  for (const segment of output) {
+    const index = remaining.indexOf(segment);
+    if (index < 0) return false;
+    remaining.splice(index, 1);
   }
-  return true;
+  return remaining.length === 0;
 }
 
 const SYSTEM = `You organise a doctor's dictated visit note into sections. Use ONLY the doctor's own words: you may split, reorder and tidy punctuation, but you must not add, infer, translate, summarise or correct medical content.
-Sections: complaint, history, examination, diagnosis, plan, follow_up. Leave a section empty if the doctor did not say it. Do not invent a diagnosis or a plan.
-Reply ONLY with JSON: {"complaint":"","history":"","examination":"","diagnosis":"","plan":"","follow_up":"","unclear":["short notes about anything you could not place"]}`;
+Sections: complaint, history, examination, diagnosis, plan, follow_up, assessment, differential, investigations, instructions. Leave a section empty if the doctor did not say it. Do not invent a diagnosis or a plan.
+Reply ONLY with JSON: {"complaint":"","history":"","examination":"","diagnosis":"","plan":"","follow_up":"","assessment":"","differential":"","investigations":"","instructions":"","unclear":["short notes about anything you could not place"]}`;
 
 /**
  * Structure a dictation. The AI path is optional and off by default (it sends the doctor's words, with no patient
@@ -118,7 +147,18 @@ export async function structureNote(
     });
     const j = JSON.parse((r.content ?? '').match(/\{[\s\S]*\}/)?.[0] ?? '{}');
     const note: Record<string, string> = {};
-    for (const f of ['complaint', 'history', 'examination', 'diagnosis', 'plan', 'follow_up'])
+    for (const f of [
+      'complaint',
+      'history',
+      'examination',
+      'diagnosis',
+      'plan',
+      'follow_up',
+      'assessment',
+      'differential',
+      'investigations',
+      'instructions',
+    ])
       if (typeof j[f] === 'string' && j[f].trim()) note[f] = j[f].trim();
     if (!Object.keys(note).length || !isGrounded(note as NoteContent, transcript)) {
       return {
@@ -132,7 +172,13 @@ export async function structureNote(
     const unclear = Array.isArray(j.unclear)
       ? j.unclear.filter((x: unknown) => typeof x === 'string').slice(0, 5)
       : [];
-    return { note: note as NoteContent, flags: unclear, usedAi: true };
+    return {
+      note: note as NoteContent,
+      flags: unclear.length
+        ? ['Some wording needs review. Compare every section with the original transcript.']
+        : [],
+      usedAi: true,
+    };
   } catch {
     return base;
   }

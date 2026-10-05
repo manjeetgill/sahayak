@@ -1,7 +1,7 @@
 /** Last line of defence on anything an LLM drafted: no diagnoses, doses or reassurance about symptoms. */
 const BAD_OUTPUT = [
   /\b\d+(\.\d+)?\s?(mg|mcg|ml|iu)\b/i,
-  /\b(take|taking|try|use|have)\b[^.]{0,30}\b(paracetamol|crocin|dolo|ibuprofen|antibiotic|tablet|capsule|syrup|medicine|ointment)\b/i,
+  /\b(take|taking|try|use|have)\b[^.]{0,40}\b(paracetamol|crocin|dolo|ibuprofen|antibiotics?|tablets?|capsules?|syrups?|medicines?|ointments?)\b/i,
   /\byou (probably |likely |may |might )?have\b/i,
   /\b(it'?s|it is|this is) (just |probably |likely )?(a |an )?(viral|infection|flu|nothing|not serious|normal)\b/i,
   /\bdon'?t worry\b/i,

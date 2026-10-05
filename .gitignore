@@ -7,3 +7,5 @@ test-results
 playwright-report
 *.log
 dist
+
+.next-e2e

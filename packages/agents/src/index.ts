@@ -10,3 +10,5 @@ export * from './agents/privacy';
 export * from './agents/staff';
 export * from './agents/scribe';
 export * from './agents/customagent';
+
+export { translateInstructions } from './agents/translation';

@@ -1,4 +1,5 @@
 'use client';
+import { displayLabel } from '../../lib/labels';
 import { useCallback, useEffect, useState } from 'react';
 import { API, session, staff } from '../../lib/api';
 
@@ -99,10 +100,16 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
 
   return (
     <div className="card" style={{ marginTop: '1rem' }} data-testid="issued-docs">
-      <h2>Certificates and prescriptions</h2>
+      <h2 id="issued-documents">Certificates and prescriptions</h2>
       <p className="muted">
         The assistant fills in a fixed template from your details, or copies the medicines you list.
         It never suggests a medicine, dose or diagnosis. Nothing reaches the patient until you sign.
+      </p>
+      <p className="muted">
+        Prescription warnings check patient-entered allergy words and exact names in doctor-verified
+        medicine/allergy records. They do not check interactions, dose, therapeutic class, brand
+        synonyms, age, pregnancy, kidney/liver function or missing records. No warning does not mean
+        a prescription is safe.
       </p>
       {err && (
         <div className="error" role="alert">
@@ -241,7 +248,7 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
                 <span
                   className={`tag ${d.status === 'signed' ? 'called' : d.status === 'void' ? 'done' : 'on_hold'}`}
                 >
-                  {d.status}
+                  {displayLabel(d.status)}
                 </span>
                 {d.sent_at && <span className="muted"> · sent on WhatsApp</span>}
               </span>

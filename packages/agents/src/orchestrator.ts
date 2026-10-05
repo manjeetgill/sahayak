@@ -1,3 +1,4 @@
+import { clinicMenu } from './agents/clinic-menu';
 import { auditEvent, callTool } from '@sahayak/core';
 import { withClinic } from '@sahayak/db';
 import { t } from '@sahayak/shared';
@@ -146,6 +147,35 @@ export async function handleInbound(
 
     if (wantsQueueJump(turn.text)) {
       await refuseReorder(turn);
+      return result();
+    }
+
+    const offerCode = turn.text.trim().match(/^ACCEPT\s+([A-F0-9]{10})$/i);
+    if (offerCode && turn.patientId) {
+      const configuration = await call(turn, 'system', 'get_clinic_info', {});
+      if (configuration.agents?.front_desk === false) {
+        await call(turn, 'system', 'handoff_to_human', {
+          reason: 'other',
+          summary: 'Cancellation offer acceptance needs staff review: front desk is paused.',
+        });
+        await say(turn, 'system', 'msg.human_handoff');
+        rec.handledBy = 'human';
+        return result();
+      }
+      const accepted = await call(turn, 'front_desk', 'accept_slot_offer', {
+        code: offerCode[1].toUpperCase(),
+      });
+      await say(
+        turn,
+        'front_desk',
+        accepted.accepted ? 'msg.waitlist_accepted' : 'msg.waitlist_unavailable',
+      );
+      return result();
+    }
+
+    // Standard clinic-owned booking menu runs after safety/privacy/human checks.
+    if (await clinicMenu(turn)) {
+      if (turn.replies.some(reply => reply === t(turn.lang, 'msg.human_handoff'))) rec.handledBy = 'human';
       return result();
     }
 

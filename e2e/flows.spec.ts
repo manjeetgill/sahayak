@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { DB, login, simSend } from './helpers';
 
-test.describe.configure({ mode: 'serial' });
+test.describe.configure({ mode: 'default' });
 
 test('new patient journey: QR check-in → token → TV → doctor calls → TV updates', async ({
   page,
@@ -41,7 +41,7 @@ test('new patient journey: QR check-in → token → TV → doctor calls → TV 
   // Patient received the intake questions + turn notice on the WhatsApp simulator
   const sim = await (await browser.newContext()).newPage();
   await sim.goto('/c/dr-sharma/sim');
-  await sim.getByLabel(/Simulate a patient/).fill('9811122233');
+  await sim.getByLabel(/Practice patient phone number/).fill('9811122233');
   await expect(sim.getByTestId('chat')).toContainText('your token');
   await expect(sim.getByTestId('chat')).toContainText('main reason');
 });
@@ -101,7 +101,7 @@ test('running-late flow: doctor → impact → one tap confirm → patients noti
   // Nothing sent yet
   const sim = await (await browser.newContext()).newPage();
   await sim.goto('/c/dr-sharma/sim');
-  await sim.getByLabel(/Simulate a patient/).fill('9876501000');
+  await sim.getByLabel(/Practice patient phone number/).fill('9876501000');
   await expect(sim.getByTestId('chat')).not.toContainText(/30 minutes late|30 मिनट देर/);
 
   await doc.getByRole('button', { name: 'Confirm and notify patients' }).click();
@@ -118,7 +118,7 @@ test('red-flag escalation: patient message → emergency reply → urgent alert 
 }) => {
   const sim = await (await browser.newContext()).newPage();
   await sim.goto('/c/dr-sharma/sim');
-  await sim.getByLabel(/Simulate a patient/).fill('9876501005');
+  await sim.getByLabel(/Practice patient phone number/).fill('9876501005');
   const rec = await (await browser.newContext()).newPage();
   await login(rec, 'reception@demo.sahayak.in');
   const doc = await (await browser.newContext()).newPage();
@@ -130,8 +130,8 @@ test('red-flag escalation: patient message → emergency reply → urgent alert 
   await expect(rec.locator('.banner.urgent')).toBeVisible();
   await expect(doc.locator('.banner.urgent')).toBeVisible();
   // Receptionist can take over the chat
-  await rec.getByRole('button', { name: 'Open chat' }).first().click();
-  await rec.getByRole('button', { name: 'Take over' }).click();
+  await rec.getByRole('button', { name: 'Review conversation' }).first().click();
+  await rec.getByRole('button', { name: 'Reply myself', exact: true }).first().click();
   await rec.getByLabel('Reply').fill('We are sending help. Are you at home?');
   await rec.getByRole('button', { name: 'Send' }).click();
   await expect(sim.getByTestId('chat')).toContainText('We are sending help');
@@ -142,7 +142,7 @@ test('agent builder: doctor adds an FAQ and switches an agent; the assistant fol
 }) => {
   const doc = await (await browser.newContext()).newPage();
   await login(doc, 'anil@demo.sahayak.in');
-  await doc.getByRole('link', { name: 'Agent builder' }).click();
+  await doc.getByRole('link', { name: 'Clinic settings' }).click();
   await doc.getByRole('button', { name: 'Add FAQ' }).click();
   await doc.getByLabel('FAQ 1 keywords').fill('parking, scooter');
   await doc.getByLabel('FAQ 1 answer English').fill('Free parking is behind the building.');
@@ -152,7 +152,7 @@ test('agent builder: doctor adds an FAQ and switches an agent; the assistant fol
 
   const sim = await (await browser.newContext()).newPage();
   await sim.goto('/c/dr-sharma/sim');
-  await sim.getByLabel(/Simulate a patient/).fill('9876501010');
+  await sim.getByLabel(/Practice patient phone number/).fill('9876501010');
   await simSend(sim, 'is there scooter parking?');
   await expect(sim.getByTestId('chat')).toContainText('Free parking is behind the building.');
 
@@ -160,7 +160,7 @@ test('agent builder: doctor adds an FAQ and switches an agent; the assistant fol
   const call = await (await browser.newContext()).newPage();
   await call.goto('/c/dr-sharma/call');
   await call.getByLabel('Caller says').fill('I have chest pain');
-  await call.getByRole('button', { name: 'Speak' }).click();
+  await call.getByRole('button', { name: 'Send' }).click();
   await expect(call.getByTestId('call-log')).toContainText('108');
 });
 
@@ -175,7 +175,7 @@ test('safety report page shows protections, eval results and the audit log', asy
   await expect(rec.getByTestId('eval')).toContainText('48/48');
   await expect(rec.getByTestId('audit').locator('tbody tr').first()).toBeVisible();
   await rec.getByLabel('Filter').selectOption('red_flag');
-  await expect(rec.getByTestId('audit')).toContainText('red_flag');
+  await expect(rec.getByTestId('audit')).toContainText('Emergency alert');
 });
 
 test('integrations: doctor creates an API key (shown once) and the key works', async ({
@@ -184,13 +184,15 @@ test('integrations: doctor creates an API key (shown once) and the key works', a
 }) => {
   const doc = await (await browser.newContext()).newPage();
   await login(doc, 'anil@demo.sahayak.in');
-  await doc.getByRole('link', { name: 'Integrations' }).click();
+  await doc.getByRole('link', { name: 'Clinic settings' }).click();
+  await doc.getByText('Connected software — for your setup team', { exact: true }).click();
+  await doc.getByRole('link', { name: 'Open connected software settings' }).click();
   await doc.getByLabel('Key name').fill('e2e');
   await doc.getByLabel('Key access').selectOption('read');
   await doc.getByRole('button', { name: 'Create key' }).click();
   const key = (await doc.getByTestId('new-key').locator('div').first().innerText()).trim();
   expect(key).toMatch(/^shy_[0-9a-f]{8}_[0-9a-f]{32}$/);
-  const r = await request.get('http://127.0.0.1:4000/v1/doctors', {
+  const r = await request.get(`http://127.0.0.1:${process.env.E2E_API_PORT ?? '4100'}/v1/doctors`, {
     headers: { authorization: `Bearer ${key}` },
   });
   expect(r.status()).toBe(200);
@@ -250,7 +252,7 @@ test('guided setup: sign up, walk the seven steps, go live, print poster, recept
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const sim = await (await browser.newContext()).newPage();
   await sim.goto(`/c/${slug}/sim`);
-  await sim.getByLabel(/Simulate a patient/).fill('9876500099');
+  await sim.getByLabel(/Practice patient phone number/).fill('9876500099');
   await simSend(sim, 'is there parking?');
   await expect(sim.getByTestId('chat')).toContainText('Free parking behind the clinic.');
   await page.getByRole('button', { name: 'I tried it: refresh checklist' }).click();
@@ -316,7 +318,7 @@ test('visit-note scribe: doctor dictates, reviews, signs; patient sends a report
   // the patient sends a report on WhatsApp; it shows up on the record
   const sim = await (await browser.newContext()).newPage();
   await sim.goto('/c/dr-sharma/sim');
-  await sim.getByLabel(/Simulate a patient/).fill('9876501000');
+  await sim.getByLabel(/Practice patient phone number/).fill('9876501000');
   await sim.getByLabel('Attach file').setInputFiles('e2e/files/report.pdf');
   await expect(sim.getByTestId('chat')).toContainText(/Received your PDF|आपकी PDF मिल गई/);
   await doc.reload();
@@ -330,7 +332,7 @@ test('certificate: doctor drafts, signs with password, sends on WhatsApp; anyone
   const doc = await (await browser.newContext()).newPage();
   await login(doc, 'anil@demo.sahayak.in');
   // professional details are required before signing
-  await doc.getByRole('link', { name: 'Agent builder' }).click();
+  await doc.getByRole('link', { name: 'Clinic settings' }).click();
   await doc.getByLabel('Medical registration number').fill('PMC-12345');
   await doc.getByLabel('Qualifications').fill('MBBS, MD');
   await doc.getByRole('button', { name: 'Save professional details' }).click();
@@ -356,7 +358,7 @@ test('certificate: doctor drafts, signs with password, sends on WhatsApp; anyone
   // the patient got a private link on WhatsApp
   const sim = await (await browser.newContext()).newPage();
   await sim.goto('/c/dr-sharma/sim');
-  await sim.getByLabel(/Simulate a patient/).fill('9876501001');
+  await sim.getByLabel(/Practice patient phone number/).fill('9876501001');
   await expect(sim.getByTestId('chat')).toContainText(/\/d\//);
 
   // anyone with the code can verify it, and sees no medical content
@@ -403,9 +405,10 @@ test('custom agent: describe in plain words, review exactly what it will do, app
   await db.end();
   const doc = await (await browser.newContext()).newPage();
   await login(doc, 'anil@demo.sahayak.in');
-  await doc.getByRole('link', { name: 'Custom agents' }).click();
-  await doc.getByLabel('Describe your agent').fill('remind my diabetic patients every month');
-  await doc.getByRole('button', { name: 'Build it' }).click();
+  await doc.getByRole('link', { name: 'Clinic assistants', exact: true }).click();
+  await doc.getByRole('button', { name: 'Reminders & updates', exact: true }).click();
+  await doc.getByLabel('What would you like help with?').fill('remind my diabetic patients every month');
+  await doc.getByRole('button', { name: 'Prepare a draft' }).click();
   await expect(doc.getByTestId('agent-preview')).toContainText('On day 1 of every month at 10 am');
   await expect(doc.getByTestId('agent-preview')).toContainText('agreed to messages and reminders');
   await expect(doc.getByTestId('agent-preview')).toContainText('reach 1 patient');
@@ -421,8 +424,8 @@ test('custom agent: describe in plain words, review exactly what it will do, app
     .fill('Hello {name}, please book your check-up at {clinic}.');
   await doc.getByRole('button', { name: 'Check what it will do' }).click();
   await doc.getByRole('button', { name: 'Approve and turn on' }).click();
-  await expect(doc.getByTestId('agent-list')).toContainText('active');
-  await expect(doc.getByTestId('agent-list')).toContainText('Next run');
+  await expect(doc.getByTestId('agent-list')).toContainText('On');
+  await expect(doc.getByTestId('agent-list')).toContainText('Next scheduled time');
   await doc.getByRole('button', { name: 'Pause' }).click();
-  await expect(doc.getByTestId('agent-list')).toContainText('paused');
+  await expect(doc.getByTestId('agent-list')).toContainText('Paused');
 });

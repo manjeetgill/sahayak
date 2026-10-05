@@ -81,7 +81,7 @@ export async function notifyPatient(
   patient: { id: string; phone: string; language: Lang },
   key: MessageKey,
   vars: Record<string, string | number>,
-  opts: { proactive?: boolean; sender?: string } = {},
+  opts: { proactive?: boolean; sender?: string; offerId?: string } = {},
 ): Promise<boolean> {
   const { db, ctx, rt } = r;
   if (opts.proactive !== false && !(await hasConsent(db, patient.id, 'whatsapp_messaging')))
@@ -102,7 +102,7 @@ export async function notifyPatient(
     opts.sender ?? (ctx.actor.kind === 'agent' ? `agent:${ctx.actor.agent}` : 'system'),
     text,
   );
-  await deliver(r, { to: patient.phone, text, lang: patient.language });
+  await deliver(r, { to: patient.phone, text, lang: patient.language, offerId: opts.offerId });
   r.emit({ type: 'conversation_updated', conversationId: conv.id });
   return true;
 }
@@ -182,13 +182,13 @@ export function assertOwn(
  */
 export async function deliver(
   r: ToolRun,
-  m: { to: string; text: string; lang: Lang; channel?: string },
+  m: { to: string; text: string; lang: Lang; channel?: string; offerId?: string },
 ) {
   if (m.channel && m.channel !== 'whatsapp') return; // voice/web replies go back to the caller directly, never out as WhatsApp
   const ch = r.rt.channel ?? mock;
   if (!ch.queued) return ch.send({ clinicId: r.ctx.clinicId, ...m });
   await r.db.query(
-    'INSERT INTO outbox (clinic_id,channel,to_contact,body,language) VALUES ($1,$2,$3,$4,$5)',
-    [r.ctx.clinicId, ch.name, m.to, m.text, m.lang],
+    'INSERT INTO outbox (clinic_id,channel,to_contact,body,language,slot_offer_id) VALUES ($1,$2,$3,$4,$5,$6)',
+    [r.ctx.clinicId, ch.name, m.to, m.text, m.lang, m.offerId ?? null],
   );
 }

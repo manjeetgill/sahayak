@@ -1,4 +1,6 @@
 'use client';
+import { AttentionSummary } from '../components/AttentionSummary';
+import { VisitChecklist } from '../components/VisitChecklist';
 import { useCallback, useEffect, useState } from 'react';
 import { t } from '@sahayak/shared';
 import { AskClinic } from '../components/AskClinic';
@@ -70,15 +72,18 @@ export default function Doctor() {
   return (
     <div>
       <div className="topbar">
-        <b>{s.user.name}</b>{' '}
+        <b>{s.user.name}</b>
+        <a href="/doctor/inbox">Needs my attention</a>
+        <a href="/doctor/templates">Reusable care plans</a>
+        <a href="/doctor/references">Medical reference</a>
+        <a href="/doctor/practice">Clinic overview</a>
+        <a href="/doctor/care">Care tasks</a>
+        <a href="/doctor/waitlist">Waiting list</a>{' '}
         <a href="/doctor/settings" style={{ marginLeft: 16 }}>
-          Agent builder
+          Clinic settings
         </a>{' '}
         <a href="/doctor/agents" style={{ marginLeft: 16 }}>
-          Custom agents
-        </a>{' '}
-        <a href="/doctor/integrations" style={{ marginLeft: 16 }}>
-          Integrations
+          Clinic assistants
         </a>{' '}
         <a href="/safety" style={{ marginLeft: 16 }}>
           Safety report
@@ -98,6 +103,7 @@ export default function Doctor() {
           Your clinic setup is not finished. <a href="/setup">Continue setup →</a>
         </div>
       )}
+      <AttentionSummary />
       {llmDown && <div className="banner warn">{t('en', 'console.llm_down')}</div>}
       {urgent.map((f) => (
         <div key={f.id} className="banner urgent" role="alert">
@@ -206,15 +212,15 @@ export default function Doctor() {
                       Patient is here
                     </button>
                   )}
-                  <button onClick={() => act(`/staff/queue/${current.id}/finish`)}>
-                    {t('en', 'doctor.done')}
-                  </button>
                   <button className="ghost" onClick={() => act(`/staff/queue/${current.id}/hold`)}>
                     {t('en', 'doctor.hold')}
                   </button>
                   <button className="ghost" onClick={() => act(`/staff/queue/${current.id}/skip`)}>
                     {t('en', 'doctor.skip')}
                   </button>
+                </div>
+                <div style={{ marginTop: 12 }}>
+                  <VisitChecklist key={current.id} id={current.id} onFinished={() => void load()} />
                 </div>
               </>
             ) : (

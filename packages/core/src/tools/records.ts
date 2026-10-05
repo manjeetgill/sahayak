@@ -11,6 +11,10 @@ export const NOTE_FIELDS = [
   'diagnosis',
   'plan',
   'follow_up',
+  'assessment',
+  'differential',
+  'investigations',
+  'instructions',
 ] as const;
 export const NoteSchema = z.object(
   Object.fromEntries(NOTE_FIELDS.map((f) => [f, z.string().max(4000).optional()])) as Record<
@@ -109,7 +113,7 @@ export const getPatientRecord = defineTool({
     if (!p) throw new ToolError('not_found', 'Patient not found', 404);
     const notes = (
       await db.query(
-        `SELECT n.id, n.status, n.source, n.note, n.flags, n.amends_note_id, n.amend_reason, n.created_at, n.signed_at, d.name AS doctor
+        `SELECT n.id, n.doctor_id, n.queue_entry_id, n.transcript, n.status, n.source, n.note, n.flags, n.amends_note_id, n.amend_reason, n.created_at, n.signed_at, d.name AS doctor
            FROM visit_notes n JOIN doctors d ON d.id=n.doctor_id WHERE n.patient_id=$1 ORDER BY n.created_at DESC`,
         [patientId],
       )
@@ -122,13 +126,13 @@ export const getPatientRecord = defineTool({
     ).rows;
     const visits = (
       await db.query(
-        'SELECT queue_date, status, token_number FROM queue_entries WHERE patient_id=$1 ORDER BY queue_date DESC, token_number DESC LIMIT 15',
+        'SELECT id, doctor_id, queue_date, status, token_number FROM queue_entries WHERE patient_id=$1 ORDER BY queue_date DESC, token_number DESC LIMIT 15',
         [patientId],
       )
     ).rows;
     const intake = (
       await db.query(
-        'SELECT created_at, summary FROM intake_summaries WHERE patient_id=$1 ORDER BY created_at DESC LIMIT 5',
+        'SELECT id, created_at, answers, summary FROM intake_summaries WHERE patient_id=$1 ORDER BY created_at DESC LIMIT 5',
         [patientId],
       )
     ).rows;
@@ -168,6 +172,16 @@ export const saveVisitNoteDraft = defineTool({
     const doctorId = myDoctor(ctx);
     if (!(await db.query('SELECT 1 FROM patients WHERE id=$1', [i.patientId])).rowCount)
       throw new ToolError('not_found', 'Patient not found', 404);
+    if (
+      i.queueEntryId &&
+      !(
+        await db.query(
+          'SELECT 1 FROM queue_entries WHERE id=$1 AND patient_id=$2 AND doctor_id=$3',
+          [i.queueEntryId, i.patientId, doctorId],
+        )
+      ).rowCount
+    )
+      throw new ToolError('wrong_visit', 'Visit must belong to this patient and doctor');
     const r = await db.query(
       `INSERT INTO visit_notes (clinic_id,patient_id,doctor_id,queue_entry_id,source,transcript,note,flags,created_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,

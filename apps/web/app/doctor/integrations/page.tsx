@@ -1,4 +1,5 @@
 'use client';
+import { displayLabel } from '../../../lib/labels';
 import { useEffect, useState } from 'react';
 import { API, staff, useSession } from '../../../lib/api';
 
@@ -41,8 +42,8 @@ export default function Integrations() {
   return (
     <div>
       <div className="topbar">
-        <b>Integrations</b>
-        <a href="/doctor">← Back to doctor screen</a>
+        <b>Connected software</b>
+        <a href="/doctor/settings">← Clinic settings</a>
       </div>
       <div className="wrap" style={{ maxWidth: 820 }}>
         {err && (
@@ -56,16 +57,17 @@ export default function Integrations() {
           </div>
         )}
         <p className="muted">
-          Connect Sahayak to n8n, Google Sheets, your billing software or anything else. Keys give
-          access to this clinic only.
+          For your setup team: configure access for another system to exchange supported clinic
+          information. A developer must set up each connection. This is optional and is not needed
+          for daily consultations. Keys give access to this clinic only.
         </p>
 
         <div className="card">
-          <h2>API keys</h2>
+          <h2>Access keys for other software</h2>
           <p className="muted">
-            <b>read</b>: view doctors, slots, appointments, queue · <b>write</b>: also
-            book/cancel/move appointments and message consenting patients · <b>admin</b>: also
-            manage webhooks.
+            <b>View only</b>: view doctors, slots, appointments, queue · <b>View and make changes</b>: also
+            book/cancel/move appointments and message consenting patients · <b>Manage connections</b>: also
+            manage update connections.
           </p>
           {newKey && (
             <div
@@ -139,16 +141,16 @@ export default function Integrations() {
               onChange={(e) => setKscope(e.target.value)}
               style={{ width: 'auto' }}
             >
-              <option>read</option>
-              <option>write</option>
-              <option>admin</option>
+              <option value="read">View only</option>
+              <option value="write">View and make changes</option>
+              <option value="admin">Manage connections</option>
             </select>
             <button type="submit">Create key</button>
           </form>
         </div>
 
         <div className="card" style={{ marginTop: '1rem' }}>
-          <h2>Webhooks (events pushed to your tools)</h2>
+          <h2>Send updates to other software</h2>
           {newSecret && (
             <div
               className="card"
@@ -156,7 +158,7 @@ export default function Integrations() {
               role="status"
               data-testid="new-secret"
             >
-              <b>Signing secret (shown once):</b>
+              <b>Connection verification key (shown once):</b>
               <div style={{ wordBreak: 'break-all', fontFamily: 'monospace', margin: '6px 0' }}>
                 {newSecret}
               </div>
@@ -172,7 +174,7 @@ export default function Integrations() {
                   <span style={{ wordBreak: 'break-all' }}>
                     <b>{h.url}</b>
                     <div className="muted">
-                      {h.events.join(', ')} · {h.level} · {h.sent_7d} sent / {h.failed_7d} failed (7
+                      {h.events.map(displayLabel).join(', ')} · {h.level === 'minimal' ? 'Reference numbers only' : 'Patient details included'} · {h.sent_7d} sent / {h.failed_7d} failed (7
                       days){h.pending ? ` · ${h.pending} pending` : ''}
                     </div>
                   </span>
@@ -206,7 +208,7 @@ export default function Integrations() {
                     <button
                       className="small danger"
                       onClick={() =>
-                        confirm('Delete this webhook?') &&
+                        confirm('Delete this update connection?') &&
                         run(() =>
                           staff(`/staff/integrations/webhooks/${h.id}`, undefined, 'DELETE'),
                         )
@@ -220,7 +222,7 @@ export default function Integrations() {
                   <div className="muted" style={{ fontSize: '.85rem' }}>
                     {deliv.map((x) => (
                       <div key={x.id}>
-                        {new Date(x.created_at).toLocaleString()} · {x.event_type} · {x.status}
+                        {new Date(x.created_at).toLocaleString()} · {displayLabel(x.event_type)} · {displayLabel(x.status)}
                         {x.last_error ? ` (${x.last_error})` : ''}
                       </div>
                     ))}
@@ -229,7 +231,7 @@ export default function Integrations() {
                 )}
               </div>
             ))}
-            {!d.hooks.length && <p className="muted">No webhooks yet.</p>}
+            {!d.hooks.length && <p className="muted">No update connections yet.</p>}
           </div>
           <form
             style={{ marginTop: 8 }}
@@ -243,7 +245,7 @@ export default function Integrations() {
             }}
           >
             <input
-              aria-label="Webhook URL"
+              aria-label="Address to send updates to"
               placeholder="https://your-n8n.example.com/webhook/..."
               value={url}
               onChange={(e) => setUrl(e.target.value)}
@@ -263,13 +265,13 @@ export default function Integrations() {
                       checked={events.includes(e)}
                       onChange={() => toggle(e)}
                     />
-                    {e}
+                    {displayLabel(e)}
                   </label>
                 ))}
             </div>
             <label htmlFor="lvl">What to send about patients</label>
             <select id="lvl" value={level} onChange={(e) => setLevel(e.target.value)}>
-              <option value="minimal">Ids only (recommended)</option>
+              <option value="minimal">Reference numbers only (recommended)</option>
               <option value="full">Include patient name and phone (and message text)</option>
             </select>
             {level === 'full' && (
@@ -280,7 +282,7 @@ export default function Integrations() {
             )}
             <p className="row">
               <button type="submit" disabled={!events.length}>
-                Add webhook
+                Add update connection
               </button>
               <button
                 type="button"

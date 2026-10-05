@@ -20,7 +20,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-in-real-deployments}
       LLM_BASE_URL: ${LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
       LLM_API_KEY: ${LLM_API_KEY:-}
-      LLM_MODEL: ${LLM_MODEL:-nemotron-3-ultra-550b-a55b}
+      LLM_MODEL: ${LLM_MODEL:-nvidia/nemotron-3-ultra-550b-a55b}
+      LIVE_CHANNEL_OWNER: ${LIVE_CHANNEL_OWNER:-platform}
+      WHATSAPP_PROVIDER: ${WHATSAPP_PROVIDER:-}
       DATABASE_URL: postgres://sahayak_app:sahayak_app@postgres:5432/sahayak
       ADMIN_DATABASE_URL: postgres://postgres:postgres@postgres:5432/sahayak
       REDIS_URL: redis://redis:6379

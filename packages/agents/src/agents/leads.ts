@@ -14,7 +14,14 @@ export async function continueLead(turn: Turn): Promise<boolean> {
       await say(turn, AGENT, 'msg.ask_name');
       return true;
     }
-    await setState(turn, AGENT, { flow: 'lead_consent', name, pref: st.pref });
+    await setState(turn, AGENT, {
+      flow: 'lead_consent',
+      name,
+      pref: st.pref,
+      managedBooking: st.managedBooking,
+      visitKind: st.visitKind,
+      flowVersion: st.flowVersion,
+    });
     await say(turn, AGENT, 'msg.ask_consent_lead', { name });
     return true;
   }
@@ -32,7 +39,11 @@ export async function continueLead(turn: Turn): Promise<boolean> {
       consentVisitData: true,
     });
     turn.patientId = patientId;
-    await setState(turn, AGENT, {});
+    await setState(turn, AGENT, {
+      managedBooking: st.managedBooking,
+      visitKind: st.visitKind,
+      flowVersion: st.flowVersion,
+    });
     await startBooking(turn, AGENT, undefined, st.pref);
     return true;
   }
@@ -44,6 +55,9 @@ export async function leads(turn: Turn, intent: Intent) {
   if (intent === 'book') {
     await setState(turn, AGENT, {
       flow: 'lead_name',
+      managedBooking: turn.state.managedBooking,
+      visitKind: turn.state.visitKind,
+      flowVersion: turn.state.flowVersion,
       pref:
         parseSlotPreference(turn.text, (await call(turn, AGENT, 'get_clinic_info', {})).timezone) ??
         undefined,

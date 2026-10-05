@@ -1,3 +1,5 @@
+import { installWhatsAppBridge, channelSecret, type BridgeProvisioning, type WhatsAppBridgeOptions } from './whatsapp-bridge';
+import { whatsappPlatform, type WhatsAppPlatformOptions } from './whatsapp-platform';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -13,6 +15,7 @@ import {
   handleInbound,
   handleInboundMedia,
   structureNote,
+  translateInstructions,
   parseLateRequest,
   startIntakeFor,
   type AgentEnv,
@@ -24,6 +27,7 @@ import {
   WEBHOOK_EVENTS,
   MockSpeechToText,
   MockTextToSpeech,
+  MockWhatsAppChannel,
   type ChannelPlugin,
   type SpeechToText,
   type TextToSpeech,
@@ -36,6 +40,7 @@ import {
 } from '@sahayak/core';
 import { hashPassword, verifyPassword, withClinic } from '@sahayak/db';
 import { openApiSpec } from './openapi';
+import { draftFromPlatform, type AgentPlatformOptions } from './agent-platform';
 import {
   BUILTIN_RED_FLAGS,
   CheckinInput,
@@ -46,8 +51,13 @@ import {
 } from '@sahayak/shared';
 
 export interface AppDeps {
+  liveChannelOwner?: 'platform' | 'local';
   /** Real WhatsApp channel + inbound adapter (omit for the mock simulator). */
   whatsapp?: ChannelPlugin;
+  agentPlatform?: AgentPlatformOptions;
+  whatsappPlatform?: WhatsAppPlatformOptions;
+  whatsappBridge?: WhatsAppBridgeOptions;
+  whatsappProvisioning?: BridgeProvisioning;
   stt?: SpeechToText;
   tts?: TextToSpeech;
   pool: pg.Pool;
@@ -77,7 +87,7 @@ export async function buildApp(deps: AppDeps) {
     bodyLimit: 12_000_000, // photo/PDF uploads (8 MB file as base64)
     logger:
       process.env.NODE_ENV !== 'test'
-        ? { level: 'info', redact: ['req.headers.authorization'] }
+        ? { level: 'info', redact: ['req.headers.authorization', 'req.url'] }
         : false,
   });
   await app.register(cors, { origin: true });
@@ -281,6 +291,41 @@ export async function buildApp(deps: AppDeps) {
           .rows,
     );
   });
+  app.get('/staff/patients/:id/workspace', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'get_clinical_workspace', { patientId: idParam(req) });
+  });
+  const workbenchActions: Record<string,string> = {
+    'step-edit':'edit_draft_care_step','daily-brief':'get_daily_care_brief',
+    'report-extract':'extract_report_text','record-search':'search_patient_record',
+    'template-list':'list_care_templates','template-save':'save_care_template','template-review':'review_care_template','template-apply':'apply_care_template','result-review':'review_clinical_result','insurance-create':'create_insurance_case','insurance-update':'update_insurance_case',
+    'report-rows': 'import_report_rows', 'charges': 'add_clinic_charge', 'payments': 'record_clinic_payment', 'entries': 'add_clinical_entry', 'entry-status': 'update_clinical_entry',
+    'instruction-draft': 'draft_patient_instructions', 'instructions': 'save_patient_instructions',
+    'plans': 'create_care_plan', 'plan-status': 'change_care_plan', 'steps': 'update_care_step',
+    'billing-correction': 'correct_clinic_billing', 'reference-archive': 'archive_medical_reference', 'reference-search': 'search_medical_references', 'references': 'save_medical_reference', 'inbox-review': 'update_inbox_review',
+  };
+  for (const [path, tool] of Object.entries(workbenchActions)) app.post(`/staff/workbench/${path}`, async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), tool, req.body);
+  });
+  app.post('/staff/workbench/translate', async req => {
+    const c=await claims(req,['doctor']);
+    const b=z.object({id:z.string().uuid(),language:z.enum(['en','hi','hinglish','mr','bn','ta','te','kn','gu']),consent:z.literal(true)}).parse(req.body);
+    const source:any=await callTool(rt,staffCtx(c),'get_instruction_translation_source',{id:b.id});
+    let body:string;
+    try {body=await translateInstructions(gate,source.body,b.language);} catch(e:any){throw new ToolError('translation',e.message,503);}
+    return callTool(rt,staffCtx(c),'save_instruction_translation_draft',{sourceId:b.id,language:b.language,body});
+  });
+  app.get('/staff/references', async (req) => { const c = await claims(req, ['doctor']); return callTool(rt, staffCtx(c), 'list_medical_references', {}); });
+  app.get('/staff/practice', async (req) => { const c = await claims(req, ['doctor']); return callTool(rt, staffCtx(c), 'get_practice_overview', {days: Number((req.query as any).days ?? 30)}); });
+  app.get('/staff/inbox', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'get_doctor_inbox', req.query ?? {});
+  });
+  app.get('/staff/inbox/conversations/:id', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'get_inbox_conversation', { conversationId: idParam(req) });
+  });
   app.get('/staff/queue', async (req) => {
     const c = await claims(req);
     return read(c.clinicId, async (db) => {
@@ -431,6 +476,20 @@ export async function buildApp(deps: AppDeps) {
         ).rows,
     );
   });
+  app.get('/staff/conversations/:id', async (req) => {
+    const c = await claims(req, ['receptionist']);
+    return read(c.clinicId, async (db) => {
+      const row = (
+        await db.query(
+          `SELECT c.id,c.contact,c.handled_by,c.language,c.updated_at,
+        p.name AS patient_name FROM conversations c LEFT JOIN patients p ON p.id=c.patient_id WHERE c.id=$1`,
+          [idParam(req)],
+        )
+      ).rows[0];
+      if (!row) throw new ToolError('not_found', 'Conversation not found', 404);
+      return row;
+    });
+  });
   app.post('/staff/conversations/:id/takeover', async (req) => {
     const c = await claims(req, ['receptionist']);
     return callTool(rt, staffCtx(c), 'take_over_conversation', {
@@ -466,6 +525,45 @@ export async function buildApp(deps: AppDeps) {
     const c = await claims(req);
     const q = z.object({ q: z.string().trim().min(2).max(60) }).parse(req.query).q;
     return (await callTool(rt, staffCtx(c), 'search_patients', { q })).patients;
+  });
+  app.get('/staff/patients/:id/brief', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'get_previsit_brief', { patientId: idParam(req) });
+  });
+  app.get('/staff/care-tasks', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'list_care_tasks', req.query);
+  });
+  app.post('/staff/care-tasks', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'create_care_task', req.body);
+  });
+  app.patch('/staff/care-tasks/:id', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'update_care_task', {
+      ...(req.body as object),
+      taskId: idParam(req),
+    });
+  });
+  app.get('/staff/queue/:id/checklist', async (req) => {
+    const c = await claims(req);
+    return callTool(rt, staffCtx(c), 'get_visit_checklist', { queueEntryId: idParam(req) });
+  });
+  app.get('/staff/waitlist', async (req) => {
+    const c = await claims(req);
+    return callTool(rt, staffCtx(c), 'list_waitlist', {});
+  });
+  app.post('/staff/waitlist', async (req) => {
+    const c = await claims(req);
+    return callTool(rt, staffCtx(c), 'join_waitlist', req.body);
+  });
+  app.delete('/staff/waitlist/:id', async (req) => {
+    const c = await claims(req);
+    return callTool(rt, staffCtx(c), 'withdraw_waitlist', { id: idParam(req) });
+  });
+  app.post('/staff/waitlist/offer', async (req) => {
+    const c = await claims(req);
+    return callTool(rt, staffCtx(c), 'offer_cancelled_slot', req.body);
   });
   app.get('/staff/patients/:id/record', async (req) => {
     const c = await claims(req, ['doctor']);
@@ -674,6 +772,118 @@ export async function buildApp(deps: AppDeps) {
   });
 
   // ---- custom agents: describe in plain words, review, approve ----
+  app.post('/staff/agents/test', async (req) => {
+    const c = await claims(req);
+    if (deps.simulator === false) throw new ToolError('forbidden', 'Simulation is disabled', 403);
+    const body = z
+      .object({
+        from: PhoneSchema,
+        text: z.string().trim().min(1).max(500),
+        channel: z.enum(['whatsapp', 'voice']),
+        language: z.enum(['en', 'hi']),
+      })
+      .parse(req.body);
+    return handleInbound(
+      { rt: { ...rt, channel: new MockWhatsAppChannel() }, gate },
+      {
+        clinicId: c.clinicId,
+        ...body,
+      },
+    );
+  });
+  app.get('/staff/agents/diagnostics', async (req) => {
+    const c = await claims(req);
+    return read(c.clinicId, async (db) => {
+      const messages = (
+        await db.query(`SELECT id, status, attempts, created_at, next_attempt_at,
+        CASE WHEN last_error IS NOT NULL THEN true ELSE false END AS has_error
+        FROM outbox ORDER BY created_at DESC LIMIT 20`)
+      ).rows;
+      const counts = (
+        await db.query(`SELECT status, count(*)::int AS count FROM outbox
+        GROUP BY status`)
+      ).rows;
+      return { messages, counts };
+    });
+  });
+  const waRead = (clinicId:string) => read(clinicId, async db =>
+    (await db.query('SELECT * FROM clinic_whatsapp_setup WHERE clinic_id=$1',[clinicId])).rows[0] ?? null);
+  const waAdvance = (clinicId:string,from:string,to:string,sessionId?:string) => callTool(rt,
+    {clinicId,actor:{kind:'system',name:'whatsapp-onboarding'}},'advance_whatsapp_setup',{from,to,sessionId});
+  app.get('/staff/agents/whatsapp/setup',async req=>{
+    const c=await claims(req); const setup=await waRead(c.clinicId);
+    const platformConfigured=!!deps.whatsappPlatform?.clinics[c.clinicId];
+    let onboardingAvailable=false;
+    if(platformConfigured){try{onboardingAvailable=(await whatsappPlatform(deps.whatsappPlatform,c.clinicId,'/config',z.object({available:z.boolean()}))).available;}catch{/* report setup unavailable without blocking the clinic app */}}
+    return {setup,platformConfigured,onboardingAvailable,bridgeConfigured:!!deps.whatsappProvisioning,liveRepliesEnabled:setup?.preparation==='ACTIVE'};
+  });
+  app.put('/staff/agents/whatsapp/setup',async req=>{
+    const c=await claims(req,['doctor']);return callTool(rt,staffCtx(c),'request_whatsapp_setup',req.body);
+  });
+  app.post('/staff/agents/whatsapp/connect',async (req,reply)=>{
+    const c=await claims(req,['doctor']); reply.header('Cache-Control','no-store');
+    const saved=await waRead(c.clinicId);
+    if(saved?.state==='CONNECTING' && saved.session_id)return whatsappPlatform(deps.whatsappPlatform,c.clinicId,`/onboarding/${saved.session_id}/resume`,z.object({id:z.string().uuid(),connect_token:z.string().min(20)}),{});
+    const config=await whatsappPlatform(deps.whatsappPlatform,c.clinicId,'/config',z.object({available:z.boolean()}));
+    if(!config.available) throw new ToolError('partner_setup_required','Your setup team must enable provider onboarding first.',503);
+    await waAdvance(c.clinicId,'REQUESTED','STARTING');
+    try {
+      const session=await whatsappPlatform(deps.whatsappPlatform,c.clinicId,'/onboarding',z.object({id:z.string().uuid(),connect_token:z.string().min(20)}),{});
+      await waAdvance(c.clinicId,'STARTING','CONNECTING',session.id);return session;
+    } catch(e){await waAdvance(c.clinicId,'STARTING','CHECK_REQUIRED');throw e;}
+  });
+  app.post('/staff/agents/whatsapp/complete',async req=>{
+    const c=await claims(req,['doctor']); const row=await waRead(c.clinicId);
+    if(!row?.session_id || row.state!=='CONNECTING') throw new ToolError('setup_conflict','Refresh your saved setup status.',409);
+    const body=z.object({plugin_id:z.string().uuid()}).parse(req.body);
+    await whatsappPlatform(deps.whatsappPlatform,c.clinicId,`/onboarding/${row.session_id}/complete`,z.object({state:z.literal('OWNERSHIP_CHECK_REQUIRED')}),body);
+    return waAdvance(c.clinicId,'CONNECTING','OWNERSHIP_CHECK_REQUIRED');
+  });
+  const channelSchema=z.object({id:z.string().uuid(),app_id:z.string().uuid(),enabled:z.boolean(),execution_mode:z.literal('SAHAYAK'),webhook_verified_at:z.string().nullable()});
+  const savePreparation=(clinicId:string,channel:z.infer<typeof channelSchema>,phase:string)=>callTool(rt,{clinicId,actor:{kind:'system',name:'whatsapp-preparation'}},'record_whatsapp_preparation',{channelId:channel.id,appId:channel.app_id,phase});
+  const prepareWhatsApp=async(clinicId:string)=>{
+    const saved=await waRead(clinicId);
+    if(saved?.state!=='CONNECTED' || !saved.session_id)throw new ToolError('authorization_pending','Complete owner authorization and number ownership verification first.',409);
+    if(!deps.whatsappProvisioning)throw new ToolError('bridge_setup_required','Your setup team must configure the shared secure Sahayak endpoint once.',503);
+    // Both remote writes are idempotent against the verified session; no arbitrary phone/channel IDs from the browser.
+    const channel=await whatsappPlatform(deps.whatsappPlatform,clinicId,`/onboarding/${saved.session_id}/channel`,channelSchema,{});
+    await savePreparation(clinicId,channel,'PREPARING');
+    await whatsappPlatform(deps.whatsappPlatform,clinicId,`/v1/whatsapp/channels/${channel.id}/sahayak`,z.object({configured:z.literal(true)}),{clinic_id:clinicId,url:deps.whatsappProvisioning.url,secret:channelSecret(deps.whatsappProvisioning,clinicId,channel.app_id,channel.id)},'PUT');
+    const hook=await whatsappPlatform(deps.whatsappPlatform,clinicId,`/channels/${channel.id}/webhook`,z.object({configured:z.literal(true),verified:z.boolean()}),{});
+    return savePreparation(clinicId,channel,channel.enabled?'ACTIVE':hook.verified?'READY':'WEBHOOK_PENDING');
+  };
+  app.post('/staff/agents/whatsapp/prepare',async req=>{const c=await claims(req,['doctor']);return prepareWhatsApp(c.clinicId);});
+  app.post('/staff/agents/whatsapp/refresh',async req=>{
+    const c=await claims(req,['doctor']);let row=await waRead(c.clinicId);
+    if(!row?.session_id)return row;
+    const remote=await whatsappPlatform(deps.whatsappPlatform,c.clinicId,`/onboarding/${row.session_id}`,z.object({state:z.enum(['CONNECTING','OWNERSHIP_CHECK_REQUIRED','CHECK_REQUIRED','CONNECTED'])}));
+    if(remote.state!==row.state)row=await waAdvance(c.clinicId,row.state,remote.state);
+    if(row.state==='CONNECTED')return prepareWhatsApp(c.clinicId);
+    return row;
+  });
+  app.post('/staff/agents/whatsapp/activation',async req=>{
+    const c=await claims(req,['doctor']);const {enabled}=z.object({enabled:z.boolean()}).parse(req.body);
+    const row=await waRead(c.clinicId);
+    if(!row?.channel_id)throw new ToolError('setup_pending','Finish connecting your clinic first.',409);
+    if(enabled && !['READY','ACTIVE'].includes(row.preparation))throw new ToolError('test_pending','Send a test message to verify the webhook, then check connection status.',409);
+    const result=await whatsappPlatform(deps.whatsappPlatform,c.clinicId,`/v1/whatsapp/channels/${row.channel_id}/activation`,z.object({enabled:z.boolean()}),{enabled});
+    if(result.enabled!==enabled)throw new ToolError('activation_unknown','Check the saved channel state before retrying.',409);
+    return savePreparation(c.clinicId,{id:row.channel_id,app_id:row.channel_app_id,enabled,execution_mode:'SAHAYAK',webhook_verified_at:null},enabled?'ACTIVE':'READY');
+  });
+
+  app.get('/staff/agents/connections', async (req) => {
+    const c = await claims(req);
+    const clinic = (await pool.query('SELECT slug FROM clinics WHERE id=$1', [c.clinicId])).rows[0];
+    return {
+      slug: clinic?.slug,
+      liveChannelOwner: deps.liveChannelOwner ?? 'local',
+      simulator: deps.simulator !== false,
+      voiceSimulator: deps.simulator !== false || !!deps.whatsapp,
+      platform: { configured: !!deps.agentPlatform },
+      whatsapp: { configured: !!deps.whatsapp || (await waRead(c.clinicId))?.preparation==='ACTIVE', provider: deps.whatsapp?.messaging.name ?? (deps.whatsappPlatform?.clinics[c.clinicId]?'agent-platform':null) },
+      phone: { configured: false },
+    };
+  });
   app.get('/staff/agents', async (req) => {
     const c = await claims(req);
     return callTool(rt, staffCtx(c), 'list_custom_agents', {});
@@ -681,6 +891,7 @@ export async function buildApp(deps: AppDeps) {
   app.post('/staff/agents/interpret', async (req) => {
     const c = await claims(req, ['doctor']);
     const { text } = z.object({ text: z.string().trim().min(5).max(500) }).parse(req.body);
+    if (deps.agentPlatform) return draftFromPlatform(deps.agentPlatform, c.clinicId, text);
     const out = await callTool(rt, staffCtx(c), 'interpret_agent_request', { text });
     if (out.understood) return out;
     return (await llmInterpret(gate, text)) ?? out;
@@ -1253,6 +1464,8 @@ export async function buildApp(deps: AppDeps) {
     return callTool(rt, staffCtx(c), 'remove_red_flag_phrase', { id: idParam(req) });
   });
 
+  installWhatsAppBridge(app, {rt, gate:deps.gate}, deps.whatsappBridge, deps.whatsappProvisioning);
+
   // ---- real WhatsApp: webhook in (signature-checked), outbox out ----
   if (deps.whatsapp) {
     const { inbound } = deps.whatsapp;
@@ -1347,13 +1560,16 @@ export async function buildApp(deps: AppDeps) {
       language = r.language;
     }
     if (!text?.trim()) throw new ToolError('no_speech', 'Nothing was heard', 400);
-    const r = await handleInbound(env, {
-      clinicId: clinic.id,
-      from: b.from,
-      text,
-      channel: 'voice',
-      language,
-    });
+    const r = await handleInbound(
+      { rt: { ...rt, channel: new MockWhatsAppChannel() }, gate },
+      {
+        clinicId: clinic.id,
+        from: b.from,
+        text,
+        channel: 'voice',
+        language,
+      },
+    );
     const spoken = r.handledBy === 'human' && !r.replies.length ? [] : r.replies;
     const lang = language ?? (/[\u0900-\u097F]/.test(text) ? 'hi' : 'en');
     const audio = spoken.length ? await tts.synthesize(spoken.join(' '), lang) : null;
@@ -1372,12 +1588,15 @@ export async function buildApp(deps: AppDeps) {
     app.post('/sim/:slug/message', async (req) => {
       const c = await clinicBySlug((req.params as any).slug);
       const i = InboundMessageInput.parse(req.body);
-      return handleInbound(env, {
-        clinicId: c.id,
-        from: i.from,
-        text: i.text,
-        doctorId: i.doctorId,
-      });
+      return handleInbound(
+        { rt: { ...rt, channel: new MockWhatsAppChannel() }, gate },
+        {
+          clinicId: c.id,
+          from: i.from,
+          text: i.text,
+          doctorId: i.doctorId,
+        },
+      );
     });
     app.post('/sim/:slug/media', async (req) => {
       const c = await clinicBySlug((req.params as any).slug);
@@ -1389,13 +1608,16 @@ export async function buildApp(deps: AppDeps) {
           caption: z.string().max(200).optional(),
         })
         .parse(req.body);
-      return handleInboundMedia(env, {
-        clinicId: c.id,
-        from: b.from,
-        filename: b.filename,
-        base64: b.base64,
-        caption: b.caption,
-      });
+      return handleInboundMedia(
+        { rt: { ...rt, channel: new MockWhatsAppChannel() }, gate },
+        {
+          clinicId: c.id,
+          from: b.from,
+          filename: b.filename,
+          base64: b.base64,
+          caption: b.caption,
+        },
+      );
     });
     app.get('/sim/:slug/messages', async (req) => {
       const c = await clinicBySlug((req.params as any).slug);

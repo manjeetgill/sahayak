@@ -252,7 +252,7 @@ export const startConsultation = defineTool({
   allow: STAFF,
   async run(r, { queueEntryId }) {
     const u = await r.db.query(
-      "UPDATE queue_entries SET status='in_consultation' WHERE id=$1 AND status='called' RETURNING doctor_id",
+      "UPDATE queue_entries SET status='in_consultation',consultation_started_at=COALESCE(consultation_started_at,now()) WHERE id=$1 AND status='called' RETURNING doctor_id",
       [queueEntryId],
     );
     if (!u.rowCount)

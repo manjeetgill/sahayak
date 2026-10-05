@@ -6,7 +6,7 @@ import type { ChannelPlugin, InboundAdapter, MessagingChannel } from './channels
  *  - POST inbound messages to us as {"to": "<business number>", "from": "<patient number>", "text": "..."}
  *    (or {"messages":[...]}) with header `x-sahayak-signature: sha256=<hex HMAC of the raw body>`;
  *  - accept outbound messages as POST {to, text} with a bearer token.
- * Picking a vendor (Meta Cloud API, Twilio, Gupshup, ...) means writing one ChannelPlugin like this one for it.
+ * Picking a vendor (Meta Cloud API or another gateway) means writing one ChannelPlugin like this one for it.
  */
 export function genericHttpPlugin(cfg: {
   secret: string;

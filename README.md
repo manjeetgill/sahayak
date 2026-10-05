@@ -28,6 +28,8 @@ Demo password for all staff: `demo1234` (local seed data only). Seeded patients:
 
 Without `LLM_API_KEY` the assistant runs on deterministic logic (scripted, works offline). Set `LLM_API_KEY` in `.env` to enable Nemotron 3 Ultra for the second red-flag layer, free-form questions and intake summaries.
 
+To draft custom agents through the local AI-Agent-Platform, follow [the agent platform integration guide](docs/agent-platform-integration.md).
+
 ## Try this
 
 1. Check in on the check-in page, tick consent, get a token. Watch the TV update.
@@ -39,7 +41,20 @@ Without `LLM_API_KEY` the assistant runs on deterministic logic (scripted, works
 
 ```bash
 pnpm test    # 85 tests: row-level security, safety rules, agents, API
-pnpm e2e     # Playwright: new patient journey, running late, red-flag escalation
+pnpm e2e     # Chrome browser journeys in a disposable test database
 pnpm eval    # ~50 sample messages (Hindi/English): pass/fail per safety rule
 pnpm check      # lint + typecheck + tests
 ```
+
+### Browser testing
+
+`pnpm e2e` creates and removes its own `sahayak_e2e_*` database using the local
+admin connection. It starts separate API/web servers on ports 4100/3100, disables
+live messaging and AI providers, and leaves the normal clinic database untouched.
+Google Chrome must be installed and the local database must be running. Direct
+`playwright test` runs are guarded against resetting a non-test database.
+
+The suite covers check-in, live queues, emergency escalation, clinic setup, FAQs,
+API keys, notes, reports, certificates, automation approvals, waiting-list consent
+and withdrawal, and care-task review. Live calls, WhatsApp delivery, microphone
+recognition, and hosted AI quality need separate provider tests.

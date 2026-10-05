@@ -237,14 +237,18 @@ export const createCustomAgent = defineTool({
     name: z.string().trim().min(3).max(80),
     description: z.string().trim().max(500).default(''),
     spec: z.any(),
+    platformDraftId: UUID.optional(),
+    platformVersion: z.number().int().positive().optional(),
   }),
   allow: DOCTOR,
   auditInput: (i) => ({ name: i.name }),
   async run({ db, ctx }, i) {
+    if ((i.platformDraftId === undefined) !== (i.platformVersion === undefined))
+      throw new ToolError('invalid_source', 'Platform draft id and version must be provided together');
     const spec = mustBeValid(i.spec);
     const r = await db.query(
-      'INSERT INTO custom_agents (clinic_id,name,description,spec,created_by) VALUES ($1,$2,$3,$4,$5) RETURNING id',
-      [ctx.clinicId, i.name, i.description, JSON.stringify(spec), userId(ctx.actor)],
+      'INSERT INTO custom_agents (clinic_id,name,description,spec,created_by,platform_draft_id,platform_version) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
+      [ctx.clinicId, i.name, i.description, JSON.stringify(spec), userId(ctx.actor), i.platformDraftId ?? null, i.platformVersion ?? null],
     );
     return { agentId: r.rows[0].id as string };
   },
@@ -265,7 +269,7 @@ export const updateCustomAgent = defineTool({
   async run({ db }, i) {
     const spec = i.spec !== undefined ? mustBeValid(i.spec) : null;
     const u = await db.query(
-      "UPDATE custom_agents SET name=COALESCE($2,name), spec=COALESCE($3,spec), status='draft', next_run_at=NULL, activated_at=NULL, updated_at=now() WHERE id=$1 RETURNING id",
+      "UPDATE custom_agents SET name=COALESCE($2,name), spec=COALESCE($3,spec), platform_draft_id=CASE WHEN $3::jsonb IS NOT NULL THEN NULL ELSE platform_draft_id END, platform_version=CASE WHEN $3::jsonb IS NOT NULL THEN NULL ELSE platform_version END, status='draft', next_run_at=NULL, activated_at=NULL, updated_at=now() WHERE id=$1 RETURNING id",
       [i.agentId, i.name ?? null, spec ? JSON.stringify(spec) : null],
     );
     if (!u.rowCount) throw new ToolError('not_found', 'Agent not found', 404);
@@ -386,7 +390,7 @@ export const listCustomAgents = defineTool({
   async run({ db }) {
     const agents = (
       await db.query(
-        'SELECT id, name, description, spec, status, created_at, activated_at, next_run_at, last_run_at, run_count FROM custom_agents ORDER BY created_at DESC',
+        'SELECT id, name, description, spec, status, created_at, activated_at, next_run_at, last_run_at, run_count, platform_draft_id, platform_version FROM custom_agents ORDER BY created_at DESC',
       )
     ).rows;
     const out = [];

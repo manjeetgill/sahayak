@@ -1,9 +1,12 @@
+import { bridgeFromEnv, provisioningFromEnv } from './whatsapp-bridge';
+import { whatsappPlatformFromEnv } from './whatsapp-platform';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { LlmGate, NemotronProvider, startJobs } from '@sahayak/agents';
 import { EventBus, pluginFromEnv } from '@sahayak/core';
 import { makePool } from '@sahayak/db';
 import { activeClinics, buildApp } from './app';
+import { agentPlatformFromEnv } from './agent-platform';
 
 // Load the repo-root .env when running from the workspace (no extra dependency).
 const envFile = join(process.cwd(), '../../.env');
@@ -18,9 +21,15 @@ if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET)
 const pool = makePool();
 const bus = new EventBus();
 const gate = new LlmGate(NemotronProvider.fromEnv(), bus, () => [...activeClinics]);
-const whatsapp = pluginFromEnv() ?? undefined;
+const platformChannels = process.env.LIVE_CHANNEL_OWNER === 'platform';
+const whatsapp = platformChannels ? undefined : pluginFromEnv() ?? undefined;
 const app = await buildApp({
+  liveChannelOwner: platformChannels ? 'platform' : 'local',
   whatsapp,
+  agentPlatform: agentPlatformFromEnv(),
+  whatsappPlatform: whatsappPlatformFromEnv(),
+  whatsappBridge: bridgeFromEnv(),
+  whatsappProvisioning: provisioningFromEnv(),
   pool,
   bus,
   gate,

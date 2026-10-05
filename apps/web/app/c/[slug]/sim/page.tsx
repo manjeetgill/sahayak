@@ -34,7 +34,9 @@ export default function Sim({ params }: { params: { slug: string } }) {
   };
   return (
     <div className="wrap" style={{ maxWidth: 480 }}>
-      <label htmlFor="ph">Simulate a patient with phone number</label>
+      <h1>Try a WhatsApp conversation</h1>
+      <p>Use made-up patient details. This chat is saved for practice; no real WhatsApp message is sent.</p>
+      <label htmlFor="ph">Practice patient phone number</label>
       <input id="ph" value={phone} onChange={(e) => setPhone(e.target.value)} />
       <div className="phone">
         <header>Sahayak · Clinic</header>
@@ -84,7 +86,7 @@ export default function Sim({ params }: { params: { slug: string } }) {
       </div>
       <p className="muted">
         Try: &quot;what are your timings?&quot;, &quot;book appointment&quot;, &quot;मुझे सीने में
-        दर्द है&quot;. Seeded patients: 9876501000-9876501024.
+        दर्द है&quot;. Example patient numbers: 9876501000-9876501024.
       </p>
     </div>
   );

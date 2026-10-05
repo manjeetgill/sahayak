@@ -8,20 +8,21 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
+    "@expo-google-fonts/noto-sans": "^0.2.3",
+    "@expo-google-fonts/noto-sans-devanagari": "^0.2.3",
     "@sahayak/db": "workspace:*",
     "@sahayak/shared": "workspace:*",
     "ioredis": "^5.4.1",
-    "pg": "^8.13.0",
-    "zod": "^3.23.8",
+    "pdfjs-dist": "^6.4.299",
     "pdfkit": "^0.15.0",
+    "pg": "^8.13.0",
     "qrcode": "^1.5.4",
-    "@expo-google-fonts/noto-sans": "^0.2.3",
-    "@expo-google-fonts/noto-sans-devanagari": "^0.2.3"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/pg": "^8.11.0",
     "@types/node": "^22.0.0",
     "@types/pdfkit": "^0.13.4",
+    "@types/pg": "^8.11.0",
     "@types/qrcode": "^1.5.5"
   }
 }

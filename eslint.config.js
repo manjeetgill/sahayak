@@ -5,6 +5,7 @@ export default tseslint.config(
     ignores: [
       '**/node_modules/**',
       '**/.next/**',
+      '**/.next-e2e/**',
       '**/dist/**',
       'apps/web/next-env.d.ts',
       'packages/n8n-nodes-sahayak/index.js',

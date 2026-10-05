@@ -32,6 +32,21 @@ export async function deliverOutbox(
         )
       ).rows[0];
       if (!row) return;
+      if (
+        row.slot_offer_id &&
+        !(
+          await db.query(
+            "SELECT 1 FROM slot_offers o JOIN appointment_waitlist w ON w.id=o.waitlist_id WHERE o.id=$1 AND o.status='pending' AND o.expires_at>now() AND extract(hour FROM now() AT TIME ZONE (SELECT timezone FROM clinics WHERE id=o.clinic_id)) BETWEEN 8 AND 20 AND w.status='waiting' AND EXISTS (SELECT 1 FROM consents WHERE patient_id=o.patient_id AND purpose='whatsapp_messaging' AND withdrawn_at IS NULL) AND EXISTS (SELECT 1 FROM consents WHERE patient_id=o.patient_id AND purpose='reminders_followups' AND withdrawn_at IS NULL)",
+            [row.slot_offer_id],
+          )
+        ).rowCount
+      ) {
+        await db.query(
+          "UPDATE outbox SET status='failed',last_error='Offer expired or consent withdrawn' WHERE id=$1",
+          [row.id],
+        );
+        return;
+      }
       try {
         await channel.send({
           clinicId: d.clinic_id,
@@ -110,6 +125,8 @@ export async function startJobs({ adminUrl, pool, bus, channel, log = () => {} }
     'followups.sweep',
     'recall.sweep',
     'queue.sweep',
+    'brief.sweep',
+    'agents.sweep',
     'retention.sweep',
     'webhooks.sweep',
   ])

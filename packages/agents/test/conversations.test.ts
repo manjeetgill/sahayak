@@ -81,7 +81,8 @@ describe('Leads agent: unknown number, consent first', () => {
   const lead = '+919300000099';
   it('welcomes, collects name, asks consent, then books', async () => {
     expect((await say(lead, 'hi')).replies[0]).toMatch(/Welcome to Clinic/);
-    expect((await say(lead, 'I want an appointment')).replies[0]).toMatch(/your name/);
+    expect((await say(lead, 'I want an appointment')).replies[0]).toMatch(/first visit/);
+    expect((await say(lead, '1')).replies[0]).toMatch(/your name/);
     expect((await say(lead, 'Lata Devi')).replies[0]).toMatch(/Reply YES/);
     expect((await admin.query('SELECT 1 FROM patients WHERE phone=$1', [lead])).rowCount).toBe(0); // nothing stored before consent
     const r = await say(lead, 'YES');

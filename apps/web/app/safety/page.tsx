@@ -1,4 +1,5 @@
 'use client';
+import { displayLabel } from '../../lib/labels';
 import { useCallback, useEffect, useState } from 'react';
 import { API, session, staff, useSession } from '../../lib/api';
 
@@ -122,7 +123,7 @@ export default function Safety() {
               {stat('Medical questions (no advice given)', a.medical_questions)}
               {stat('Handed to a person', a.handoffs)}
               {stat('Blocked actions', a.permission_denied)}
-              {stat('Agent errors', a.agent_errors, a.agent_errors > 0)}
+              {stat('Assistant problems', a.agent_errors, a.agent_errors > 0)}
               {stat('Undelivered messages', a.undelivered_messages, a.undelivered_messages > 0)}
               {stat('Privacy requests', a.privacy_requests)}
             </div>
@@ -131,7 +132,7 @@ export default function Safety() {
               <h2>Safety test results</h2>
               {!ev ? (
                 <p className="muted">
-                  No test run recorded yet. Run <code>pnpm eval</code>.
+                  No safety test results recorded yet. Ask your setup team to run the checks.
                 </p>
               ) : (
                 <>
@@ -175,13 +176,13 @@ export default function Safety() {
 
         <div className="card" style={{ marginTop: '1.2rem' }}>
           <div className="row between">
-            <h2>Audit log</h2>
+            <h2>Activity history</h2>
             <button className="ghost small" onClick={csv}>
-              Download CSV (90 days)
+              Download activity spreadsheet (90 days)
             </button>
           </div>
           <p className="muted">
-            Every agent message, action and decision. Entries cannot be edited or deleted.
+            Recorded assistant messages, actions and decisions. Entries cannot be edited or deleted.
           </p>
           <div className="row" style={{ margin: '.5rem 0' }}>
             <select
@@ -229,11 +230,11 @@ export default function Safety() {
                         timeStyle: 'short',
                       })}
                     </td>
-                    <td>{r.agent}</td>
-                    <td>{r.tool ?? r.kind}</td>
+                    <td>{displayLabel(r.agent)}</td>
+                    <td>{displayLabel(r.tool ?? r.kind)}</td>
                     <td>{r.patient ?? ''}</td>
                     <td style={{ color: r.ok ? 'var(--ok)' : 'var(--danger)' }}>
-                      {r.ok ? 'ok' : 'blocked/failed'}
+                      {r.ok ? 'Completed' : 'Blocked or unsuccessful'}
                     </td>
                     <td
                       className="muted"
@@ -244,7 +245,7 @@ export default function Safety() {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {r.detail}
+                      <details><summary>Details for your setup team</summary>{r.detail}</details>
                     </td>
                   </tr>
                 ))}

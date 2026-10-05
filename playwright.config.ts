@@ -1,5 +1,10 @@
 import { defineConfig } from '@playwright/test';
 
+const apiPort = process.env.E2E_API_PORT ?? '4100';
+const webPort = process.env.E2E_WEB_PORT ?? '3100';
+const apiURL = `http://127.0.0.1:${apiPort}`;
+const webURL = `http://127.0.0.1:${webPort}`;
+
 // Uses the locally installed Google Chrome so no browser download is needed.
 export default defineConfig({
   testDir: 'e2e',
@@ -9,7 +14,7 @@ export default defineConfig({
   reporter: [['list']],
   globalSetup: './e2e/global-setup.ts',
   use: {
-    baseURL: 'http://127.0.0.1:3000',
+    baseURL: webURL,
     channel: 'chrome',
     headless: true,
     trace: 'retain-on-failure',
@@ -17,24 +22,24 @@ export default defineConfig({
   webServer: [
     {
       command: 'pnpm dev:api',
-      url: 'http://127.0.0.1:4000/health',
-      reuseExistingServer: true,
+      url: `${apiURL}/health`,
+      reuseExistingServer: false,
       gracefulShutdown: { signal: 'SIGTERM', timeout: 5000 },
       timeout: 60_000,
       env: {
         JOBS_ENABLED: 'false',
-        API_PORT: '4000',
+        API_PORT: apiPort,
         SIGNUP_INVITE_CODE: 'e2e-invite',
         SIGNUP_RATE_LIMIT: '100',
       },
     },
     {
-      command: 'pnpm dev:web',
-      url: 'http://127.0.0.1:3000',
-      reuseExistingServer: true,
+      command: `pnpm --filter @sahayak/web exec next dev -p ${webPort}`,
+      url: webURL,
+      reuseExistingServer: false,
       gracefulShutdown: { signal: 'SIGTERM', timeout: 5000 },
       timeout: 90_000,
-      env: { NEXT_PUBLIC_API_URL: 'http://127.0.0.1:4000' },
+      env: { NEXT_PUBLIC_API_URL: apiURL, NEXT_DIST_DIR: '.next-e2e' },
     },
   ],
 });

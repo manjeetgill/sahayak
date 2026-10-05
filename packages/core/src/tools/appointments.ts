@@ -3,6 +3,7 @@ import type { Db } from '@sahayak/db';
 import { defineTool, ToolError } from './registry';
 import { assertOwn, clinicToday, hasConsent } from './common';
 import { planFollowups } from './followups';
+import { lockAppointments, offerCancelledSlot } from './waitlist';
 import { emitWebhook } from '../webhooks';
 
 const STAFF = ['staff:doctor', 'staff:receptionist'];
@@ -33,7 +34,7 @@ export async function freeSlots(
     if (!m) continue;
     const r = await db.query(
       `SELECT s FROM generate_series(($1::date + $2::time) AT TIME ZONE $4, ($1::date + $3::time - make_interval(mins => $5)) AT TIME ZONE $4, make_interval(mins => $5)) s
-        WHERE s > now() AND NOT EXISTS (SELECT 1 FROM appointments a WHERE a.doctor_id=$6 AND a.starts_at=s AND a.status IN ('booked','checked_in'))`,
+        WHERE s > now() AND NOT EXISTS (SELECT 1 FROM appointments a WHERE a.doctor_id=$6 AND a.starts_at=s AND a.status IN ('booked','checked_in')) AND NOT EXISTS (SELECT 1 FROM slot_offers o WHERE o.doctor_id=$6 AND o.starts_at=s AND o.status='pending' AND o.expires_at>now())`,
       [date, m[1], m[2], timezone, slot, doctorId],
     );
     out.push(...r.rows.map((x) => (x.s as Date).toISOString()));
@@ -131,6 +132,9 @@ export const bookAppointment = defineTool({
   async run(r, i) {
     const { db, ctx } = r;
     assertOwn(ctx, i.patientId);
+    if (!(await db.query('SELECT 1 FROM patients WHERE id=$1', [i.patientId])).rowCount)
+      throw new ToolError('not_found', 'Patient not found', 404);
+    await lockAppointments(r, i.doctorId);
     const start = new Date(i.startsAt);
     const day = (
       await db.query(
@@ -216,13 +220,17 @@ export const cancelAppointment = defineTool({
   module: 'appointments',
   input: z.object({ appointmentId: z.string().uuid() }),
   allow: BOOKERS,
-  async run({ db, ctx, emit }, { appointmentId }) {
-    const a = await db.query('SELECT patient_id, starts_at FROM appointments WHERE id=$1', [
-      appointmentId,
-    ]);
+  async run(r, { appointmentId }) {
+    const { db, ctx, emit } = r;
+    const a = await db.query(
+      "SELECT patient_id,doctor_id,starts_at FROM appointments WHERE id=$1 AND status IN ('booked','needs_rebooking')",
+      [appointmentId],
+    );
     if (!a.rowCount) throw new ToolError('not_found', 'Appointment not found', 404);
     if (a.rows[0].patient_id) assertOwn(ctx, a.rows[0].patient_id);
+    await lockAppointments(r, a.rows[0].doctor_id);
     await db.query("UPDATE appointments SET status='cancelled' WHERE id=$1", [appointmentId]);
+    await offerCancelledSlot(r, appointmentId);
     emit({ type: 'queue_changed' });
     await emitWebhook(
       db,
@@ -245,12 +253,14 @@ export const rescheduleAppointment = defineTool({
   module: 'appointments',
   input: z.object({ appointmentId: z.string().uuid(), newStartsAt: z.string().datetime() }),
   allow: BOOKERS,
-  async run({ db, ctx, emit }, i) {
+  async run(r, i) {
+    const { db, ctx, emit } = r;
     const a = await db.query('SELECT doctor_id, patient_id FROM appointments WHERE id=$1', [
       i.appointmentId,
     ]);
     if (!a.rowCount) throw new ToolError('not_found', 'Appointment not found', 404);
     if (a.rows[0].patient_id) assertOwn(ctx, a.rows[0].patient_id);
+    await lockAppointments(r, a.rows[0].doctor_id);
     const start = new Date(i.newStartsAt);
     const day = (
       await db.query(
