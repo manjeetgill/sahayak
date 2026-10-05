@@ -1,4 +1,4 @@
-import { callingStatus } from './calling-status';
+import { callingStatus, callingRequest } from './calling-status';
 import { installCallingBridge, type CallingBridgeOptions } from './calling-bridge';
 import {
   installWhatsAppBridge,
@@ -1141,6 +1141,21 @@ export async function buildApp(deps: AppDeps) {
       },
       enabled ? 'ACTIVE' : 'READY',
     );
+  });
+
+  app.get('/staff/agents/calling/readiness', async (req) => {
+    const c=await claims(req);
+    return callingRequest(deps.callingBridge,deps.whatsappPlatform,c.clinicId,'readiness',z.object({ready:z.boolean(),code:z.string(),message:z.string(),enabled:z.boolean(),live_call_verified:z.boolean()}));
+  });
+  app.get('/staff/agents/calling/calls', async (req) => {
+    const c=await claims(req);
+    const q=z.object({before:z.string().uuid().optional()}).parse(req.query);
+    return callingRequest(deps.callingBridge,deps.whatsappPlatform,c.clinicId,'calls',z.object({calls:z.array(z.object({id:z.string().uuid(),state:z.enum(['ACTIVE','HANDOFF','COMPLETED','FAILED']),last_turn:z.number().int(),duration_seconds:z.number().int().nullable(),created_at:z.string(),updated_at:z.string()})),next_before:z.string().uuid().nullable()}),undefined,q.before);
+  });
+  app.post('/staff/agents/calling/activation', async (req) => {
+    const c=await claims(req,['doctor']);
+    const body=z.object({enabled:z.boolean()}).strict().parse(req.body);
+    return callingRequest(deps.callingBridge,deps.whatsappPlatform,c.clinicId,'activation',z.object({enabled:z.boolean(),live_call_verified:z.boolean()}),body);
   });
 
   app.get('/staff/agents/connections', async (req) => {

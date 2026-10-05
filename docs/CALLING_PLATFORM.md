@@ -81,3 +81,21 @@ The real-phone gate needs an authorized voice provider, routing of the intended
 number, saved signed provider webhook URLs, successful activation, and one
 inbound call from another phone that creates exactly one confirmed appointment.
 Do not mark this gate passed from a synthetic HTTP callback or a readiness probe.
+
+## Connection controls
+
+The Phone calls tab now has a working **Check voice connection** button, doctor-only
+**Enable incoming calling** / **Pause incoming calling**, and paginated **Phone activity**.
+Enabling requires acknowledgement of provider call charges. The backend binds every
+operation to the signed-in clinic and its saved agent; it never accepts another
+agent ID from the browser. Status errors do not block other clinic features and
+activation requests are never automatically retried.
+
+The platform preflight reads Twilio's real incoming-number resource and verifies
+account ownership, voice capability and the exact inbound/status webhook URLs and
+POST methods. A verified caller ID alone does not pass. Configured SIP trunks or
+TwiML applications using a different route do not pass this direct-number adapter.
+The app's signed readiness probe runs only after those checks pass.
+
+The pilot still needs a voice-provider account login, incoming-number routing and
+a real call. No account was created, provider terms accepted, or number purchased.

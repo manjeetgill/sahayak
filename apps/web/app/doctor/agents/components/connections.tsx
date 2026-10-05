@@ -1,4 +1,5 @@
 'use client';
+import { CallingSetup } from './calling-setup';
 import { WhatsAppSetup } from './whatsapp-setup';
 import { useCallback, useEffect, useState } from 'react';
 import { AGENT_NAMES } from '@sahayak/shared';
@@ -33,7 +34,12 @@ type Connections = {
   voiceSimulator: boolean;
   platform: { configured: boolean };
   whatsapp: { configured: boolean; provider: string | null };
-  phone: { configured: boolean; requestedNumber?: string | null; bookingAdapter?: boolean; state?: string };
+  phone: {
+    configured: boolean;
+    requestedNumber?: string | null;
+    bookingAdapter?: boolean;
+    state?: string;
+  };
 };
 
 export function Connections({
@@ -81,6 +87,7 @@ export function Connections({
   return (
     <section aria-label="Patient contact options and clinic tasks">
       {view === 'whatsapp' && <WhatsAppSetup isDoctor={isDoctor} />}
+      {view === 'phone' && <CallingSetup isDoctor={isDoctor} onChanged={load} />}
       <h2>
         {view === 'overview'
           ? 'Patient messages and calls'
@@ -124,7 +131,9 @@ export function Connections({
                       : 'Not connected yet · practice only'}
                 </p>
                 {name === 'Phone' && connections.phone.requestedNumber && (
-                  <p>Intended calling number: <b>{connections.phone.requestedNumber}</b></p>
+                  <p>
+                    Intended calling number: <b>{connections.phone.requestedNumber}</b>
+                  </p>
                 )}
                 {name === 'Phone' && connections.phone.bookingAdapter && (
                   <p role="status">
@@ -163,9 +172,9 @@ export function Connections({
                 ? 'Send Hi to your connected clinic number from another WhatsApp number to test a real appointment conversation.'
                 : 'Live service is not connected yet. Your setup team needs to finish connecting it. You can try the assistant below without contacting a patient.'}
             </p>
-          ) : (
-            <Diagnostics phone={view === 'phone'} />
-          )}
+          ) : view !== 'phone' ? (
+            <Diagnostics />
+          ) : null}
           {connections?.simulator && (
             <GuidedTest key={view} channel={view === 'phone' ? 'voice' : 'whatsapp'} />
           )}

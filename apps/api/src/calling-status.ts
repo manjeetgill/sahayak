@@ -1,3 +1,4 @@
+import { ToolError } from '@sahayak/core';
 import { z } from 'zod';
 import type { CallingBridgeOptions } from './calling-bridge';
 import type { WhatsAppPlatformOptions } from './whatsapp-platform';
@@ -44,5 +45,58 @@ export async function callingStatus(
     };
   } catch {
     return { ...base, state: 'UNAVAILABLE' };
+  }
+}
+
+export async function callingRequest<T>(
+  bindings: CallingBridgeOptions | undefined,
+  platform: WhatsAppPlatformOptions | undefined,
+  clinicId: string,
+  operation: 'readiness' | 'calls' | 'activation',
+  schema: z.ZodType<T>,
+  body?: unknown,
+  before?: string,
+): Promise<T> {
+  const binding = Object.entries(bindings ?? {}).find(([, b]) => b.clinicId === clinicId);
+  const credential = platform?.clinics[clinicId];
+  if (!binding || !platform || !credential)
+    throw new ToolError(
+      'calling_setup_required',
+      'Your setup team must connect the clinic calling agent.',
+      409,
+    );
+  const path =
+    '/v1/calling/agents/' +
+    binding[0] +
+    '/' +
+    operation +
+    (before ? '?before=' + encodeURIComponent(before) : '');
+  try {
+    const response = await (platform.fetchImpl ?? fetch)(platform.baseUrl + path, {
+      method: body === undefined ? 'GET' : 'POST',
+      redirect: 'error',
+      signal: AbortSignal.timeout(operation === 'calls' ? 3000 : 12000),
+      headers: {
+        Authorization: 'Bearer ' + credential.key,
+        'X-External-User-ID': credential.externalUserId,
+        'Content-Type': 'application/json',
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    if (response.status === 409)
+      throw new ToolError(
+        'calling_not_ready',
+        'Calling could not be enabled. Check readiness and finish the listed setup step.',
+        409,
+      );
+    if (!response.ok) throw new Error('upstream');
+    return schema.parse(await response.json());
+  } catch (e) {
+    if (e instanceof ToolError) throw e;
+    throw new ToolError(
+      'agent_service_unavailable',
+      'Agent service unavailable. Check the saved status before retrying a change.',
+      503,
+    );
   }
 }
