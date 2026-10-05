@@ -164,7 +164,12 @@ export async function continueFlow(turn: Turn, agent = AGENT): Promise<boolean> 
       turn.text.toLowerCase().includes(d.name.toLowerCase().replace('dr. ', '').split(' ')[0]),
     );
     const d = c ? st.doctors[c - 1] : byName;
-    if (!d) return false;
+    if (!d) {
+      await say(turn, agent, 'msg.pick_doctor', {
+        options: opts(st.doctors.map((d: any) => d.name)),
+      });
+      return true;
+    }
     await askOrOffer(turn, agent, d, st.rescheduleId, st.pref);
     return true;
   }
@@ -217,7 +222,11 @@ export async function continueFlow(turn: Turn, agent = AGENT): Promise<boolean> 
         );
         return true;
       }
-      return false;
+      await say(turn, agent, 'msg.slots', {
+        doctor: st.doctorName,
+        options: opts(st.slots.map((x: string) => fmtTime(x, info.timezone, turn.lang))),
+      });
+      return true;
     }
     const startsAt = st.slots[c - 1];
     if (st.managedBooking && !st.bookingConfirmed && !st.rescheduleId) {
@@ -285,7 +294,10 @@ export async function continueFlow(turn: Turn, agent = AGENT): Promise<boolean> 
   }
   if (st.flow === 'pick_appointment') {
     const c = parseChoice(turn.text, st.appointments.length);
-    if (!c) return false;
+    if (!c) {
+      await say(turn, agent, 'msg.didnt_understand');
+      return true;
+    }
     const a = st.appointments[c - 1];
     if (st.action === 'cancel') {
       await call(turn, agent, 'cancel_appointment', { appointmentId: a.id });

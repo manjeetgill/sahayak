@@ -78,6 +78,21 @@ it('keeps safety and human takeover ahead of menu routing', async () => {
   expect((await say(other, '4')).handledBy).toBe('human');
   expect((await say(other, '1')).replies).toEqual([]);
 });
+it('keeps doctor and slot choices after an invalid number, then accepts the corrected choice', async () => {
+  const phone = '+919544440006';
+  await addPatient(admin, clinic.clinicId, 'Choice Test', phone);
+  await say(phone, 'Hi');
+  await say(phone, '1');
+  await say(phone, '1');
+  expect((await say(phone, '9')).replies[0]).toContain('Which doctor');
+  await say(phone, '1');
+  await say(phone, 'earliest');
+  expect((await say(phone, '5')).replies[0]).toContain('Available slots');
+  expect((await say(phone, '2')).replies[0]).toContain('Confirm your appointment');
+  expect(await appointments(phone)).toHaveLength(0);
+  await say(phone, 'yes');
+  expect(await appointments(phone)).toHaveLength(1);
+});
 it('uses the Hindi menu and respects a paused assistant mid-flow', async () => {
   const phone = '+919544440005';
   expect((await say(phone, 'नमस्ते')).replies[0]).toContain('अपॉइंटमेंट');
