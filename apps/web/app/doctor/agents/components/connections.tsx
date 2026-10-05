@@ -33,7 +33,7 @@ type Connections = {
   voiceSimulator: boolean;
   platform: { configured: boolean };
   whatsapp: { configured: boolean; provider: string | null };
-  phone: { configured: boolean };
+  phone: { configured: boolean; requestedNumber?: string | null; bookingAdapter?: boolean; state?: string };
 };
 
 export function Connections({
@@ -123,6 +123,20 @@ export function Connections({
                       ? 'Setup entered · a real conversation still needs testing'
                       : 'Not connected yet · practice only'}
                 </p>
+                {name === 'Phone' && connections.phone.requestedNumber && (
+                  <p>Intended calling number: <b>{connections.phone.requestedNumber}</b></p>
+                )}
+                {name === 'Phone' && connections.phone.bookingAdapter && (
+                  <p role="status">
+                    {connections.phone.state === 'UNAVAILABLE'
+                      ? 'Agent service unavailable. Other clinic features remain available.'
+                      : connections.phone.state === 'AWAITING_VOICE_PROVIDER'
+                        ? 'Appointment flow ready. Voice number authorization is still required before a real phone test.'
+                        : connections.phone.configured
+                          ? 'Calling enabled. Complete a real phone test before relying on it.'
+                          : 'Calling is paused.'}
+                  </p>
+                )}
                 <p className="muted">
                   Uses the clinic tasks you choose under Everyday help. Turning a task on does not
                   connect live messages or calls.

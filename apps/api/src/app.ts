@@ -1,3 +1,5 @@
+import { callingStatus } from './calling-status';
+import { installCallingBridge, type CallingBridgeOptions } from './calling-bridge';
 import {
   installWhatsAppBridge,
   channelSecret,
@@ -62,6 +64,7 @@ export interface AppDeps {
   agentPlatform?: AgentPlatformOptions;
   whatsappPlatform?: WhatsAppPlatformOptions;
   whatsappBridge?: WhatsAppBridgeOptions;
+  callingBridge?: CallingBridgeOptions;
   whatsappProvisioning?: BridgeProvisioning;
   stt?: SpeechToText;
   tts?: TextToSpeech;
@@ -1162,7 +1165,7 @@ export async function buildApp(deps: AppDeps) {
           deps.whatsapp?.messaging.name ??
           (deps.whatsappPlatform?.clinics[c.clinicId] ? 'agent-platform' : null),
       },
-      phone: { configured: false },
+      phone: await callingStatus(deps.callingBridge, deps.whatsappPlatform, c.clinicId),
     };
   });
   app.get('/staff/agents', async (req) => {
@@ -1745,6 +1748,7 @@ export async function buildApp(deps: AppDeps) {
     return callTool(rt, staffCtx(c), 'remove_red_flag_phrase', { id: idParam(req) });
   });
 
+  installCallingBridge(app, env, deps.callingBridge);
   installWhatsAppBridge(
     app,
     { rt, gate: deps.gate },

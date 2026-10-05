@@ -16,6 +16,7 @@ export interface Turn {
   /** Set when the patient wrote to one doctor's own WhatsApp number. */
   doctorId?: string | null;
   contact: string;
+  channel?: 'whatsapp' | 'voice';
   lang: Lang;
   text: string;
   state: Record<string, any>;

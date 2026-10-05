@@ -372,6 +372,45 @@ export const receiveMessage = defineTool({
   },
 });
 
+export const receiveCallMessage = defineTool({
+  name: 'receive_call_message',
+  description: 'Receive one authenticated platform call turn in an isolated call conversation.',
+  module: 'core',
+  input: z.object({
+    callId: z.string().uuid(),
+    agentId: z.string().uuid(),
+    text: z.string().min(1).max(2000),
+    language: z.enum(['en', 'hi']),
+  }),
+  allow: ['system'],
+  auditInput: (i) => ({ callId: i.callId }),
+  auditOutput: (o: { conversationId: string }) => ({ conversationId: o.conversationId }),
+  async run({ db, ctx, emit }, i) {
+    const conv = await ensureConversation(
+      db,
+      ctx.clinicId,
+      'voice:' + i.agentId + ':' + i.callId,
+      null,
+      i.language,
+      'voice',
+    );
+    await storeMessage(db, ctx.clinicId, conv.id, 'in', 'patient', i.text);
+    const c = (
+      await db.query('SELECT patient_id,state,handled_by,language FROM conversations WHERE id=$1', [
+        conv.id,
+      ])
+    ).rows[0];
+    emit({ type: 'conversation_updated', conversationId: conv.id });
+    return {
+      conversationId: conv.id,
+      patientId: c.patient_id as string | null,
+      state: c.state,
+      handledBy: c.handled_by,
+      language: c.language,
+    };
+  },
+});
+
 export const setConversationState = defineTool({
   name: 'set_conversation_state',
   description: 'Save the orchestrator state for the current conversation.',
@@ -389,6 +428,7 @@ export const setConversationState = defineTool({
 });
 
 export const deskTools = [
+  receiveCallMessage,
   receiveMessage,
   setConversationState,
   getClinicInfo,

@@ -252,7 +252,7 @@ export async function continueFlow(turn: Turn, agent = AGENT): Promise<boolean> 
           doctorId: st.doctorId,
           patientId: turn.patientId,
           startsAt,
-          source: 'whatsapp',
+          source: turn.channel === 'voice' ? 'agent' : 'whatsapp',
           ...(st.visitKind
             ? { reason: st.visitKind === 'follow_up' ? 'Follow-up visit' : 'First visit' }
             : {}),
@@ -263,7 +263,7 @@ export async function continueFlow(turn: Turn, agent = AGENT): Promise<boolean> 
           when: fmtTime(startsAt, info.timezone, turn.lang),
         });
         // Reminders need their own consent. Ask once, right after booking, if the patient has not given it.
-        if (!booked.remindersConsent) {
+        if (turn.channel !== 'voice' && !booked.remindersConsent) {
           await setState(turn, agent, {
             flow: 'reminder_consent',
             appointmentId: booked.appointmentId,

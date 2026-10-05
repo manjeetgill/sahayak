@@ -219,10 +219,18 @@ export const createPatient = defineTool({
   }),
   allow: ['agent:leads', 'agent:front_desk', 'staff:receptionist', 'api'],
   async run({ db, ctx }, i) {
+    const voice =
+      !!ctx.conversationId &&
+      !!(
+        await db.query(
+          "SELECT 1 FROM conversations WHERE id=$1 AND channel='voice' AND contact LIKE 'voice:%'",
+          [ctx.conversationId],
+        )
+      ).rowCount;
     const r = await db.query(
       `INSERT INTO patients (clinic_id,name,phone,language) VALUES ($1,$2,$3,$4)
-       ON CONFLICT (clinic_id,phone) DO UPDATE SET language=EXCLUDED.language RETURNING id`,
-      [ctx.clinicId, i.name, i.phone, i.language],
+       ON CONFLICT (clinic_id,phone) DO UPDATE SET language=CASE WHEN $5 THEN patients.language ELSE EXCLUDED.language END RETURNING id`,
+      [ctx.clinicId, i.name, i.phone, i.language, voice],
     );
     const patientId = r.rows[0].id as string;
     await db.query(
@@ -230,10 +238,16 @@ export const createPatient = defineTool({
         WHERE NOT EXISTS (SELECT 1 FROM consents WHERE patient_id=$2 AND purpose='visit_data' AND withdrawn_at IS NULL)`,
       [ctx.clinicId, patientId, CONSENT_NOTICE_VERSION],
     );
-    await db.query(
-      'UPDATE conversations SET patient_id=$2 WHERE clinic_id=$1 AND contact=$3 AND patient_id IS NULL',
-      [ctx.clinicId, patientId, i.phone],
-    );
+    if (voice)
+      await db.query(
+        "UPDATE conversations SET patient_id=$2 WHERE id=$1 AND channel='voice' AND contact LIKE 'voice:%' AND patient_id IS NULL",
+        [ctx.conversationId, patientId],
+      );
+    if (!voice)
+      await db.query(
+        'UPDATE conversations SET patient_id=$2 WHERE clinic_id=$1 AND contact=$3 AND patient_id IS NULL',
+        [ctx.clinicId, patientId, i.phone],
+      );
     return { patientId };
   },
 });

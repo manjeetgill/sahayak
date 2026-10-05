@@ -1,3 +1,4 @@
+import { callingBridgeFromEnv } from './calling-bridge';
 import { bridgeFromEnv, provisioningFromEnv } from './whatsapp-bridge';
 import { whatsappPlatformFromEnv } from './whatsapp-platform';
 import { readFileSync, existsSync } from 'node:fs';
@@ -29,6 +30,7 @@ const app = await buildApp({
   agentPlatform: agentPlatformFromEnv(),
   whatsappPlatform: whatsappPlatformFromEnv(),
   whatsappBridge: bridgeFromEnv(),
+  callingBridge: callingBridgeFromEnv(),
   whatsappProvisioning: provisioningFromEnv(),
   pool,
   bus,
