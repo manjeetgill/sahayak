@@ -163,3 +163,19 @@ it('probes readiness without starting conversations', async () => {
     clinic_id: clinic.clinicId,
   });
 });
+it('accepts current option taps, rejects old taps, and retains typed replies', async () => {
+  const send = (text: string) => post({ ...payload(text), from: '919533330009' });
+  const menu = (await send('Hi')).json();
+  expect(menu.options.choices).toHaveLength(4);
+  const book = menu.options.choices[0].id;
+  const visit = (await send(book)).json();
+  expect(visit.replies[0]).toContain('first visit');
+  const stale = (await send(book)).json();
+  expect(stale.replies[0]).toContain('earlier step');
+  expect(stale.options.choices).toEqual(visit.options.choices);
+  const next = (await send(visit.options.choices[0].id)).json();
+  expect(next.options).toBeUndefined();
+  expect(next.replies[0]).toContain('name');
+  const consent = (await send('Choice Patient')).json();
+  expect(consent.options.choices.map((x: any) => x.title)).toEqual(['Yes', 'No']);
+});

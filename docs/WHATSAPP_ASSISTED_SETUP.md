@@ -40,3 +40,13 @@ The setup screen reads the real channel status, supports pause/enable, and shows
 service unavailability without claiming cached ACTIVE status is live. The local
 pilot uses an SSH forward on 4065 for the private platform API and an SSH reverse
 forward for the clinic callback; the laptop and both connections must stay running.
+
+### Patient choices
+
+The WhatsApp clinic flow now supplies native menus for greeting, first/follow-up
+visit, doctor, earliest/tomorrow preference, available slot, booking confirmation,
+and reminder consent. Names and custom requests remain typed. English and Hindi
+labels live in the shared dictionaries. Every choice ID is tied to the current
+conversation state; stale taps repeat current options without making a booking.
+Existing typed replies remain supported. Lists longer than ten choices retain
+the full numbered text fallback.

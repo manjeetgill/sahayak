@@ -1,3 +1,5 @@
+import { clinicChoices } from './whatsapp-choices';
+import { t } from '@sahayak/shared';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
@@ -154,12 +156,61 @@ export function installWhatsAppBridge(
       if (!receipt.fresh)
         return reply.code(409).send({ error: 'Event outcome needs reconciliation' });
       try {
+        const readChoices = async () =>
+          withClinic(env.rt.pool, b.clinicId, async (db) => {
+            const c = (
+              await db.query(
+                'SELECT v.id,v.state,v.language,v.handled_by,c.timezone FROM conversations v JOIN clinics c ON c.id=v.clinic_id WHERE v.clinic_id=$1 AND v.contact=$2',
+                [b.clinicId, contact],
+              )
+            ).rows[0];
+            return c
+              ? {
+                  conversation: c,
+                  menu:
+                    c.handled_by === 'human'
+                      ? null
+                      : clinicChoices(c.id, c.state, c.language, c.timezone),
+                }
+              : null;
+          });
+        let text = i.text;
+        let stale = false;
+        const before = i.text.startsWith('sc:') ? await readChoices() : null;
+        if (i.text.startsWith('sc:')) {
+          const selected = before?.menu?.choices.find((v) => v.id === i.text);
+          if (selected) text = selected.value;
+          else stale = true;
+        }
         // Replies are captured and stored locally; ONLY the platform sends to WhatsApp.
-        const result = await handleInbound(
-          { ...env, rt: { ...env.rt, channel: new MockWhatsAppChannel() } },
-          { clinicId: b.clinicId, from: contact, text: i.text, channel: 'whatsapp' },
-        );
+        const result = stale
+          ? {
+              replies:
+                before?.conversation.handled_by === 'human'
+                  ? []
+                  : [t(before?.conversation.language ?? 'en', 'msg.choice_stale')],
+              handledBy: before?.conversation.handled_by ?? 'agent',
+              redFlag: false,
+              conversationId: before?.conversation.id,
+            }
+          : await handleInbound(
+              { ...env, rt: { ...env.rt, channel: new MockWhatsAppChannel() } },
+              { clinicId: b.clinicId, from: contact, text, channel: 'whatsapp' },
+            );
+        const next = await readChoices();
+        const options =
+          !result.redFlag && result.handledBy === 'agent' && result.replies.length
+            ? next?.menu
+            : null;
         const response = {
+          ...(options
+            ? {
+                options: {
+                  button: options.button,
+                  choices: options.choices.map(({ value, ...choice }) => choice),
+                },
+              }
+            : {}),
           event_id: i.event_id,
           replies: result.replies,
           handledBy: result.handledBy,
