@@ -16,6 +16,9 @@ export interface LlmRequest {
   tools?: LlmTool[];
   temperature?: number;
   maxTokens?: number;
+  /** Per-call latency bounds; never sent to the model API. */
+  timeoutMs?: number;
+  retries?: number;
 }
 export interface LlmResponse {
   content: string | null;
@@ -55,11 +58,12 @@ export class NemotronProvider implements LlmProvider {
   }
 
   async chat(req: LlmRequest): Promise<LlmResponse> {
-    const retries = this.o.retries ?? 2;
+    const retries = Math.max(0, Math.min(req.retries ?? this.o.retries ?? 2, this.o.retries ?? 2));
+    const timeoutMs = Math.max(1, Math.min(req.timeoutMs ?? this.o.timeoutMs, this.o.timeoutMs));
     let lastErr: unknown;
     for (let attempt = 0; attempt <= retries; attempt++) {
       const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), this.o.timeoutMs);
+      const timer = setTimeout(() => ctl.abort(), timeoutMs);
       try {
         const res = await (this.o.fetchImpl ?? fetch)(
           `${this.o.baseUrl.replace(/\/$/, '')}/chat/completions`,

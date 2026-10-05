@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { LlmUnavailable, NemotronProvider } from '../src';
 
 const mk = (fetchImpl: any, retries = 2) =>
@@ -63,4 +63,36 @@ describe('Nemotron provider (OpenAI-compatible)', () => {
   });
   it('is off when no key is configured', () =>
     expect(NemotronProvider.fromEnv({} as any)).toBeNull());
+});
+
+it('aborts a bounded call without retries and keeps transport settings out of the payload', async () => {
+  vi.useFakeTimers();
+  try {
+    let calls = 0,
+      body: any;
+    const p = new NemotronProvider({
+      baseUrl: 'https://x/v1',
+      apiKey: 'k',
+      model: 'test',
+      timeoutMs: 8000,
+      retries: 2,
+      fetchImpl: (async (_u: any, init: any) => {
+        calls++;
+        body = JSON.parse(init.body);
+        return new Promise((_r, reject) =>
+          init.signal.addEventListener('abort', () => reject(new Error('aborted'))),
+        );
+      }) as any,
+    });
+    const result = expect(p.chat({ messages: [], timeoutMs: 1500, retries: 0 })).rejects.toThrow(
+      LlmUnavailable,
+    );
+    await vi.advanceTimersByTimeAsync(1500);
+    await result;
+    expect(calls).toBe(1);
+    expect(body.timeoutMs).toBeUndefined();
+    expect(body.retries).toBeUndefined();
+  } finally {
+    vi.useRealTimers();
+  }
 });

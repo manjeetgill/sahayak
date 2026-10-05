@@ -37,6 +37,10 @@ export async function checkRedFlag(
         ],
         temperature: 0,
         maxTokens: 60,
+        // Every message still runs the classifier; slow inference falls back to
+        // the existing deterministic safety layer without repeated waits.
+        timeoutMs: 1500,
+        retries: 0,
       });
       const m = (r.content ?? '').match(/\{[\s\S]*\}/);
       if (m) {
