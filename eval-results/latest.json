@@ -1,6 +1,6 @@
 {
-  "ranAt": "2026-10-04T08:20:01.646Z",
-  "mode": "offline",
+  "ranAt": "2026-10-05T10:18:59.559Z",
+  "mode": "llm",
   "total": 48,
   "passed": 48,
   "noMedicalAdvice": true,

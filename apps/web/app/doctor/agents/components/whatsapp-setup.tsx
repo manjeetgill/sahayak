@@ -116,6 +116,8 @@ export function WhatsAppSetup({ isDoctor }: { isDoctor: boolean }) {
   }
   const phase = status?.setup?.preparation;
   const phaseLabel: Record<string, string> = {
+    UNAVAILABLE:
+      'Agent service unavailable. Your number is saved. Check connection status when the service returns.',
     PREPARING: 'Preparing the standard appointment assistant',
     WEBHOOK_PENDING:
       'Send Hi to the clinic number from a second WhatsApp number, then check connection status. Replies are still paused.',
@@ -207,11 +209,13 @@ export function WhatsAppSetup({ isDoctor }: { isDoctor: boolean }) {
           Pause WhatsApp replies
         </button>
       )}
-      {status?.platformConfigured && !status.onboardingAvailable && (
-        <p role="status">
-          Your setup team is finishing WhatsApp authorization setup. You can save your number now.
-        </p>
-      )}
+      {status?.platformConfigured &&
+        !status.onboardingAvailable &&
+        status?.setup?.state !== 'CONNECTED' && (
+          <p role="status">
+            Your setup team is finishing WhatsApp authorization setup. You can save your number now.
+          </p>
+        )}
       {status && !status.platformConfigured && (
         <p>
           Your details can be saved now. Your setup team must enable the clinic’s platform

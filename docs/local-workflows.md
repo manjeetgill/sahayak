@@ -23,7 +23,7 @@ Reusable plans live at `/doctor/templates`. A clinic version contains generic wo
 - Results over time compare only equal test names, units and sample/method text. Same-name tests can still differ clinically; the doctor must judge comparability. Missing sample/method is not proof of equivalence.
 - Source text and report links stay accessible. There is no OCR, image/ECG interpretation or generated diagnosis in this release.
 - The record browser supports a bounded set of source-excerpt questions and blank-query paging. It does not generate clinical explanations. Selectable PDF text can be extracted locally, page by page, beside the original. Extraction is unverified, limited to 10 MB, 30 pages and 200,000 characters, and scanned/image-only reports still need manual entry or future OCR.
-- Medicine record warnings only check exact ingredient duplicates and exact allergy-name matches. They are not a prescription safety certification.
+- Medicine record warnings only check exact ingredient duplicates and exact allergy-name matches. Prescription drafts also compare each entered medicine name with verified allergy substances and active medicine ingredients, and flag duplicate prescription lines. These exact-text prompts are not a prescription safety certification and do not cover interactions, doses, classes, brands, age, pregnancy or organ function.
 
 Verified values outside the source report's supplied range appear in the inbox until a doctor records a review note. This is workflow tracking. It does not label a patient clinically abnormal, and within-range values do not establish normality.
 
@@ -62,8 +62,8 @@ The clinic overview reports no-show, referral and due-follow-up completion with 
 
 New integration coverage checks doctor/clinic boundaries, source ownership, unverified import, exact medicine matching, approved instruction immutability, plan approval, urgent-response escalation, completion gates, inbox defer/restore/assignment, idempotent payments, overpayment, correction history, dated references, exports, audit redaction and erasure retention. PubMed success/failure is tested with mocked responses; a real general-topic smoke test also returned eight original source links on 5 October 2026.
 
-New browser journeys verify structured history → verification → approved instructions → approved plan → contact → reviewed completion → recorded payment, reading-list persistence, and inbox acknowledgement/assignment/resolution. These tests establish software behavior with synthetic records, not clinical validation or real-channel delivery readiness.
+New browser journeys verify structured history → verification → approved instructions → approved plan → contact → reviewed completion → recorded payment, reusable clinic plan → patient-specific draft → approval, result review, insurance correspondence, local source search, reading-list persistence, and inbox acknowledgement/assignment/resolution. These tests establish software behavior with synthetic records, not clinical validation or real-channel delivery readiness.
 
 ## Latest verification result — 5 October 2026
 
-Workspace typechecking passed. ESLint passed with four existing unused-variable warnings. All 362 tests across 29 test files passed. The full browser suite exercised 17 journeys: 16 passed initially; an inbox fixture-order assumption was corrected, and all three inbox/workbench journeys passed on the follow-up run. Existing browser flows use simulated channels. No real patient messages or calls were sent during verification.
+Workspace typechecking passed. ESLint completed with four existing unused-variable warnings and no errors. All 375 tests passed across 31 test files; one provider-dependent test was intentionally skipped. The full browser suite passed all 18 journeys against a disposable database. Existing browser flows use simulated channels. No real patient messages or calls were sent during verification.

@@ -1,4 +1,9 @@
-import { installWhatsAppBridge, channelSecret, type BridgeProvisioning, type WhatsAppBridgeOptions } from './whatsapp-bridge';
+import {
+  installWhatsAppBridge,
+  channelSecret,
+  type BridgeProvisioning,
+  type WhatsAppBridgeOptions,
+} from './whatsapp-bridge';
 import { whatsappPlatform, type WhatsAppPlatformOptions } from './whatsapp-platform';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
@@ -295,29 +300,73 @@ export async function buildApp(deps: AppDeps) {
     const c = await claims(req, ['doctor']);
     return callTool(rt, staffCtx(c), 'get_clinical_workspace', { patientId: idParam(req) });
   });
-  const workbenchActions: Record<string,string> = {
-    'step-edit':'edit_draft_care_step','daily-brief':'get_daily_care_brief',
-    'report-extract':'extract_report_text','record-search':'search_patient_record',
-    'template-list':'list_care_templates','template-save':'save_care_template','template-review':'review_care_template','template-apply':'apply_care_template','result-review':'review_clinical_result','insurance-create':'create_insurance_case','insurance-update':'update_insurance_case',
-    'report-rows': 'import_report_rows', 'charges': 'add_clinic_charge', 'payments': 'record_clinic_payment', 'entries': 'add_clinical_entry', 'entry-status': 'update_clinical_entry',
-    'instruction-draft': 'draft_patient_instructions', 'instructions': 'save_patient_instructions',
-    'plans': 'create_care_plan', 'plan-status': 'change_care_plan', 'steps': 'update_care_step',
-    'billing-correction': 'correct_clinic_billing', 'reference-archive': 'archive_medical_reference', 'reference-search': 'search_medical_references', 'references': 'save_medical_reference', 'inbox-review': 'update_inbox_review',
+  const workbenchActions: Record<string, string> = {
+    'step-edit': 'edit_draft_care_step',
+    'daily-brief': 'get_daily_care_brief',
+    'report-extract': 'extract_report_text',
+    'record-search': 'search_patient_record',
+    'template-list': 'list_care_templates',
+    'template-save': 'save_care_template',
+    'template-review': 'review_care_template',
+    'template-apply': 'apply_care_template',
+    'result-review': 'review_clinical_result',
+    'insurance-create': 'create_insurance_case',
+    'insurance-update': 'update_insurance_case',
+    'report-rows': 'import_report_rows',
+    charges: 'add_clinic_charge',
+    payments: 'record_clinic_payment',
+    entries: 'add_clinical_entry',
+    'entry-status': 'update_clinical_entry',
+    'instruction-draft': 'draft_patient_instructions',
+    instructions: 'save_patient_instructions',
+    plans: 'create_care_plan',
+    'plan-status': 'change_care_plan',
+    steps: 'update_care_step',
+    'billing-correction': 'correct_clinic_billing',
+    'reference-archive': 'archive_medical_reference',
+    'reference-search': 'search_medical_references',
+    references: 'save_medical_reference',
+    'inbox-review': 'update_inbox_review',
   };
-  for (const [path, tool] of Object.entries(workbenchActions)) app.post(`/staff/workbench/${path}`, async (req) => {
+  for (const [path, tool] of Object.entries(workbenchActions))
+    app.post(`/staff/workbench/${path}`, async (req) => {
+      const c = await claims(req, ['doctor']);
+      return callTool(rt, staffCtx(c), tool, req.body);
+    });
+  app.post('/staff/workbench/translate', async (req) => {
     const c = await claims(req, ['doctor']);
-    return callTool(rt, staffCtx(c), tool, req.body);
+    const b = z
+      .object({
+        id: z.string().uuid(),
+        language: z.enum(['en', 'hi', 'hinglish', 'mr', 'bn', 'ta', 'te', 'kn', 'gu']),
+        consent: z.literal(true),
+      })
+      .parse(req.body);
+    const source: any = await callTool(rt, staffCtx(c), 'get_instruction_translation_source', {
+      id: b.id,
+    });
+    let body: string;
+    try {
+      body = await translateInstructions(gate, source.body, b.language);
+    } catch (e: any) {
+      throw new ToolError('translation', e.message, 503);
+    }
+    return callTool(rt, staffCtx(c), 'save_instruction_translation_draft', {
+      sourceId: b.id,
+      language: b.language,
+      body,
+    });
   });
-  app.post('/staff/workbench/translate', async req => {
-    const c=await claims(req,['doctor']);
-    const b=z.object({id:z.string().uuid(),language:z.enum(['en','hi','hinglish','mr','bn','ta','te','kn','gu']),consent:z.literal(true)}).parse(req.body);
-    const source:any=await callTool(rt,staffCtx(c),'get_instruction_translation_source',{id:b.id});
-    let body:string;
-    try {body=await translateInstructions(gate,source.body,b.language);} catch(e:any){throw new ToolError('translation',e.message,503);}
-    return callTool(rt,staffCtx(c),'save_instruction_translation_draft',{sourceId:b.id,language:b.language,body});
+  app.get('/staff/references', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'list_medical_references', {});
   });
-  app.get('/staff/references', async (req) => { const c = await claims(req, ['doctor']); return callTool(rt, staffCtx(c), 'list_medical_references', {}); });
-  app.get('/staff/practice', async (req) => { const c = await claims(req, ['doctor']); return callTool(rt, staffCtx(c), 'get_practice_overview', {days: Number((req.query as any).days ?? 30)}); });
+  app.get('/staff/practice', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'get_practice_overview', {
+      days: Number((req.query as any).days ?? 30),
+    });
+  });
   app.get('/staff/inbox', async (req) => {
     const c = await claims(req, ['doctor']);
     return callTool(rt, staffCtx(c), 'get_doctor_inbox', req.query ?? {});
@@ -806,81 +855,313 @@ export async function buildApp(deps: AppDeps) {
       return { messages, counts };
     });
   });
-  const waRead = (clinicId:string) => read(clinicId, async db =>
-    (await db.query('SELECT * FROM clinic_whatsapp_setup WHERE clinic_id=$1',[clinicId])).rows[0] ?? null);
-  const waAdvance = (clinicId:string,from:string,to:string,sessionId?:string) => callTool(rt,
-    {clinicId,actor:{kind:'system',name:'whatsapp-onboarding'}},'advance_whatsapp_setup',{from,to,sessionId});
-  app.get('/staff/agents/whatsapp/setup',async req=>{
-    const c=await claims(req); const setup=await waRead(c.clinicId);
-    const platformConfigured=!!deps.whatsappPlatform?.clinics[c.clinicId];
-    let onboardingAvailable=false;
-    if(platformConfigured){try{onboardingAvailable=(await whatsappPlatform(deps.whatsappPlatform,c.clinicId,'/config',z.object({available:z.boolean()}))).available;}catch{/* report setup unavailable without blocking the clinic app */}}
-    return {setup,platformConfigured,onboardingAvailable,bridgeConfigured:!!deps.whatsappProvisioning,liveRepliesEnabled:setup?.preparation==='ACTIVE'};
-  });
-  app.put('/staff/agents/whatsapp/setup',async req=>{
-    const c=await claims(req,['doctor']);return callTool(rt,staffCtx(c),'request_whatsapp_setup',req.body);
-  });
-  app.post('/staff/agents/whatsapp/connect',async (req,reply)=>{
-    const c=await claims(req,['doctor']); reply.header('Cache-Control','no-store');
-    const saved=await waRead(c.clinicId);
-    if(saved?.state==='CONNECTING' && saved.session_id)return whatsappPlatform(deps.whatsappPlatform,c.clinicId,`/onboarding/${saved.session_id}/resume`,z.object({id:z.string().uuid(),connect_token:z.string().min(20)}),{});
-    const config=await whatsappPlatform(deps.whatsappPlatform,c.clinicId,'/config',z.object({available:z.boolean()}));
-    if(!config.available) throw new ToolError('partner_setup_required','Your setup team must enable provider onboarding first.',503);
-    await waAdvance(c.clinicId,'REQUESTED','STARTING');
-    try {
-      const session=await whatsappPlatform(deps.whatsappPlatform,c.clinicId,'/onboarding',z.object({id:z.string().uuid(),connect_token:z.string().min(20)}),{});
-      await waAdvance(c.clinicId,'STARTING','CONNECTING',session.id);return session;
-    } catch(e){await waAdvance(c.clinicId,'STARTING','CHECK_REQUIRED');throw e;}
-  });
-  app.post('/staff/agents/whatsapp/complete',async req=>{
-    const c=await claims(req,['doctor']); const row=await waRead(c.clinicId);
-    if(!row?.session_id || row.state!=='CONNECTING') throw new ToolError('setup_conflict','Refresh your saved setup status.',409);
-    const body=z.object({plugin_id:z.string().uuid()}).parse(req.body);
-    await whatsappPlatform(deps.whatsappPlatform,c.clinicId,`/onboarding/${row.session_id}/complete`,z.object({state:z.literal('OWNERSHIP_CHECK_REQUIRED')}),body);
-    return waAdvance(c.clinicId,'CONNECTING','OWNERSHIP_CHECK_REQUIRED');
-  });
-  const channelSchema=z.object({id:z.string().uuid(),app_id:z.string().uuid(),enabled:z.boolean(),execution_mode:z.literal('SAHAYAK'),webhook_verified_at:z.string().nullable()});
-  const savePreparation=(clinicId:string,channel:z.infer<typeof channelSchema>,phase:string)=>callTool(rt,{clinicId,actor:{kind:'system',name:'whatsapp-preparation'}},'record_whatsapp_preparation',{channelId:channel.id,appId:channel.app_id,phase});
-  const prepareWhatsApp=async(clinicId:string)=>{
-    const saved=await waRead(clinicId);
-    if(saved?.state!=='CONNECTED' || !saved.session_id)throw new ToolError('authorization_pending','Complete owner authorization and number ownership verification first.',409);
-    if(!deps.whatsappProvisioning)throw new ToolError('bridge_setup_required','Your setup team must configure the shared secure Sahayak endpoint once.',503);
-    // Both remote writes are idempotent against the verified session; no arbitrary phone/channel IDs from the browser.
-    const channel=await whatsappPlatform(deps.whatsappPlatform,clinicId,`/onboarding/${saved.session_id}/channel`,channelSchema,{});
-    await savePreparation(clinicId,channel,'PREPARING');
-    await whatsappPlatform(deps.whatsappPlatform,clinicId,`/v1/whatsapp/channels/${channel.id}/sahayak`,z.object({configured:z.literal(true)}),{clinic_id:clinicId,url:deps.whatsappProvisioning.url,secret:channelSecret(deps.whatsappProvisioning,clinicId,channel.app_id,channel.id)},'PUT');
-    const hook=await whatsappPlatform(deps.whatsappPlatform,clinicId,`/channels/${channel.id}/webhook`,z.object({configured:z.literal(true),verified:z.boolean()}),{});
-    return savePreparation(clinicId,channel,channel.enabled?'ACTIVE':hook.verified?'READY':'WEBHOOK_PENDING');
+  const waRead = (clinicId: string) =>
+    read(
+      clinicId,
+      async (db) =>
+        (await db.query('SELECT * FROM clinic_whatsapp_setup WHERE clinic_id=$1', [clinicId]))
+          .rows[0] ?? null,
+    );
+  const waAdvance = (clinicId: string, from: string, to: string, sessionId?: string) =>
+    callTool(
+      rt,
+      { clinicId, actor: { kind: 'system', name: 'whatsapp-onboarding' } },
+      'advance_whatsapp_setup',
+      { from, to, sessionId },
+    );
+  const currentWhatsApp = async (clinicId: string, saved: any) => {
+    if (!saved?.channel_id) return saved;
+    const channels = await whatsappPlatform(
+      deps.whatsappPlatform,
+      clinicId,
+      '/v1/whatsapp/channels?limit=100',
+      z.array(
+        z.object({
+          id: z.string().uuid(),
+          app_id: z.string().uuid(),
+          enabled: z.boolean(),
+          execution_mode: z.string(),
+          webhook_verified_at: z.string().nullable(),
+        }),
+      ),
+    );
+    const channel = channels.find(
+      (v) =>
+        v.id === saved.channel_id &&
+        v.app_id === saved.channel_app_id &&
+        v.execution_mode === 'SAHAYAK',
+    );
+    if (!channel)
+      throw new ToolError(
+        'connection_unavailable',
+        'The saved clinic channel could not be verified.',
+        503,
+      );
+    return {
+      ...saved,
+      preparation: channel.enabled
+        ? 'ACTIVE'
+        : channel.webhook_verified_at
+          ? 'READY'
+          : 'WEBHOOK_PENDING',
+    };
   };
-  app.post('/staff/agents/whatsapp/prepare',async req=>{const c=await claims(req,['doctor']);return prepareWhatsApp(c.clinicId);});
-  app.post('/staff/agents/whatsapp/refresh',async req=>{
-    const c=await claims(req,['doctor']);let row=await waRead(c.clinicId);
-    if(!row?.session_id)return row;
-    const remote=await whatsappPlatform(deps.whatsappPlatform,c.clinicId,`/onboarding/${row.session_id}`,z.object({state:z.enum(['CONNECTING','OWNERSHIP_CHECK_REQUIRED','CHECK_REQUIRED','CONNECTED'])}));
-    if(remote.state!==row.state)row=await waAdvance(c.clinicId,row.state,remote.state);
-    if(row.state==='CONNECTED')return prepareWhatsApp(c.clinicId);
+  app.get('/staff/agents/whatsapp/setup', async (req) => {
+    const c = await claims(req);
+    let setup = await waRead(c.clinicId);
+    let connectionAvailable = true;
+    if (setup?.channel_id) {
+      try {
+        setup = await currentWhatsApp(c.clinicId, setup);
+      } catch {
+        setup = { ...setup, preparation: 'UNAVAILABLE' };
+        connectionAvailable = false;
+      }
+    }
+    const platformConfigured = !!deps.whatsappPlatform?.clinics[c.clinicId];
+    let onboardingAvailable = false;
+    if (platformConfigured) {
+      try {
+        onboardingAvailable = (
+          await whatsappPlatform(
+            deps.whatsappPlatform,
+            c.clinicId,
+            '/config',
+            z.object({ available: z.boolean() }),
+          )
+        ).available;
+      } catch {
+        /* report setup unavailable without blocking the clinic app */
+      }
+    }
+    return {
+      setup,
+      connectionAvailable,
+      platformConfigured,
+      onboardingAvailable,
+      bridgeConfigured: !!deps.whatsappProvisioning,
+      liveRepliesEnabled: setup?.preparation === 'ACTIVE',
+    };
+  });
+  app.put('/staff/agents/whatsapp/setup', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'request_whatsapp_setup', req.body);
+  });
+  app.post('/staff/agents/whatsapp/connect', async (req, reply) => {
+    const c = await claims(req, ['doctor']);
+    reply.header('Cache-Control', 'no-store');
+    const saved = await waRead(c.clinicId);
+    if (saved?.state === 'CONNECTING' && saved.session_id)
+      return whatsappPlatform(
+        deps.whatsappPlatform,
+        c.clinicId,
+        `/onboarding/${saved.session_id}/resume`,
+        z.object({ id: z.string().uuid(), connect_token: z.string().min(20) }),
+        {},
+      );
+    const config = await whatsappPlatform(
+      deps.whatsappPlatform,
+      c.clinicId,
+      '/config',
+      z.object({ available: z.boolean() }),
+    );
+    if (!config.available)
+      throw new ToolError(
+        'partner_setup_required',
+        'Your setup team must enable provider onboarding first.',
+        503,
+      );
+    await waAdvance(c.clinicId, 'REQUESTED', 'STARTING');
+    try {
+      const session = await whatsappPlatform(
+        deps.whatsappPlatform,
+        c.clinicId,
+        '/onboarding',
+        z.object({ id: z.string().uuid(), connect_token: z.string().min(20) }),
+        {},
+      );
+      await waAdvance(c.clinicId, 'STARTING', 'CONNECTING', session.id);
+      return session;
+    } catch (e) {
+      await waAdvance(c.clinicId, 'STARTING', 'CHECK_REQUIRED');
+      throw e;
+    }
+  });
+  app.post('/staff/agents/whatsapp/complete', async (req) => {
+    const c = await claims(req, ['doctor']);
+    const row = await waRead(c.clinicId);
+    if (!row?.session_id || row.state !== 'CONNECTING')
+      throw new ToolError('setup_conflict', 'Refresh your saved setup status.', 409);
+    const body = z.object({ plugin_id: z.string().uuid() }).parse(req.body);
+    await whatsappPlatform(
+      deps.whatsappPlatform,
+      c.clinicId,
+      `/onboarding/${row.session_id}/complete`,
+      z.object({ state: z.literal('OWNERSHIP_CHECK_REQUIRED') }),
+      body,
+    );
+    return waAdvance(c.clinicId, 'CONNECTING', 'OWNERSHIP_CHECK_REQUIRED');
+  });
+  const channelSchema = z.object({
+    id: z.string().uuid(),
+    app_id: z.string().uuid(),
+    enabled: z.boolean(),
+    execution_mode: z.literal('SAHAYAK'),
+    webhook_verified_at: z.string().nullable(),
+  });
+  const savePreparation = (
+    clinicId: string,
+    channel: z.infer<typeof channelSchema>,
+    phase: string,
+  ) =>
+    callTool(
+      rt,
+      { clinicId, actor: { kind: 'system', name: 'whatsapp-preparation' } },
+      'record_whatsapp_preparation',
+      { channelId: channel.id, appId: channel.app_id, phase },
+    );
+  const prepareWhatsApp = async (clinicId: string) => {
+    const saved = await waRead(clinicId);
+    if (saved?.state !== 'CONNECTED' || !saved.session_id)
+      throw new ToolError(
+        'authorization_pending',
+        'Complete owner authorization and number ownership verification first.',
+        409,
+      );
+    if (!deps.whatsappProvisioning)
+      throw new ToolError(
+        'bridge_setup_required',
+        'Your setup team must configure the shared secure Sahayak endpoint once.',
+        503,
+      );
+    // Both remote writes are idempotent against the verified session; no arbitrary phone/channel IDs from the browser.
+    const channel = await whatsappPlatform(
+      deps.whatsappPlatform,
+      clinicId,
+      `/onboarding/${saved.session_id}/channel`,
+      channelSchema,
+      {},
+    );
+    await savePreparation(clinicId, channel, 'PREPARING');
+    await whatsappPlatform(
+      deps.whatsappPlatform,
+      clinicId,
+      `/v1/whatsapp/channels/${channel.id}/sahayak`,
+      z.object({ configured: z.literal(true) }),
+      {
+        clinic_id: clinicId,
+        url: deps.whatsappProvisioning.url,
+        secret: channelSecret(deps.whatsappProvisioning, clinicId, channel.app_id, channel.id),
+      },
+      'PUT',
+    );
+    const hook = await whatsappPlatform(
+      deps.whatsappPlatform,
+      clinicId,
+      `/channels/${channel.id}/webhook`,
+      z.object({ configured: z.literal(true), verified: z.boolean() }),
+      {},
+    );
+    return savePreparation(
+      clinicId,
+      channel,
+      channel.enabled ? 'ACTIVE' : hook.verified ? 'READY' : 'WEBHOOK_PENDING',
+    );
+  };
+  app.post('/staff/agents/whatsapp/prepare', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return prepareWhatsApp(c.clinicId);
+  });
+  app.post('/staff/agents/whatsapp/refresh', async (req) => {
+    const c = await claims(req, ['doctor']);
+    let row = await waRead(c.clinicId);
+    if (row?.channel_id) {
+      const fresh = await currentWhatsApp(c.clinicId, row);
+      return savePreparation(
+        c.clinicId,
+        {
+          id: row.channel_id,
+          app_id: row.channel_app_id,
+          enabled: fresh.preparation === 'ACTIVE',
+          execution_mode: 'SAHAYAK',
+          webhook_verified_at: null,
+        },
+        fresh.preparation,
+      );
+    }
+    if (!row?.session_id) return row;
+    const remote = await whatsappPlatform(
+      deps.whatsappPlatform,
+      c.clinicId,
+      `/onboarding/${row.session_id}`,
+      z.object({
+        state: z.enum(['CONNECTING', 'OWNERSHIP_CHECK_REQUIRED', 'CHECK_REQUIRED', 'CONNECTED']),
+      }),
+    );
+    if (remote.state !== row.state) row = await waAdvance(c.clinicId, row.state, remote.state);
+    if (row.state === 'CONNECTED') return prepareWhatsApp(c.clinicId);
     return row;
   });
-  app.post('/staff/agents/whatsapp/activation',async req=>{
-    const c=await claims(req,['doctor']);const {enabled}=z.object({enabled:z.boolean()}).parse(req.body);
-    const row=await waRead(c.clinicId);
-    if(!row?.channel_id)throw new ToolError('setup_pending','Finish connecting your clinic first.',409);
-    if(enabled && !['READY','ACTIVE'].includes(row.preparation))throw new ToolError('test_pending','Send a test message to verify the webhook, then check connection status.',409);
-    const result=await whatsappPlatform(deps.whatsappPlatform,c.clinicId,`/v1/whatsapp/channels/${row.channel_id}/activation`,z.object({enabled:z.boolean()}),{enabled});
-    if(result.enabled!==enabled)throw new ToolError('activation_unknown','Check the saved channel state before retrying.',409);
-    return savePreparation(c.clinicId,{id:row.channel_id,app_id:row.channel_app_id,enabled,execution_mode:'SAHAYAK',webhook_verified_at:null},enabled?'ACTIVE':'READY');
+  app.post('/staff/agents/whatsapp/activation', async (req) => {
+    const c = await claims(req, ['doctor']);
+    const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body);
+    const row = await waRead(c.clinicId);
+    if (!row?.channel_id)
+      throw new ToolError('setup_pending', 'Finish connecting your clinic first.', 409);
+    if (enabled && !['READY', 'ACTIVE'].includes(row.preparation))
+      throw new ToolError(
+        'test_pending',
+        'Send a test message to verify the webhook, then check connection status.',
+        409,
+      );
+    const result = await whatsappPlatform(
+      deps.whatsappPlatform,
+      c.clinicId,
+      `/v1/whatsapp/channels/${row.channel_id}/activation`,
+      z.object({ enabled: z.boolean() }),
+      { enabled },
+    );
+    if (result.enabled !== enabled)
+      throw new ToolError(
+        'activation_unknown',
+        'Check the saved channel state before retrying.',
+        409,
+      );
+    return savePreparation(
+      c.clinicId,
+      {
+        id: row.channel_id,
+        app_id: row.channel_app_id,
+        enabled,
+        execution_mode: 'SAHAYAK',
+        webhook_verified_at: null,
+      },
+      enabled ? 'ACTIVE' : 'READY',
+    );
   });
 
   app.get('/staff/agents/connections', async (req) => {
     const c = await claims(req);
     const clinic = (await pool.query('SELECT slug FROM clinics WHERE id=$1', [c.clinicId])).rows[0];
+    let channelActive = false;
+    try {
+      channelActive =
+        (await currentWhatsApp(c.clinicId, await waRead(c.clinicId)))?.preparation === 'ACTIVE';
+    } catch {
+      /* Service outage must not claim live connectivity. */
+    }
     return {
       slug: clinic?.slug,
       liveChannelOwner: deps.liveChannelOwner ?? 'local',
       simulator: deps.simulator !== false,
       voiceSimulator: deps.simulator !== false || !!deps.whatsapp,
       platform: { configured: !!deps.agentPlatform },
-      whatsapp: { configured: !!deps.whatsapp || (await waRead(c.clinicId))?.preparation==='ACTIVE', provider: deps.whatsapp?.messaging.name ?? (deps.whatsappPlatform?.clinics[c.clinicId]?'agent-platform':null) },
+      whatsapp: {
+        configured: !!deps.whatsapp || channelActive,
+        provider:
+          deps.whatsapp?.messaging.name ??
+          (deps.whatsappPlatform?.clinics[c.clinicId] ? 'agent-platform' : null),
+      },
       phone: { configured: false },
     };
   });
@@ -1464,7 +1745,12 @@ export async function buildApp(deps: AppDeps) {
     return callTool(rt, staffCtx(c), 'remove_red_flag_phrase', { id: idParam(req) });
   });
 
-  installWhatsAppBridge(app, {rt, gate:deps.gate}, deps.whatsappBridge, deps.whatsappProvisioning);
+  installWhatsAppBridge(
+    app,
+    { rt, gate: deps.gate },
+    deps.whatsappBridge,
+    deps.whatsappProvisioning,
+  );
 
   // ---- real WhatsApp: webhook in (signature-checked), outbox out ----
   if (deps.whatsapp) {

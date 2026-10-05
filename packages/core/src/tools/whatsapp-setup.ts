@@ -2,6 +2,39 @@ import { z } from 'zod';
 import { defineTool, ToolError } from './registry';
 export const whatsappSetupTools = [
   defineTool({
+    name: 'attach_verified_whatsapp_channel',
+    description: 'Operator attaches an already authorized platform channel to its clinic',
+    module: 'core',
+    input: z.object({
+      phone: z.string().regex(/^\+[1-9]\d{7,14}$/),
+      channelId: z.string().uuid(),
+      appId: z.string().uuid(),
+      phase: z.enum(['WEBHOOK_PENDING', 'READY', 'ACTIVE']),
+    }),
+    allow: ['system'],
+    auditInput: () => ({ details: 'redacted' }),
+    auditOutput: () => ({ saved: true }),
+    async run({ db, ctx }, i) {
+      const r = await db.query(
+        `INSERT INTO clinic_whatsapp_setup(clinic_id,phone,state,channel_id,channel_app_id,preparation)
+        VALUES($1,$2,'CONNECTED',$3,$4,$5) ON CONFLICT(clinic_id) DO UPDATE SET
+        phone=EXCLUDED.phone,state='CONNECTED',channel_id=EXCLUDED.channel_id,channel_app_id=EXCLUDED.channel_app_id,preparation=EXCLUDED.preparation,updated_at=now()
+        WHERE (clinic_whatsapp_setup.state='REQUESTED' AND clinic_whatsapp_setup.session_id IS NULL AND clinic_whatsapp_setup.channel_id IS NULL)
+        OR (clinic_whatsapp_setup.state='CONNECTED' AND clinic_whatsapp_setup.channel_id=$3 AND clinic_whatsapp_setup.channel_app_id=$4 AND clinic_whatsapp_setup.phone=$2)
+        RETURNING *`,
+        [ctx.clinicId, i.phone, i.channelId, i.appId, i.phase],
+      );
+      if (!r.rowCount)
+        throw new ToolError(
+          'setup_conflict',
+          'Existing clinic connection needs operator reconciliation.',
+          409,
+        );
+      return r.rows[0];
+    },
+  }),
+
+  defineTool({
     name: 'record_whatsapp_preparation',
     description: 'Save verified clinic channel preparation',
     module: 'core',

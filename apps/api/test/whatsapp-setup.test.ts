@@ -170,6 +170,16 @@ it('finishes verified signup into a bound channel, then gates activation on webh
         execution_mode: 'SAHAYAK',
         webhook_verified_at: verified ? new Date().toISOString() : null,
       };
+    else if (path.includes('/v1/whatsapp/channels?'))
+      data = [
+        {
+          id: channel,
+          app_id: appId,
+          enabled,
+          execution_mode: 'SAHAYAK',
+          webhook_verified_at: verified ? new Date().toISOString() : null,
+        },
+      ];
     else if (path.endsWith('/sahayak')) {
       const body = JSON.parse(init.body);
       expect(body.clinic_id).toBe(a.clinicId);
@@ -232,4 +242,24 @@ it('finishes verified signup into a bound channel, then gates activation on webh
     ).json().liveRepliesEnabled,
   ).toBe(true);
   expect((await refresh()).json().channel_id).toBe(channel);
+});
+
+it('reports an unavailable platform without claiming the saved active channel is live', async () => {
+  remote.mockImplementation(async () => {
+    throw new Error('offline');
+  });
+  const r = await app.inject({
+    method: 'GET',
+    url: '/staff/agents/whatsapp/setup',
+    headers: h(a.clinicId),
+  });
+  expect(r.statusCode).toBe(200);
+  expect(r.json().liveRepliesEnabled).toBe(false);
+  expect(r.json().setup.preparation).toBe('UNAVAILABLE');
+  const other = await app.inject({
+    method: 'GET',
+    url: '/staff/agents/whatsapp/setup',
+    headers: h(b.clinicId),
+  });
+  expect(other.json().setup).toBeNull();
 });
