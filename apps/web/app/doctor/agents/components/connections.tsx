@@ -116,7 +116,9 @@ export function Connections({
                 <h3>{name}</h3>
                 <p>
                   {connections.liveChannelOwner === 'platform'
-                    ? 'Not connected yet · practice only'
+                    ? configured
+                      ? 'Connected through agent platform · replies enabled'
+                      : 'Not connected yet · practice only'
                     : configured
                       ? 'Setup entered · a real conversation still needs testing'
                       : 'Not connected yet · practice only'}
@@ -143,8 +145,9 @@ export function Connections({
         <>
           {connections?.liveChannelOwner === 'platform' ? (
             <p role="status">
-              Live service is not connected yet. Your setup team needs to finish connecting it. You
-              can try the assistant below without contacting a patient.
+              {view === 'whatsapp' && connections.whatsapp.configured
+                ? 'Send Hi to your connected clinic number from another WhatsApp number to test a real appointment conversation.'
+                : 'Live service is not connected yet. Your setup team needs to finish connecting it. You can try the assistant below without contacting a patient.'}
             </p>
           ) : (
             <Diagnostics phone={view === 'phone'} />

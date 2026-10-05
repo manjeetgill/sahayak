@@ -23,3 +23,20 @@ Validate with one authorized owner and a second test number before opening patie
 The clinic does not design a chatbot or need to provide FAQs for booking. See CLINIC_APPOINTMENT_FLOW.md for the product-owned conversation and storage responsibilities.
 
 The signed bridge is implemented in apps/api/src/whatsapp-bridge.ts. See the AI Agent Platform repository’s docs/SAHAYAK_WHATSAPP_BRIDGE.md for both environment mappings, channel mode, deployment and activation checks. Live activation remains an operator step after a real-number test.
+
+### Attach an existing verified pilot
+
+An operator can attach an existing authorized channel without fabricating an
+Embedded Signup session. Configure the clinic-scoped backend credential and the
+matching `AGENT_CHANNEL_BRIDGE_BINDINGS` entry privately, then run from this repo:
+
+```sh
+pnpm --filter @sahayak/api exec tsx src/attach-whatsapp-pilot.ts CLINIC_UUID CHANNEL_UUID +COUNTRYCODE_NUMBER
+```
+
+The command verifies the saved app/channel association against the platform and
+uses the audited system-only tool. It refuses to overwrite a different connection.
+The setup screen reads the real channel status, supports pause/enable, and shows
+service unavailability without claiming cached ACTIVE status is live. The local
+pilot uses an SSH forward on 4065 for the private platform API and an SSH reverse
+forward for the clinic callback; the laptop and both connections must stay running.
