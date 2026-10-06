@@ -18,7 +18,13 @@ export default function Login() {
     }
   };
   return (
-    <div className="wrap">
+    <div className="wrap auth-page">
+      <a className="auth-brand" href="/">
+        <span className="clinic-brand-mark" aria-hidden="true">
+          ✚
+        </span>{' '}
+        Sahayak
+      </a>
       <h1>Staff sign-in</h1>
       <form className="card" onSubmit={submit}>
         <label htmlFor="email">Email</label>

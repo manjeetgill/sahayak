@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { LlmUnavailable, NemotronProvider } from '../src';
+import { LlmUnavailable, NemotronProvider, TogetherProvider, modelProviderFromEnv } from '../src';
 
 const mk = (fetchImpl: any, retries = 2) =>
   new NemotronProvider({
@@ -95,4 +95,96 @@ it('aborts a bounded call without retries and keeps transport settings out of th
   } finally {
     vi.useRealTimers();
   }
+});
+
+describe('Sahayak model selection', () => {
+  it('keeps legacy installations on NVIDIA and allows explicit offline mode', () => {
+    expect(modelProviderFromEnv({ LLM_API_KEY: 'legacy' })?.name).toBe('nemotron');
+    expect(modelProviderFromEnv({ LLM_PROVIDER: 'offline', TOGETHER_API_KEY: 'key' })).toBeNull();
+    expect(() => modelProviderFromEnv({ LLM_PROVIDER: 'typo' })).toThrow(/LLM_PROVIDER/);
+  });
+  it('never uses NVIDIA credentials when Together is selected', () => {
+    expect(
+      modelProviderFromEnv({ LLM_PROVIDER: 'together', LLM_API_KEY: 'nvidia-key' }),
+    ).toBeNull();
+  });
+  it('uses Together endpoint and model despite stale NVIDIA settings', async () => {
+    const fetcher = vi.fn().mockResolvedValue(ok({ content: 'Ready' }));
+    vi.stubGlobal('fetch', fetcher);
+    try {
+      const provider = modelProviderFromEnv({
+        LLM_PROVIDER: 'together',
+        TOGETHER_API_KEY: 'together-key',
+        LLM_API_KEY: 'nvidia-key',
+        LLM_BASE_URL: 'https://nvidia.example/v1',
+        LLM_MODEL: 'nvidia-model',
+      })!;
+      await provider.chat({ messages: [], maxTokens: 512 });
+      const [url, init] = fetcher.mock.calls[0];
+      expect(url).toBe('https://api.together.ai/v1/chat/completions');
+      expect(init.headers.authorization).toBe('Bearer together-key');
+      expect(JSON.parse(init.body)).toMatchObject({
+        model: 'openai/gpt-oss-120b',
+        reasoning_effort: 'low',
+        max_tokens: 512,
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+  it('supports a different Together model without GPT-OSS reasoning parameters', async () => {
+    const fetcher = vi.fn().mockResolvedValue(ok({ content: 'Ready' }));
+    vi.stubGlobal('fetch', fetcher);
+    try {
+      const provider = TogetherProvider.fromEnv({
+        TOGETHER_API_KEY: 'key',
+        TOGETHER_MODEL: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+      })!;
+      await provider.chat({ messages: [] });
+      expect(JSON.parse(fetcher.mock.calls[0][1].body).reasoning_effort).toBeUndefined();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+  it('rejects invalid timeouts and reasoning effort', () => {
+    expect(() =>
+      TogetherProvider.fromEnv({ TOGETHER_API_KEY: 'key', LLM_TIMEOUT_MS: 'NaN' }),
+    ).toThrow(/TIMEOUT/);
+    expect(() =>
+      TogetherProvider.fromEnv({ TOGETHER_API_KEY: 'key', TOGETHER_REASONING_EFFORT: 'none' }),
+    ).toThrow(/EFFORT/);
+  });
+  it('parses Together tool calls and never returns private reasoning as the answer', async () => {
+    const provider = new TogetherProvider({
+      apiKey: 'key',
+      model: 'openai/gpt-oss-120b',
+      timeoutMs: 100,
+      fetchImpl: (async () =>
+        ok({
+          content: null,
+          reasoning: 'private',
+          tool_calls: [{ id: 'call1', function: { name: 'get_clinic_info', arguments: '{}' } }],
+        })) as any,
+    });
+    expect(await provider.chat({ messages: [] })).toEqual({
+      content: null,
+      toolCalls: [{ id: 'call1', name: 'get_clinic_info', arguments: '{}' }],
+    });
+  });
+  it('rejects reasoning-only or truncated answers without spending on retries', async () => {
+    for (const response of [
+      { choices: [{ message: { content: null, reasoning: 'hidden' } }] },
+      { choices: [{ finish_reason: 'length', message: { content: 'partial answer' } }] },
+    ]) {
+      const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => response });
+      const provider = new TogetherProvider({
+        apiKey: 'key',
+        model: 'test',
+        timeoutMs: 100,
+        fetchImpl: fetcher,
+      });
+      await expect(provider.chat({ messages: [] })).rejects.toThrow(LlmUnavailable);
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    }
+  });
 });

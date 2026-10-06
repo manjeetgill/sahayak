@@ -8,7 +8,9 @@ export function LocalCareTools({
   data,
   documents,
   onSaved,
+  activeArea = 'care',
 }: {
+  activeArea?: string;
   patientId: string;
   data: any;
   documents: any[];
@@ -84,7 +86,7 @@ export function LocalCareTools({
         </p>
       )}
       {message && <p role="status">{message}</p>}
-      <details>
+      <details hidden={activeArea !== 'care'}>
         <summary>Use a reusable clinic plan</summary>
         <a href="/doctor/templates">Manage reusable plans</a>
         <fieldset disabled={busy}>
@@ -161,7 +163,7 @@ export function LocalCareTools({
           </button>
         </fieldset>
       </details>
-      <details>
+      <details hidden={activeArea !== 'records'}>
         <summary>Find facts and browse the full record</summary>
         <p>
           Try “show medicines”, “why was medicine changed”, “allergies”, “test results outside
@@ -230,7 +232,7 @@ export function LocalCareTools({
           </>
         )}
       </details>
-      <details>
+      <details hidden={activeArea !== 'records'}>
         <summary>Read a report beside its extracted text</summary>
         <p>
           PDF text extraction runs locally. It does not interpret results or verify values.
@@ -302,7 +304,7 @@ export function LocalCareTools({
           </div>
         </div>
       </details>
-      <details>
+      <details hidden={activeArea !== 'records'}>
         <summary>Record review of test results</summary>
         <p>
           Values outside the report’s supplied range stay in the inbox until a doctor records
@@ -348,7 +350,7 @@ export function LocalCareTools({
             </article>
           ))}
       </details>
-      <details id="insurance-work">
+      <details id="insurance-work" hidden={activeArea !== 'admin'}>
         <summary>Insurance and pre-authorization paperwork</summary>
         <p>
           Track work already performed. Recording an insurer decision does not decide eligibility or

@@ -3,10 +3,14 @@ import Link from 'next/link';
 export default function Home() {
   const slug = 'dr-sharma';
   return (
-    <div className="wrap">
-      <h1>Sahayak · सहायक</h1>
-      <p className="muted">Your clinic’s digital assistant. Example clinic: Dr. Sharma&apos;s Clinic.</p>
-      <div className="card list">
+    <div className="wrap home-page">
+      <section className="home-hero">
+        <span className="page-eyebrow">Clinic care, made simpler</span>
+        <h1>Sahayak · सहायक</h1>
+        <p>Your clinic’s calm digital workspace.</p>
+      </section>
+      <p className="muted">Example clinic: Dr. Sharma&apos;s Clinic.</p>
+      <div className="card list home-links">
         <div>
           <Link href={`/c/${slug}`}>Public clinic page</Link>
         </div>

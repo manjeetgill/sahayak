@@ -25,7 +25,7 @@ test('doctor opens prioritised inbox and reads the original conversation', async
       [clinic, conversation, patient],
     );
     await login(page, 'anil@demo.sahayak.in');
-    await page.getByRole('link', { name: 'Review outstanding work' }).click();
+    await page.getByRole('link', { name: /^View all/ }).click();
     await expect(
       page.getByRole('heading', { name: 'Needs my attention', exact: true }),
     ).toBeVisible();

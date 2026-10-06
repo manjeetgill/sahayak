@@ -1,14 +1,17 @@
 'use client';
+import { useSection } from '../components/useSection';
 import { AttentionSummary } from '../components/AttentionSummary';
 import { VisitChecklist } from '../components/VisitChecklist';
 import { useCallback, useEffect, useState } from 'react';
 import { t } from '@sahayak/shared';
 import { AskClinic } from '../components/AskClinic';
 import { PatientSearch } from '../components/PatientSearch';
-import { beep, session, staff, useLive, useSession } from '../../lib/api';
+import { beep, staff, useLive, useSession } from '../../lib/api';
 
+const utilitySection = (hash: string) => hash;
 export default function Doctor() {
   const s = useSession('doctor');
+  const utility = useSection(utilitySection, '');
   const [queue, setQueue] = useState<any[]>([]),
     [today, setToday] = useState<any[]>([]),
     [flags, setFlags] = useState<any[]>([]);
@@ -70,40 +73,25 @@ export default function Doctor() {
   const done = queue.filter((q) => q.status === 'done').length;
 
   return (
-    <div>
-      <div className="topbar">
-        <b>{s.user.name}</b>
-        <a href="/doctor/inbox">Needs my attention</a>
-        <a href="/doctor/templates">Reusable care plans</a>
-        <a href="/doctor/references">Medical reference</a>
-        <a href="/doctor/practice">Clinic overview</a>
-        <a href="/doctor/care">Care tasks</a>
-        <a href="/doctor/waitlist">Waiting list</a>{' '}
-        <a href="/doctor/settings" style={{ marginLeft: 16 }}>
-          Clinic settings
-        </a>{' '}
-        <a href="/doctor/agents" style={{ marginLeft: 16 }}>
-          Clinic assistants
-        </a>{' '}
-        <a href="/safety" style={{ marginLeft: 16 }}>
-          Safety report
-        </a>
+    <div className="doctor-today">
+      <header className="doctor-page-heading">
+        <div>
+          <span className="page-eyebrow">Today&apos;s clinic</span>
+          <h1>Good afternoon, Dr. {s.user.name.replace(/^Dr\.\s*/i, '').split(' ')[0]}</h1>
+          <p className="muted">Your next patient and outstanding work are together here.</p>
+        </div>
         <button
-          className="ghost small"
-          onClick={() => {
-            session.clear();
-            location.href = '/login';
-          }}
+          onClick={() => act('/staff/queue/call-next', {})}
+          disabled={!waiting.length && !current}
         >
-          Sign out
+          {t('en', 'doctor.next')} →
         </button>
-      </div>
+      </header>
       {!setupDone && (
         <div className="banner warn" role="status">
           Your clinic setup is not finished. <a href="/setup">Continue setup →</a>
         </div>
       )}
-      <AttentionSummary />
       {llmDown && <div className="banner warn">{t('en', 'console.llm_down')}</div>}
       {urgent.map((f) => (
         <div key={f.id} className="banner urgent" role="alert">
@@ -119,77 +107,8 @@ export default function Doctor() {
       ))}
       <div className="grid3" style={{ gridTemplateColumns: '1.3fr 1fr' }}>
         <div>
-          <div className="card" style={{ marginBottom: '1rem' }}>
-            <button
-              style={{ width: '100%', fontSize: '2rem', padding: '1.2rem' }}
-              onClick={() => act('/staff/queue/call-next', {})}
-              disabled={!waiting.length && !current}
-            >
-              {t('en', 'doctor.next')} →
-            </button>
-          </div>
-          <div style={{ marginBottom: '1rem' }}>
-            <AskClinic />
-          </div>
-          <div style={{ marginBottom: '1rem' }}>
-            <PatientSearch />
-          </div>
-          <div className="card" style={{ marginBottom: '1rem' }} data-testid="late-box">
-            <form className="row" onSubmit={proposeLate}>
-              <input
-                aria-label="Running late"
-                placeholder='Running late? e.g. "running 30 min late"'
-                value={late}
-                onChange={(e) => setLate(e.target.value)}
-              />
-              <button type="submit" className="ghost">
-                Check impact
-              </button>
-            </form>
-            {err && (
-              <div className="error" role="alert">
-                {err}
-              </div>
-            )}
-            {proposal && (
-              <div data-testid="late-proposal" style={{ marginTop: '.6rem' }}>
-                <p>
-                  <b>{proposal.affected}</b> patient(s) affected by a {proposal.minutes}-minute
-                  delay
-                  {proposal.needsRebooking
-                    ? ` (${proposal.needsRebooking} will need a new day/time)`
-                    : ''}
-                  .
-                </p>
-                <p className="muted">Nothing is sent until you confirm.</p>
-                <div className="row">
-                  <button onClick={confirmLate}>Confirm and notify patients</button>
-                  <button
-                    className="ghost"
-                    onClick={() =>
-                      staff(`/staff/schedule/${proposal.proposalId}/cancel`, {}).then(() =>
-                        setProposal(null),
-                      )
-                    }
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-            {summary && (
-              <div data-testid="late-summary" style={{ marginTop: '.6rem' }}>
-                <b>Running-late update ({summary.proposal.minutes} min)</b>
-                <div className="muted">
-                  {summary.counts.notified}/{summary.counts.affected} notified ·{' '}
-                  {summary.counts.keptNewTime} kept new time · {summary.counts.rebooked} rebooked ·{' '}
-                  {summary.counts.waitingForReply} waiting for reply
-                  {summary.counts.needsCall ? ` · ${summary.counts.needsCall} need a call` : ''}
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="card" data-testid="patient-card">
+          <AttentionSummary />
+          <div className="card current-consultation" hidden={!current} data-testid="patient-card">
             {current ? (
               <>
                 <div className="row between">
@@ -274,27 +193,133 @@ export default function Doctor() {
             )}
           </div>
         </div>
-        <div className="card">
-          <h3>Today at a glance</h3>
-          <p className="muted">
-            {today.length} appointments · {queue.length} checked in · {done} seen · {waiting.length}{' '}
-            waiting
-          </p>
-          <div className="list">
-            {today.map((a) => (
-              <div key={a.id} className="row between">
-                <span>
-                  {new Date(a.starts_at).toLocaleTimeString('en-IN', {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                  })}{' '}
-                  · {a.patient ?? '—'} <span className="muted">{a.reason ?? ''}</span>
-                </span>
-                <span className={`tag ${a.status}`}>{a.status}</span>
+        <aside className="workspace-stack">
+          <section className="card today-metrics">
+            <div className="panel-heading">
+              <h2>Today</h2>
+              <span className="tag">Live</span>
+            </div>
+            <div className="metric-grid">
+              <div className="metric-tile">
+                <strong>{today.length}</strong>
+                <span>Booked</span>
               </div>
-            ))}
+              <div className="metric-tile">
+                <strong>{done}</strong>
+                <span>Seen</span>
+              </div>
+              <div className="metric-tile">
+                <strong>{waiting.length}</strong>
+                <span>Waiting</span>
+              </div>
+            </div>
+            <details>
+              <summary>Appointments today</summary>
+              <p className="muted">
+                {today.length} appointments · {queue.length} checked in · {done} seen ·{' '}
+                {waiting.length} waiting
+              </p>
+              <div className="list">
+                {today.map((a) => (
+                  <div key={a.id} className="row between">
+                    <span>
+                      {new Date(a.starts_at).toLocaleTimeString('en-IN', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })}{' '}
+                      · {a.patient ?? '—'} <span className="muted">{a.reason ?? ''}</span>
+                    </span>
+                    <span className={`tag ${a.status}`}>{a.status}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          </section>
+          <section hidden={utility !== 'ask-clinic'}>
+            <AskClinic />
+          </section>
+          <section hidden={utility !== 'patient-search'}>
+            <PatientSearch />
+          </section>
+          <div className="card" style={{ marginBottom: '1rem' }} data-testid="late-box">
+            <h3>Running late?</h3>
+            <p className="muted">Preview affected patients before sending.</p>
+            <form className="row" onSubmit={proposeLate}>
+              <input
+                aria-label="Running late"
+                placeholder='Running late? e.g. "running 30 min late"'
+                value={late}
+                onChange={(e) => setLate(e.target.value)}
+              />
+              <button type="submit" className="ghost">
+                Check impact
+              </button>
+            </form>
+            {err && (
+              <div className="error" role="alert">
+                {err}
+              </div>
+            )}
+            {proposal && (
+              <div data-testid="late-proposal" style={{ marginTop: '.6rem' }}>
+                <p>
+                  <b>{proposal.affected}</b> patient(s) affected by a {proposal.minutes}-minute
+                  delay
+                  {proposal.needsRebooking
+                    ? ` (${proposal.needsRebooking} will need a new day/time)`
+                    : ''}
+                  .
+                </p>
+                <p className="muted">Nothing is sent until you confirm.</p>
+                <div className="row">
+                  <button onClick={confirmLate}>Confirm and notify patients</button>
+                  <button
+                    className="ghost"
+                    onClick={() =>
+                      staff(`/staff/schedule/${proposal.proposalId}/cancel`, {}).then(() =>
+                        setProposal(null),
+                      )
+                    }
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+            {summary && (
+              <div data-testid="late-summary" style={{ marginTop: '.6rem' }}>
+                <b>Running-late update ({summary.proposal.minutes} min)</b>
+                <div className="muted">
+                  {summary.counts.notified}/{summary.counts.affected} notified ·{' '}
+                  {summary.counts.keptNewTime} kept new time · {summary.counts.rebooked} rebooked ·{' '}
+                  {summary.counts.waitingForReply} waiting for reply
+                  {summary.counts.needsCall ? ` · ${summary.counts.needsCall} need a call` : ''}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+          <section className="card">
+            <h2>Quick actions</h2>
+            <nav className="action-links">
+              <a href="#patient-search">Find patient</a>
+              <a href="/doctor/care">Create care task</a>
+              <a href="/doctor/practice">Clinic overview</a>
+            </nav>
+            <details className="more-clinic-tools">
+              <summary>More clinic tools</summary>
+              <nav className="action-links">
+                <a href="#ask-clinic">Ask your clinic</a>
+                <a href="/doctor/inbox">Needs my attention</a>
+                <a href="/doctor/waitlist">Waiting list</a>
+                <a href="/doctor/templates">Reusable care plans</a>
+                <a href="/doctor/references">Medical reference</a>
+                <a href="/doctor/settings">Clinic settings</a>
+                <a href="/doctor/agents">Clinic assistants</a>
+                <a href="/safety">Safety report</a>
+              </nav>
+            </details>
+          </section>
+        </aside>
       </div>
     </div>
   );

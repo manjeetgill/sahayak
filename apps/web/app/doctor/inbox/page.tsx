@@ -56,7 +56,7 @@ export default function Inbox() {
   };
   if (!session) return null;
   return (
-    <main className="wrap" style={{ maxWidth: 960 }}>
+    <main className="wrap attention-page" style={{ maxWidth: 960 }}>
       <a href="/doctor">← Today’s clinic</a>
       <h1>Needs my attention</h1>
       <p>
@@ -91,40 +91,42 @@ export default function Inbox() {
               </button>
             </p>
           )}
-          <label>
-            Work list
-            <select
-              value={view}
-              onChange={(e) => {
-                setView(e.target.value);
-                setPage(0);
-              }}
-            >
-              <option value="all">All clinic work</option>
-              <option value="mine">Assigned to me</option>
-              <option value="later">Remind me later ({data.later})</option>
-            </select>
-          </label>
-          <label>
-            Show{' '}
-            <select
-              value={filter}
-              onChange={(e) => {
-                setFilter(e.target.value);
-                setPage(0);
-              }}
-            >
-              <option value="all">All outstanding work</option>
-              <option value="urgent">Urgent alerts</option>
-              <option value="task">Care tasks</option>
-              <option value="result">Test results needing review</option>
-              <option value="insurance">Insurance paperwork</option>
-              <option value="followup">Follow-up plans</option>
-              <option value="report">New reports and photos</option>
-              <option value="draft">My unsigned drafts</option>
-              <option value="messages">Patient messages and alerts</option>
-            </select>
-          </label>
+          <div className="attention-filters">
+            <label>
+              Work list
+              <select
+                value={view}
+                onChange={(e) => {
+                  setView(e.target.value);
+                  setPage(0);
+                }}
+              >
+                <option value="all">All clinic work</option>
+                <option value="mine">Assigned to me</option>
+                <option value="later">Remind me later ({data.later})</option>
+              </select>
+            </label>
+            <label>
+              Show{' '}
+              <select
+                value={filter}
+                onChange={(e) => {
+                  setFilter(e.target.value);
+                  setPage(0);
+                }}
+              >
+                <option value="all">All outstanding work</option>
+                <option value="urgent">Urgent alerts</option>
+                <option value="task">Care tasks</option>
+                <option value="result">Test results needing review</option>
+                <option value="insurance">Insurance paperwork</option>
+                <option value="followup">Follow-up plans</option>
+                <option value="report">New reports and photos</option>
+                <option value="draft">My unsigned drafts</option>
+                <option value="messages">Patient messages and alerts</option>
+              </select>
+            </label>
+          </div>
           {data.total > data.items.length && (
             <p>
               Showing page {page + 1}, with up to 50 items. Category filters apply across all
@@ -136,7 +138,7 @@ export default function Inbox() {
           )}
           {data.items.map((i: any) => (
             <article
-              className="card"
+              className={`card attention-card priority-${i.priority}`}
               key={i.key}
               style={{ marginTop: 12 }}
               data-testid="inbox-item"

@@ -79,12 +79,21 @@ export default function CheckIn({ params }: { params: { slug: string } }) {
 
   if (!info) return <div className="wrap">{err ? <div className="error">{err}</div> : '…'}</div>;
   return (
-    <div className="wrap">
+    <div className="wrap checkin-page">
       <div className="row between">
         <h1>{t(lang, 'checkin.title', { clinic: info.clinic })}</h1>
         <button className="ghost small" onClick={() => setLang(lang === 'en' ? 'hi' : 'en')}>
           {t(lang, 'checkin.language')}
         </button>
+      </div>
+      <div className="checkin-progress" aria-label="Check-in progress">
+        <span className="active">1</span>
+        <i />
+        <span className={returning !== null || done ? 'active' : ''}>2</span>
+        <i />
+        <span className={done ? 'active' : ''}>3</span>
+        <i />
+        <span className={done ? 'active' : ''}>4</span>
       </div>
       {done ? (
         <div className="card" role="status">

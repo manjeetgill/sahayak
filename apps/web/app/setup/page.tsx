@@ -132,7 +132,7 @@ export default function Setup() {
   const origin = typeof location !== 'undefined' ? location.origin : '';
 
   return (
-    <div>
+    <div className="setup-page">
       <div className="topbar">
         <b>Set up {cfg.clinicName}</b>
         <a href={`/c/${status.slug}`} target="_blank" rel="noreferrer">
@@ -142,8 +142,15 @@ export default function Setup() {
         </a>
         <a href="/doctor">Skip for now</a>
       </div>
-      <div className="wrap" style={{ maxWidth: 720 }}>
+      <div className="wrap" style={{ maxWidth: 860 }}>
+        <header className="screen-heading">
+          <span className="eyebrow">
+            Step {step + 1} of {STEPS.length}
+          </span>
+          <h1>Set up your clinic</h1>
+        </header>
         <ol
+          className="setup-progress"
           style={{ display: 'flex', gap: 6, padding: 0, listStyle: 'none', flexWrap: 'wrap' }}
           aria-label="Progress"
         >

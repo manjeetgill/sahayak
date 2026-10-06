@@ -64,6 +64,9 @@ const Input = z
     from: z.string().regex(/^\+?[1-9]\d{7,14}$/),
     text: z.string().min(1).max(4000),
     probe: z.literal(true).optional(),
+    voice_available: z.literal(true).optional(),
+    voice_resume: z.literal(true).optional(),
+    voice_turn: z.literal(true).optional(),
   })
   .strict();
 export function installWhatsAppBridge(
@@ -170,36 +173,80 @@ export function installWhatsAppBridge(
                   menu:
                     c.handled_by === 'human'
                       ? null
-                      : clinicChoices(c.id, c.state, c.language, c.timezone),
+                      : clinicChoices(c.id, c.state, c.language, c.timezone, !!i.voice_available),
                 }
               : null;
           });
         let text = i.text;
         let stale = false;
-        const before = i.text.startsWith('sc:') ? await readChoices() : null;
+        const before = await readChoices();
         if (i.text.startsWith('sc:')) {
           const selected = before?.menu?.choices.find((v) => v.id === i.text);
           if (selected) text = selected.value;
           else stale = true;
         }
-        // Replies are captured and stored locally; ONLY the platform sends to WhatsApp.
-        const result = stale
-          ? {
-              replies:
-                before?.conversation.handled_by === 'human'
-                  ? []
-                  : [t(before?.conversation.language ?? 'en', 'msg.choice_stale')],
-              handledBy: before?.conversation.handled_by ?? 'agent',
-              redFlag: false,
-              conversationId: before?.conversation.id,
-            }
-          : await handleInbound(
-              { ...env, rt: { ...env.rt, channel: new MockWhatsAppChannel() } },
-              { clinicId: b.clinicId, from: contact, text, channel: 'whatsapp' },
-            );
+        const voiceRequested =
+          !!i.voice_available &&
+          !i.voice_turn &&
+          !i.voice_resume &&
+          !stale &&
+          before?.conversation.handled_by === 'agent' &&
+          (text === '__web_voice__' ||
+            /^(talk to ai receptionist|ai receptionist|voice chat \(web link\)|वॉइस चैट लिंक|एआई रिसेप्शनिस्ट)$/i.test(text.trim()));
+        let voicePrompt: string | undefined;
+        if (i.voice_resume && before?.conversation.handled_by === 'agent') {
+          const previous = await withClinic(
+            env.rt.pool,
+            b.clinicId,
+            async (db) =>
+              (
+                await db.query(
+                  "SELECT body FROM messages WHERE clinic_id=$1 AND conversation_id=$2 AND direction='out' ORDER BY created_at DESC,id DESC LIMIT 1",
+                  [b.clinicId, before.conversation.id],
+                )
+              ).rows[0],
+          );
+          voicePrompt = previous?.body || t(before.conversation.language, 'msg.voice_resume');
+        }
+        // Resume reads existing state; it never books or treats the control action as a patient answer.
+        // Spoken turns use the SAME WhatsApp conversation and the existing safety/tool pipeline.
+        const result =
+          voiceRequested || i.voice_resume
+            ? {
+                replies:
+                  before?.conversation.handled_by === 'agent'
+                    ? [
+                        voiceRequested
+                          ? t(before.conversation.language, 'msg.voice_link')
+                          : voicePrompt!,
+                      ]
+                    : [],
+                handledBy: before?.conversation.handled_by ?? 'human',
+                redFlag: false,
+                conversationId: before?.conversation.id,
+              }
+            : stale
+              ? {
+                  replies:
+                    before?.conversation.handled_by === 'human'
+                      ? []
+                      : [t(before?.conversation.language ?? 'en', 'msg.choice_stale')],
+                  handledBy: before?.conversation.handled_by ?? 'agent',
+                  redFlag: false,
+                  conversationId: before?.conversation.id,
+                }
+              : await handleInbound(
+                  { ...env, rt: { ...env.rt, channel: new MockWhatsAppChannel() } },
+                  { clinicId: b.clinicId, from: contact, text, channel: 'whatsapp' },
+                );
         const next = await readChoices();
         const options =
-          !result.redFlag && result.handledBy === 'agent' && result.replies.length
+          !voiceRequested &&
+          !i.voice_resume &&
+          !i.voice_turn &&
+          !result.redFlag &&
+          result.handledBy === 'agent' &&
+          result.replies.length
             ? next?.menu
             : null;
         const response = {
@@ -207,11 +254,12 @@ export function installWhatsAppBridge(
             ? {
                 options: {
                   button: options.button,
-                  choices: options.choices.map(({ value, ...choice }) => choice),
+                  choices: options.choices.map(({ value: _value, ...choice }) => choice),
                 },
               }
             : {}),
           event_id: i.event_id,
+          ...(voiceRequested ? { voice_requested: true } : {}),
           replies: result.replies,
           handledBy: result.handledBy,
           redFlag: result.redFlag,

@@ -1043,7 +1043,7 @@ export async function buildApp(deps: AppDeps) {
       clinicId,
       `/onboarding/${saved.session_id}/channel`,
       channelSchema,
-      {},
+      { name: 'Clinic appointment assistant', execution_mode: 'SAHAYAK', documents: [] },
     );
     await savePreparation(clinicId, channel, 'PREPARING');
     await whatsappPlatform(

@@ -6,7 +6,8 @@
   "main": "src/index.ts",
   "scripts": {
     "typecheck": "tsc -p .",
-    "eval": "tsx src/eval/run.ts"
+    "eval": "tsx src/eval/run.ts",
+    "check:model": "tsx src/eval/check-model.ts"
   },
   "dependencies": {
     "@sahayak/core": "workspace:*",

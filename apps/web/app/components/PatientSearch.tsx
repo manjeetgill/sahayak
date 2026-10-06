@@ -14,7 +14,7 @@ export function PatientSearch() {
     );
   };
   return (
-    <div className="card" data-testid="patient-search">
+    <div className="card" id="patient-search" data-testid="patient-search">
       <h3>Find a patient</h3>
       <form className="row" onSubmit={search}>
         <input

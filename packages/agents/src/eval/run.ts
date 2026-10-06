@@ -4,7 +4,7 @@ import pg from 'pg';
 import { addPatient, createTestClinic, dropTestClinic, makePool, withClinic } from '@sahayak/db';
 import { EventBus, registerAllTools } from '@sahayak/core';
 import { bundles } from '@sahayak/shared';
-import { LlmGate, NemotronProvider } from '../llm';
+import { LlmGate, modelProviderFromEnv } from '../llm';
 import { handleInbound } from '../orchestrator';
 import { violatesMedicalPolicy } from '../safety';
 import { CASES, type Rule } from './cases';
@@ -20,10 +20,10 @@ const admin = new pg.Client({ connectionString: process.env.ADMIN_DATABASE_URL }
 await admin.connect();
 const pool = makePool();
 registerAllTools();
-const provider = NemotronProvider.fromEnv();
+const provider = modelProviderFromEnv();
 const gate = new LlmGate(provider);
 console.log(
-  `Eval: ${CASES.length} messages. Mode: ${provider ? 'Nemotron LLM + deterministic layers' : 'offline (deterministic layers only, no LLM key set)'}\n`,
+  `Eval: ${CASES.length} messages. Mode: ${provider ? provider.name + ' LLM + deterministic layers' : 'offline (deterministic layers only, no LLM key set)'}\n`,
 );
 
 const clinic = await createTestClinic(admin, 'eval');

@@ -18,6 +18,11 @@ services:
     build: { context: ., dockerfile: apps/api/Dockerfile }
     environment:
       JWT_SECRET: ${JWT_SECRET:-change-me-in-real-deployments}
+      LLM_PROVIDER: ${LLM_PROVIDER:-nemotron}
+      TOGETHER_API_KEY: ${TOGETHER_API_KEY:-}
+      TOGETHER_MODEL: ${TOGETHER_MODEL:-openai/gpt-oss-120b}
+      TOGETHER_REASONING_EFFORT: ${TOGETHER_REASONING_EFFORT:-low}
+      LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-8000}
       LLM_BASE_URL: ${LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-nvidia/nemotron-3-ultra-550b-a55b}

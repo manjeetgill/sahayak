@@ -1,9 +1,12 @@
 import { test, expect } from '@playwright/test';
 import { login } from './helpers';
 
-test('waiting list requires opt-in, saves the patient, and supports withdrawal', async ({ page }) => {
+test('waiting list requires opt-in, saves the patient, and supports withdrawal', async ({
+  page,
+}) => {
   await login(page, 'anil@demo.sahayak.in');
   await page.goto('/doctor/waitlist');
+  await page.getByRole('button', { name: 'Add patient', exact: true }).click();
   await page.getByLabel('Find patient', { exact: true }).fill('Aarav');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page.getByLabel('Patient', { exact: true }).locator('option')).toHaveCount(2);
@@ -13,7 +16,9 @@ test('waiting list requires opt-in, saves the patient, and supports withdrawal',
   await page.getByLabel('From date').fill(date);
   await page.getByLabel('Through date').fill(date);
   await expect(page.getByRole('button', { name: 'Add to waiting list' })).toBeDisabled();
-  await page.getByLabel('The patient explicitly agreed to receive cancellation-slot offers.').check();
+  await page
+    .getByLabel('The patient explicitly agreed to receive cancellation-slot offers.')
+    .check();
   await page.getByRole('button', { name: 'Add to waiting list' }).click();
   await expect(page.getByRole('status')).toHaveText('Added to waiting list.');
   await page.reload();
@@ -21,11 +26,18 @@ test('waiting list requires opt-in, saves the patient, and supports withdrawal',
   await expect(page.getByText('No waiting patients.')).toBeVisible();
 });
 
-test('care task persists and progresses through doctor review to patient informed', async ({ page }) => {
+test('care task persists and progresses through doctor review to patient informed', async ({
+  page,
+}) => {
   await login(page, 'anil@demo.sahayak.in');
+  await page.getByRole('link', { name: 'Find patient', exact: true }).click();
   await page.getByLabel('Find a patient').fill('Aarav');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.getByRole('link', { name: /Aarav/ }).click();
+  await page
+    .getByRole('navigation', { name: 'Patient record sections' })
+    .getByRole('link', { name: 'Care plan', exact: true })
+    .click();
   await page.getByLabel('Task type', { exact: true }).selectOption('referral');
   await page.getByLabel('Requested item').fill('Synthetic referral follow-through');
   await page.getByLabel('Due date and time (your device time)').fill('2020-01-01T10:00');

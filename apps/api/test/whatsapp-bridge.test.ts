@@ -179,3 +179,62 @@ it('accepts current option taps, rejects old taps, and retains typed replies', a
   const consent = (await send('Choice Patient')).json();
   expect(consent.options.choices.map((x: any) => x.title)).toEqual(['Yes', 'No']);
 });
+
+it('offers a private AI voice handoff without changing booking state; resumes the same conversation', async () => {
+  const from = '919533330007';
+  const send = (text: string, extra: Record<string, unknown> = {}) =>
+    post({ ...payload(text), from, voice_available: true, ...extra });
+  const menu = (await send('Hi')).json();
+  const voice = menu.options.choices.find((x: any) => x.title === 'Voice chat (web link)');
+  expect(voice).toBeTruthy();
+  const snapshot = async () =>
+    withClinic(
+      pool,
+      clinic.clinicId,
+      async (db) =>
+        (
+          await db.query('SELECT id,state,handled_by FROM conversations WHERE contact=$1', [
+            '+' + from,
+          ])
+        ).rows[0],
+    );
+  const initial = await snapshot();
+  const result = await send(voice.id);
+  expect(result.statusCode).toBe(200);
+  expect(result.json().voice_requested).toBe(true);
+  expect(result.json().replies.join(' ')).toContain('15 minutes');
+  expect(await snapshot()).toEqual(initial);
+  const resumed = await send('Resume appointment conversation', { voice_resume: true });
+  expect(resumed.json().replies.join(' ')).toContain('Book an appointment');
+  expect(await snapshot()).toEqual(initial);
+  const turn = await send('1', { voice_turn: true });
+  expect(turn.json().voice_requested).toBeUndefined();
+  expect(turn.json().replies.join(' ')).toContain('first visit');
+  expect((await snapshot()).state.flow).toBe('clinic_visit');
+  const pending = await snapshot();
+  const second = await send('Talk to AI receptionist');
+  expect(second.json().voice_requested).toBe(true);
+  expect(await snapshot()).toEqual(pending);
+  expect(
+    (await send('Resume appointment conversation', { voice_resume: true }))
+      .json()
+      .replies.join(' '),
+  ).toContain('first visit');
+  const emergency = (await send('I have chest pain', { voice_turn: true })).json();
+  expect(emergency.redFlag).toBe(true);
+  expect(emergency.voice_requested).toBeUndefined();
+});
+
+it('never turns a human receptionist request into an AI call', async () => {
+  const from = '919533330008';
+  await post({ ...payload('Hi'), from, voice_available: true });
+  const human = (
+    await post({ ...payload('I want to talk to a person'), from, voice_available: true })
+  ).json();
+  expect(human.handledBy).toBe('human');
+  const voice = (
+    await post({ ...payload('Talk to AI receptionist'), from, voice_available: true })
+  ).json();
+  expect(voice.voice_requested).toBeUndefined();
+  expect(voice.replies).toEqual([]);
+});

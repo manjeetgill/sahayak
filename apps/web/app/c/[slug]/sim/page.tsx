@@ -33,9 +33,12 @@ export default function Sim({ params }: { params: { slug: string } }) {
     load();
   };
   return (
-    <div className="wrap" style={{ maxWidth: 480 }}>
+    <div className="wrap practice-chat-page" style={{ maxWidth: 640 }}>
       <h1>Try a WhatsApp conversation</h1>
-      <p>Use made-up patient details. This chat is saved for practice; no real WhatsApp message is sent.</p>
+      <p>
+        Use made-up patient details. This chat is saved for practice; no real WhatsApp message is
+        sent.
+      </p>
       <label htmlFor="ph">Practice patient phone number</label>
       <input id="ph" value={phone} onChange={(e) => setPhone(e.target.value)} />
       <div className="phone">

@@ -159,19 +159,25 @@ export default function Agents() {
         <b>Clinic assistants</b>
         <a href={isDoctor ? '/doctor' : '/console'}>← Back</a>
       </div>
-      <div className="wrap" style={{ maxWidth: 820 }}>
-        <h1>Less routine work. More time with patients.</h1>
+      <div className="wrap assistants-page" style={{ maxWidth: 1120 }}>
+        <span className="eyebrow">Clinic assistants</span>
+        <h1>
+          {
+            {
+              overview: 'Everyday help',
+              whatsapp: 'WhatsApp',
+              phone: 'Phone calls',
+              automations: 'Reminders and updates',
+            }[tab]
+          }
+        </h1>
         <p>
           Choose what your clinic needs help with. You stay in control of patient messages and
           reminders.
         </p>
-        <p className="banner warn">
-          Before using live messages or calls, check their connection status in the tabs below.
-          Preparing or approving a reminder does not connect delivery.
-        </p>
         <nav
           aria-label="Clinic assistant sections"
-          className="row"
+          className="assistant-tabs"
           style={{ flexWrap: 'wrap', marginBottom: 16 }}
         >
           {(['overview', 'whatsapp', 'phone', 'automations'] as const).map((value) => (
@@ -193,7 +199,7 @@ export default function Agents() {
           ))}
         </nav>
         {tab !== 'automations' && <Connections key={tab} isDoctor={isDoctor} view={tab} />}
-        <div hidden={tab !== 'automations'}>
+        <div className="reminders-workspace" hidden={tab !== 'automations'}>
           <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
             {busy && <p role="status">Checking your reminder or update… Please wait.</p>}
             <h2 style={{ marginTop: 24 }}>Reminders & updates</h2>
@@ -538,7 +544,9 @@ export default function Agents() {
                       </p>
                       <b>What it does:</b>
                       {preview.explain.map((l: string, i: number) => (
-                        <div key={i}>{l.replaceAll('custom-agent message', 'scheduled message')}</div>
+                        <div key={i}>
+                          {l.replaceAll('custom-agent message', 'scheduled message')}
+                        </div>
                       ))}
                       {preview.audience && (
                         <p style={{ marginTop: 8 }}>
@@ -674,7 +682,9 @@ export default function Agents() {
                             name: a.name,
                             description: a.description,
                             spec: JSON.parse(JSON.stringify(a.spec)),
-                            notes: ['Editing pauses this reminder or update until you approve it again.'],
+                            notes: [
+                              'Editing pauses this reminder or update until you approve it again.',
+                            ],
                           });
                           setPreview(null);
                           window.scrollTo(0, 0);
@@ -700,6 +710,10 @@ export default function Agents() {
             </div>
           </fieldset>
         </div>
+        <p className="banner warn">
+          Before using live messages or calls, check their connection status in the tabs below.
+          Preparing or approving a reminder does not connect delivery.
+        </p>
       </div>
     </div>
   );

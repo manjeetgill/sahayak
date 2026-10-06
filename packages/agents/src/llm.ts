@@ -33,29 +33,22 @@ export interface LlmProvider {
   chat(req: LlmRequest): Promise<LlmResponse>;
 }
 
-export interface NemotronOptions {
+export interface CompatibleModelOptions {
   baseUrl: string;
   apiKey: string;
   model: string;
   timeoutMs: number;
   retries?: number;
   fetchImpl?: typeof fetch;
+  reasoningEffort?: 'low' | 'medium' | 'high';
 }
 
-/** NVIDIA-hosted Nemotron through the OpenAI-compatible chat completions API. */
-export class NemotronProvider implements LlmProvider {
-  readonly name = 'nemotron';
-  constructor(private o: NemotronOptions) {}
-
-  static fromEnv(env = process.env): NemotronProvider | null {
-    if (!env.LLM_API_KEY) return null;
-    return new NemotronProvider({
-      baseUrl: env.LLM_BASE_URL ?? 'https://integrate.api.nvidia.com/v1',
-      apiKey: env.LLM_API_KEY,
-      model: env.LLM_MODEL ?? 'nvidia/nemotron-3-ultra-550b-a55b',
-      timeoutMs: Number(env.LLM_TIMEOUT_MS ?? 8000),
-    });
-  }
+/** Shared transport; provider credentials and defaults are selected separately below. */
+export class CompatibleModelProvider implements LlmProvider {
+  constructor(
+    readonly name: string,
+    private o: CompatibleModelOptions,
+  ) {}
 
   async chat(req: LlmRequest): Promise<LlmResponse> {
     const retries = Math.max(0, Math.min(req.retries ?? this.o.retries ?? 2, this.o.retries ?? 2));
@@ -79,6 +72,7 @@ export class NemotronProvider implements LlmProvider {
               messages: req.messages,
               temperature: req.temperature ?? 0.2,
               max_tokens: req.maxTokens ?? 600,
+              ...(this.o.reasoningEffort ? { reasoning_effort: this.o.reasoningEffort } : {}),
               ...(req.tools?.length
                 ? {
                     tools: req.tools.map((t) => ({ type: 'function', function: t })),
@@ -93,6 +87,10 @@ export class NemotronProvider implements LlmProvider {
         const j: any = await res.json();
         const m = j.choices?.[0]?.message;
         if (!m) throw new Error('LLM returned no message');
+        if (j.choices[0].finish_reason === 'length')
+          throw new LlmUnavailable('LLM response exceeded its token budget');
+        if (!m.content?.trim() && !m.tool_calls?.length)
+          throw new LlmUnavailable('LLM returned no answer or tool call');
         return {
           content: m.content ?? null,
           toolCalls: (m.tool_calls ?? []).map((c: any) => ({
@@ -110,6 +108,68 @@ export class NemotronProvider implements LlmProvider {
       }
     }
     throw new LlmUnavailable(`LLM unavailable: ${(lastErr as Error)?.message ?? lastErr}`);
+  }
+}
+
+export type NemotronOptions = CompatibleModelOptions;
+
+/** Legacy NVIDIA configuration is retained for existing installations. */
+export class NemotronProvider extends CompatibleModelProvider {
+  constructor(options: NemotronOptions) {
+    super('nemotron', options);
+  }
+  static fromEnv(env = process.env): NemotronProvider | null {
+    if (!env.LLM_API_KEY?.trim()) return null;
+    return new NemotronProvider({
+      baseUrl: env.LLM_BASE_URL || 'https://integrate.api.nvidia.com/v1',
+      apiKey: env.LLM_API_KEY.trim(),
+      model: env.LLM_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b',
+      timeoutMs: modelTimeout(env),
+    });
+  }
+}
+
+function modelTimeout(env: NodeJS.ProcessEnv): number {
+  const value = Number(env.LLM_TIMEOUT_MS || 8000);
+  if (!Number.isFinite(value) || value < 1 || value > 120000)
+    throw new Error('LLM_TIMEOUT_MS must be between 1 and 120000');
+  return value;
+}
+
+export class TogetherProvider extends CompatibleModelProvider {
+  constructor(options: Omit<CompatibleModelOptions, 'baseUrl'>) {
+    super('together', { ...options, baseUrl: 'https://api.together.ai/v1' });
+  }
+  static fromEnv(env = process.env): TogetherProvider | null {
+    // Never send an existing NVIDIA key to Together or inherit its model/base URL.
+    if (!env.TOGETHER_API_KEY?.trim()) return null;
+    const model = env.TOGETHER_MODEL?.trim() || 'openai/gpt-oss-120b';
+    const effort = env.TOGETHER_REASONING_EFFORT || 'low';
+    if (!['low', 'medium', 'high'].includes(effort))
+      throw new Error('TOGETHER_REASONING_EFFORT must be low, medium or high');
+    return new TogetherProvider({
+      apiKey: env.TOGETHER_API_KEY.trim(),
+      model,
+      timeoutMs: modelTimeout(env),
+      reasoningEffort: model.startsWith('openai/gpt-oss-')
+        ? (effort as 'low' | 'medium' | 'high')
+        : undefined,
+    });
+  }
+}
+
+/** Sahayak owns this selection independently of agent authoring/channel services. */
+export function modelProviderFromEnv(env = process.env): LlmProvider | null {
+  switch ((env.LLM_PROVIDER || 'nemotron').trim().toLowerCase()) {
+    case 'offline':
+      return null;
+    case 'nemotron':
+    case 'nvidia':
+      return NemotronProvider.fromEnv(env);
+    case 'together':
+      return TogetherProvider.fromEnv(env);
+    default:
+      throw new Error('LLM_PROVIDER must be nemotron, nvidia, together or offline');
   }
 }
 

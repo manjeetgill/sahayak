@@ -85,103 +85,110 @@ export function Connections({
     }
   };
   return (
-    <section aria-label="Patient contact options and clinic tasks">
-      {view === 'whatsapp' && <WhatsAppSetup isDoctor={isDoctor} />}
-      {view === 'phone' && <CallingSetup isDoctor={isDoctor} onChanged={load} />}
-      <h2>
-        {view === 'overview'
-          ? 'Patient messages and calls'
-          : view === 'phone'
-            ? 'Phone calls'
-            : 'WhatsApp messages'}
-      </h2>
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-      {message && <p role="status">{message}</p>}
-      <button className="ghost small" disabled={busy} onClick={() => void load()}>
-        Refresh status
-      </button>
-      {!connections && !error && <p role="status">Loading connections…</p>}
-      {connections && (
-        <>
-          <p className="muted">
-            Check whether patients can reach your clinic. You can try a practice conversation before
-            live service is ready.
-          </p>
-          {(
-            [
-              ['WhatsApp', connections.whatsapp.configured, connections.simulator, 'sim'],
-              ['Phone', connections.phone.configured, connections.voiceSimulator, 'call'],
-            ] as const
-          )
-            .filter(([name]) => view === 'overview' || name.toLowerCase() === view)
-            .map(([name, configured, simulator, path]) => (
-              <div className="card" key={name} style={{ marginTop: 10 }}>
-                <h3>{name}</h3>
-                <p>
-                  {connections.liveChannelOwner === 'platform'
-                    ? configured
-                      ? 'Connected through agent platform · replies enabled'
-                      : 'Not connected yet · practice only'
-                    : configured
-                      ? 'Setup entered · a real conversation still needs testing'
-                      : 'Not connected yet · practice only'}
-                </p>
-                {name === 'Phone' && connections.phone.requestedNumber && (
-                  <p>
-                    Intended calling number: <b>{connections.phone.requestedNumber}</b>
-                  </p>
-                )}
-                {name === 'Phone' && connections.phone.bookingAdapter && (
-                  <p role="status">
-                    {connections.phone.state === 'UNAVAILABLE'
-                      ? 'Agent service unavailable. Other clinic features remain available.'
-                      : connections.phone.state === 'AWAITING_VOICE_PROVIDER'
-                        ? 'Appointment flow ready. Voice number authorization is still required before a real phone test.'
-                        : connections.phone.configured
-                          ? 'Calling enabled. Complete a real phone test before relying on it.'
-                          : 'Calling is paused.'}
-                  </p>
-                )}
-                <p className="muted">
-                  Uses the clinic tasks you choose under Everyday help. Turning a task on does not
-                  connect live messages or calls.
-                </p>
-                {simulator && connections.slug && (
-                  <a href={`/c/${encodeURIComponent(connections.slug)}/${path}`}>
-                    Try a {name === 'Phone' ? 'phone' : 'WhatsApp'} conversation
-                  </a>
-                )}
-                {!simulator && <p className="muted">Practice conversations are unavailable.</p>}
-              </div>
-            ))}
-          <p className="muted">
-            Practice conversations are saved in the clinic. Use made-up patient details. No real
-            message is sent and no phone is called.
-          </p>
-        </>
-      )}
-      {view !== 'overview' && (
-        <>
-          {connections?.liveChannelOwner === 'platform' ? (
-            <p role="status">
-              {view === 'whatsapp' && connections.whatsapp.configured
-                ? 'Send Hi to your connected clinic number from another WhatsApp number to test a real appointment conversation.'
-                : 'Live service is not connected yet. Your setup team needs to finish connecting it. You can try the assistant below without contacting a patient.'}
+    <section
+      className={`connections-workspace connections-${view}`}
+      aria-label="Patient contact options and clinic tasks"
+    >
+      <div className="connection-main">
+        <div className="connection-status-panel">
+          <h2>
+            {view === 'overview'
+              ? 'Patient messages and calls'
+              : view === 'phone'
+                ? 'Phone calls'
+                : 'WhatsApp messages'}
+          </h2>
+          {error && (
+            <p className="error" role="alert">
+              {error}
             </p>
-          ) : view !== 'phone' ? (
-            <Diagnostics />
-          ) : null}
-          {connections?.simulator && (
-            <GuidedTest key={view} channel={view === 'phone' ? 'voice' : 'whatsapp'} />
           )}
-        </>
-      )}
+          {message && <p role="status">{message}</p>}
+          <button className="ghost small" disabled={busy} onClick={() => void load()}>
+            Refresh status
+          </button>
+          {!connections && !error && <p role="status">Loading connections…</p>}
+          {connections && (
+            <>
+              <p className="muted">
+                Check whether patients can reach your clinic. You can try a practice conversation
+                before live service is ready.
+              </p>
+              {(
+                [
+                  ['WhatsApp', connections.whatsapp.configured, connections.simulator, 'sim'],
+                  ['Phone', connections.phone.configured, connections.voiceSimulator, 'call'],
+                ] as const
+              )
+                .filter(([name]) => view === 'overview' || name.toLowerCase() === view)
+                .map(([name, configured, simulator, path]) => (
+                  <div className="card" key={name} style={{ marginTop: 10 }}>
+                    <h3>{name}</h3>
+                    <p>
+                      {connections.liveChannelOwner === 'platform'
+                        ? configured
+                          ? 'Connected through agent platform · replies enabled'
+                          : 'Not connected yet · practice only'
+                        : configured
+                          ? 'Setup entered · a real conversation still needs testing'
+                          : 'Not connected yet · practice only'}
+                    </p>
+                    {name === 'Phone' && connections.phone.requestedNumber && (
+                      <p>
+                        Intended calling number: <b>{connections.phone.requestedNumber}</b>
+                      </p>
+                    )}
+                    {name === 'Phone' && connections.phone.bookingAdapter && (
+                      <p role="status">
+                        {connections.phone.state === 'UNAVAILABLE'
+                          ? 'Agent service unavailable. Other clinic features remain available.'
+                          : connections.phone.state === 'AWAITING_VOICE_PROVIDER'
+                            ? 'Appointment flow ready. Voice number authorization is still required before a real phone test.'
+                            : connections.phone.configured
+                              ? 'Calling enabled. Complete a real phone test before relying on it.'
+                              : 'Calling is paused.'}
+                      </p>
+                    )}
+                    <p className="muted">
+                      Uses the clinic tasks you choose under Everyday help. Turning a task on does
+                      not connect live messages or calls.
+                    </p>
+                    {simulator && connections.slug && (
+                      <a href={`/c/${encodeURIComponent(connections.slug)}/${path}`}>
+                        Try a {name === 'Phone' ? 'phone' : 'WhatsApp'} conversation
+                      </a>
+                    )}
+                    {!simulator && <p className="muted">Practice conversations are unavailable.</p>}
+                  </div>
+                ))}
+              <p className="muted">
+                Practice conversations are saved in the clinic. Use made-up patient details. No real
+                message is sent and no phone is called.
+              </p>
+            </>
+          )}
+          {view === 'whatsapp' && <WhatsAppSetup isDoctor={isDoctor} />}
+          {view === 'phone' && <CallingSetup isDoctor={isDoctor} onChanged={load} />}
+        </div>
+        {view !== 'overview' && (
+          <aside className="workspace-stack">
+            {connections?.liveChannelOwner === 'platform' ? (
+              <p role="status">
+                {view === 'whatsapp' && connections.whatsapp.configured
+                  ? 'Send Hi to your connected clinic number from another WhatsApp number to test a real appointment conversation.'
+                  : 'Live service is not connected yet. Your setup team needs to finish connecting it. You can try the assistant below without contacting a patient.'}
+              </p>
+            ) : view !== 'phone' ? (
+              <Diagnostics />
+            ) : null}
+            {connections?.simulator && (
+              <GuidedTest key={view} channel={view === 'phone' ? 'voice' : 'whatsapp'} />
+            )}
+          </aside>
+        )}
+      </div>
       {view === 'overview' && (
-        <>
+        <div className="card everyday-tasks">
           <h2>What would you like help with?</h2>
           <p className="muted">
             Choose the routine tasks your clinic needs. These choices apply wherever the assistant
@@ -207,14 +214,14 @@ export function Connections({
                 )}
               </div>
             ))}
-        </>
+        </div>
       )}
       {isDoctor && (
-        <p>
+        <p className="connection-footer">
           <a href="/doctor/settings">Edit clinic details and patient safety settings</a>
         </p>
       )}
-      <details style={{ marginTop: 16 }}>
+      <details className="card connection-footer" style={{ marginTop: 16 }}>
         <summary>Connection details for your setup team</summary>
         <p>
           Live channel owner:{' '}

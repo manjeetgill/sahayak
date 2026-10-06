@@ -82,15 +82,20 @@ export default function Safety() {
         <b>Safety report</b>
         <a href={s.user.role === 'doctor' ? '/doctor' : '/console'}>← Back</a>
       </div>
-      <div className="wrap" style={{ maxWidth: 980 }}>
+      <div className="wrap safety-page" style={{ maxWidth: 1120 }}>
+        <header className="screen-heading">
+          <span className="eyebrow">Clinic assurance</span>
+          <h1>Safety report</h1>
+          <p className="muted">Protections, current status and activity history.</p>
+        </header>
         {err && (
           <div className="error" role="alert">
             {err}
           </div>
         )}
         {rep && (
-          <>
-            <div className="card">
+          <div className="safety-overview">
+            <div className="card protections-panel">
               <h2>Protections, checked just now</h2>
               <div className="list" data-testid="controls">
                 {rep.controls.map((c: any) => (
@@ -110,25 +115,26 @@ export default function Safety() {
               </div>
             </div>
 
-            <h2 style={{ marginTop: '1.2rem' }}>Last 30 days</h2>
-            <div className="row" style={{ flexWrap: 'wrap', alignItems: 'stretch' }}>
-              {stat('Patient messages', a.messages_in)}
-              {stat('Emergency alerts', a.red_flags)}
-              {stat(
-                'Emergency alerts not yet handled (>15 min)',
-                a.red_flags_unhandled,
-                a.red_flags_unhandled > 0,
-              )}
-              {stat('Avg minutes to handle an alert', a.red_flag_minutes_to_resolve)}
-              {stat('Medical questions (no advice given)', a.medical_questions)}
-              {stat('Handed to a person', a.handoffs)}
-              {stat('Blocked actions', a.permission_denied)}
-              {stat('Assistant problems', a.agent_errors, a.agent_errors > 0)}
-              {stat('Undelivered messages', a.undelivered_messages, a.undelivered_messages > 0)}
-              {stat('Privacy requests', a.privacy_requests)}
-            </div>
-
-            <div className="card" style={{ marginTop: '1.2rem' }} data-testid="eval">
+            <section className="safety-metrics">
+              <h2 style={{ marginTop: '1.2rem' }}>Last 30 days</h2>
+              <div className="row" style={{ flexWrap: 'wrap', alignItems: 'stretch' }}>
+                {stat('Patient messages', a.messages_in)}
+                {stat('Emergency alerts', a.red_flags)}
+                {stat(
+                  'Emergency alerts not yet handled (>15 min)',
+                  a.red_flags_unhandled,
+                  a.red_flags_unhandled > 0,
+                )}
+                {stat('Avg minutes to handle an alert', a.red_flag_minutes_to_resolve)}
+                {stat('Medical questions (no advice given)', a.medical_questions)}
+                {stat('Handed to a person', a.handoffs)}
+                {stat('Blocked actions', a.permission_denied)}
+                {stat('Assistant problems', a.agent_errors, a.agent_errors > 0)}
+                {stat('Undelivered messages', a.undelivered_messages, a.undelivered_messages > 0)}
+                {stat('Privacy requests', a.privacy_requests)}
+              </div>
+            </section>
+            <div className="card evaluation-panel" data-testid="eval">
               <h2>Safety test results</h2>
               {!ev ? (
                 <p className="muted">
@@ -171,7 +177,7 @@ export default function Safety() {
                 </>
               )}
             </div>
-          </>
+          </div>
         )}
 
         <div className="card" style={{ marginTop: '1.2rem' }}>
@@ -245,7 +251,10 @@ export default function Safety() {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      <details><summary>Details for your setup team</summary>{r.detail}</details>
+                      <details>
+                        <summary>Details for your setup team</summary>
+                        {r.detail}
+                      </details>
                     </td>
                   </tr>
                 ))}

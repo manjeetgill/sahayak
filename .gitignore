@@ -9,3 +9,7 @@ playwright-report
 dist
 
 .next-e2e
+
+# Python runtime artifacts from local service helpers
+__pycache__/
+*.py[cod]

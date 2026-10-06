@@ -20,8 +20,14 @@ export function AttentionSummary() {
     return () => clearInterval(timer);
   }, [load]);
   return (
-    <section className="card" style={{ margin: '1rem' }}>
-      <h2>Needs my attention</h2>
+    <section className="card attention-summary">
+      <div className="panel-heading">
+        <div>
+          <h2>Needs your attention</h2>
+          <p className="muted">Ordered by urgency and due time</p>
+        </div>
+        <a href="/doctor/inbox">View all{data ? ` ${data.total}` : ''}</a>
+      </div>
       {error ? (
         <p role="alert">{error}</p>
       ) : data ? (
@@ -31,9 +37,26 @@ export function AttentionSummary() {
       ) : (
         <p>Loading outstanding work…</p>
       )}
+      {data?.items?.slice(0, 3).map((item: any) => (
+        <div className={`prototype-task-row priority-${item.priority}`} key={item.key}>
+          <span className="task-signal" />
+          <div>
+            <strong>{item.title}</strong>
+            <small>
+              {item.patient_name || 'Patient not yet identified'} · {item.reason}
+            </small>
+          </div>
+          <a className="button-link" href={item.path || '/doctor/inbox'}>
+            Review
+          </a>
+        </div>
+      ))}
+      {data?.total === 0 && (
+        <p className="muted">No outstanding work. New items will appear here.</p>
+      )}
       {brief && (
-        <>
-          <h3>Care to follow through</h3>
+        <details className="attention-detail">
+          <summary>Care to follow through</summary>
           <p>
             {brief.followups} follow-up steps due within 24 hours or overdue · {brief.no_reply}{' '}
             overdue replies · {brief.messages} staff conversations needing a reply
@@ -47,13 +70,9 @@ export function AttentionSummary() {
             {brief.references_due} clinic references due for another review. Counts describe
             recorded work and may overlap.
           </p>
-        </>
+        </details>
       )}
-      <p>
-        Clinic alerts, reports and care tasks, together with your unsigned drafts. Refreshes every
-        30 seconds.
-      </p>
-      <a href="/doctor/inbox">Review outstanding work</a>{' '}
+
       <button className="ghost small" onClick={() => void load()}>
         Refresh counts
       </button>

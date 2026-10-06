@@ -6,6 +6,7 @@ export function clinicChoices(
   state: Record<string, any>,
   lang: Lang,
   timezone: string,
+  voiceAvailable = false,
 ) {
   const label = (key: string) => t(lang, ('msg.choice_' + key) as any);
   let values: { value: string; title: string; description?: string }[] = [];
@@ -53,6 +54,8 @@ export function clinicChoices(
       }));
       break;
   }
+  if (voiceAvailable && values.length > 0 && values.length < 10)
+    values.push({ value: '__web_voice__', title: label('ai_reception') });
   // Keep the full numbered-text fallback when a menu exceeds WhatsApp's list limit.
   if (!values.length || values.length > 10) return null;
   const version = createHash('sha256')

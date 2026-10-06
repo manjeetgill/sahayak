@@ -131,7 +131,11 @@ test('red-flag escalation: patient message → emergency reply → urgent alert 
   await expect(doc.locator('.banner.urgent')).toBeVisible();
   // Receptionist can take over the chat
   await rec.getByRole('button', { name: 'Review conversation' }).first().click();
-  await rec.getByRole('button', { name: 'Reply myself', exact: true }).first().click();
+  const conversation = rec.locator('.selected-conversation');
+  await expect(conversation).toBeVisible();
+  const takeOver = conversation.getByRole('button', { name: 'Reply myself', exact: true });
+  if (await takeOver.isVisible()) await takeOver.click();
+  await expect(conversation.getByRole('button', { name: 'Let the assistant reply' })).toBeVisible();
   await rec.getByLabel('Reply').fill('We are sending help. Are you at home?');
   await rec.getByRole('button', { name: 'Send' }).click();
   await expect(sim.getByTestId('chat')).toContainText('We are sending help');
@@ -142,7 +146,8 @@ test('agent builder: doctor adds an FAQ and switches an agent; the assistant fol
 }) => {
   const doc = await (await browser.newContext()).newPage();
   await login(doc, 'anil@demo.sahayak.in');
-  await doc.getByRole('link', { name: 'Clinic settings' }).click();
+  await doc.getByRole('link', { name: 'Settings', exact: true }).click();
+  await doc.getByRole('link', { name: 'Common questions', exact: true }).click();
   await doc.getByRole('button', { name: 'Add FAQ' }).click();
   await doc.getByLabel('FAQ 1 keywords').fill('parking, scooter');
   await doc.getByLabel('FAQ 1 answer English').fill('Free parking is behind the building.');
@@ -184,8 +189,11 @@ test('integrations: doctor creates an API key (shown once) and the key works', a
 }) => {
   const doc = await (await browser.newContext()).newPage();
   await login(doc, 'anil@demo.sahayak.in');
-  await doc.getByRole('link', { name: 'Clinic settings' }).click();
-  await doc.getByText('Connected software — for your setup team', { exact: true }).click();
+  await doc.getByRole('link', { name: 'Settings', exact: true }).click();
+  await doc
+    .getByRole('navigation', { name: 'Settings sections' })
+    .getByRole('link', { name: 'Connected software', exact: true })
+    .click();
   await doc.getByRole('link', { name: 'Open connected software settings' }).click();
   await doc.getByLabel('Key name').fill('e2e');
   await doc.getByLabel('Key access').selectOption('read');
@@ -281,6 +289,8 @@ test('guided setup: sign up, walk the seven steps, go live, print poster, recept
 test('ask your clinic: doctor asks in plain words and gets an answer', async ({ browser }) => {
   const doc = await (await browser.newContext()).newPage();
   await login(doc, 'anil@demo.sahayak.in');
+  await doc.getByText('More clinic tools', { exact: true }).click();
+  await doc.getByRole('link', { name: 'Ask your clinic', exact: true }).click();
   await doc.getByLabel('Ask your clinic').fill('appointments tomorrow');
   await doc.getByRole('button', { name: 'Ask', exact: true }).click();
   await expect(doc.getByTestId('ask-clinic')).toContainText('appointment(s) tomorrow');
@@ -296,11 +306,16 @@ test('visit-note scribe: doctor dictates, reviews, signs; patient sends a report
 }) => {
   const doc = await (await browser.newContext()).newPage();
   await login(doc, 'anil@demo.sahayak.in');
+  await doc.getByRole('link', { name: 'Find patient', exact: true }).click();
   await doc.getByLabel('Find a patient').fill('Aarav');
   await doc.getByRole('button', { name: 'Search' }).click();
   await doc.getByRole('link', { name: /Aarav/ }).click();
   await expect(doc.getByRole('heading', { name: /Aarav/ }).first()).toBeVisible();
 
+  await doc
+    .getByRole('navigation', { name: 'Patient record sections' })
+    .getByRole('link', { name: 'Visit', exact: true })
+    .click();
   await doc
     .getByLabel('Dictation', { exact: true })
     .fill(
@@ -322,6 +337,10 @@ test('visit-note scribe: doctor dictates, reviews, signs; patient sends a report
   await sim.getByLabel('Attach file').setInputFiles('e2e/files/report.pdf');
   await expect(sim.getByTestId('chat')).toContainText(/Received your PDF|आपकी PDF मिल गई/);
   await doc.reload();
+  await doc
+    .getByRole('navigation', { name: 'Patient record sections' })
+    .getByRole('link', { name: 'Records', exact: true })
+    .click();
   await expect(doc.getByTestId('documents')).toContainText('report.pdf');
   await expect(doc.getByTestId('documents')).toContainText('New');
 });
@@ -332,15 +351,21 @@ test('certificate: doctor drafts, signs with password, sends on WhatsApp; anyone
   const doc = await (await browser.newContext()).newPage();
   await login(doc, 'anil@demo.sahayak.in');
   // professional details are required before signing
-  await doc.getByRole('link', { name: 'Clinic settings' }).click();
+  await doc.getByRole('link', { name: 'Settings', exact: true }).click();
+  await doc.getByRole('link', { name: 'Doctors and team', exact: true }).click();
   await doc.getByLabel('Medical registration number').fill('PMC-12345');
   await doc.getByLabel('Qualifications').fill('MBBS, MD');
   await doc.getByRole('button', { name: 'Save professional details' }).click();
   await expect(doc.getByRole('status').first()).toHaveText('Saved');
   await doc.getByRole('link', { name: /Back to doctor screen/ }).click();
+  await doc.getByRole('link', { name: 'Find patient', exact: true }).click();
   await doc.getByLabel('Find a patient').fill('Vivaan');
   await doc.getByRole('button', { name: 'Search' }).click();
   await doc.getByRole('link', { name: /Vivaan/ }).click();
+  await doc
+    .getByRole('navigation', { name: 'Patient record sections' })
+    .getByRole('link', { name: 'Documents & billing', exact: true })
+    .click();
   await doc.getByRole('button', { name: 'New sick-leave certificate' }).click();
   await doc.getByLabel('Remarks (optional)').fill('Rest advised');
   await doc.getByRole('button', { name: 'Create draft' }).click();
@@ -405,9 +430,11 @@ test('custom agent: describe in plain words, review exactly what it will do, app
   await db.end();
   const doc = await (await browser.newContext()).newPage();
   await login(doc, 'anil@demo.sahayak.in');
-  await doc.getByRole('link', { name: 'Clinic assistants', exact: true }).click();
+  await doc.getByRole('link', { name: 'Assistants', exact: true }).click();
   await doc.getByRole('button', { name: 'Reminders & updates', exact: true }).click();
-  await doc.getByLabel('What would you like help with?').fill('remind my diabetic patients every month');
+  await doc
+    .getByLabel('What would you like help with?')
+    .fill('remind my diabetic patients every month');
   await doc.getByRole('button', { name: 'Prepare a draft' }).click();
   await expect(doc.getByTestId('agent-preview')).toContainText('On day 1 of every month at 10 am');
   await expect(doc.getByTestId('agent-preview')).toContainText('agreed to messages and reminders');

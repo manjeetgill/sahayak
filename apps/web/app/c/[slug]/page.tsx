@@ -50,18 +50,20 @@ export default function ClinicPage({ params }: { params: { slug: string } }) {
       : {}),
   };
   return (
-    <div className="wrap" style={{ maxWidth: 640 }}>
+    <div className="wrap public-clinic-page" style={{ maxWidth: 900 }}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} />
-      <h1>{c.name}</h1>
-      {c.rating && (
-        <p data-testid="rating">
-          ★ {c.rating.average}{' '}
-          <span className="muted">
-            from {c.rating.count} patient ratings collected after visits
-          </span>
-        </p>
-      )}
-      {c.about && <p>{c.about}</p>}
+      <section className="public-clinic-hero">
+        <h1>{c.name}</h1>
+        {c.rating && (
+          <p data-testid="rating">
+            ★ {c.rating.average}{' '}
+            <span className="muted">
+              from {c.rating.count} patient ratings collected after visits
+            </span>
+          </p>
+        )}
+        {c.about && <p>{c.about}</p>}
+      </section>
       <div className="card" style={{ margin: '1rem 0' }}>
         <h2>Book an appointment</h2>
         <p className="row" style={{ flexWrap: 'wrap' }}>

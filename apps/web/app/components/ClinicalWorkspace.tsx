@@ -45,7 +45,9 @@ export function ClinicalWorkspace({
   documents,
   onDocument,
   onSaved,
+  activeArea = 'care',
 }: {
+  activeArea?: string;
   patientId: string;
   notes: any[];
   documents: any[];
@@ -135,8 +137,18 @@ export function ClinicalWorkspace({
   };
   if (!data)
     return (
-      <section id="care-workspace" className="card">
-        <h2>Ongoing care</h2>
+      <section
+        id="care-workspace"
+        hidden={!['care', 'records', 'admin'].includes(activeArea)}
+        className="card clinical-workspace"
+      >
+        <h2>
+          {activeArea === 'records'
+            ? 'Timeline and source search'
+            : activeArea === 'admin'
+              ? 'Charges and paperwork'
+              : 'Ongoing care'}
+        </h2>
         {error ? <p role="alert">{error}</p> : <p>Loading patient history…</p>}
       </section>
     );
@@ -148,8 +160,19 @@ export function ClinicalWorkspace({
     JSON.stringify(e.data).toLowerCase().includes(search.toLowerCase()),
   );
   return (
-    <section id="care-workspace" className="card" style={{ marginTop: 20 }}>
-      <h2>Ongoing care</h2>
+    <section
+      id="care-workspace"
+      hidden={!['care', 'records', 'admin'].includes(activeArea)}
+      className="card clinical-workspace"
+      style={{ marginTop: 20 }}
+    >
+      <h2>
+        {activeArea === 'records'
+          ? 'Timeline and source search'
+          : activeArea === 'admin'
+            ? 'Charges and paperwork'
+            : 'Ongoing care'}
+      </h2>
       <p>
         Doctor-recorded facts, approved instructions and follow-up work. Original reports and notes
         remain the source.
@@ -164,6 +187,7 @@ export function ClinicalWorkspace({
         Refresh care record
       </button>
       <LocalCareTools
+        activeArea={activeArea}
         patientId={patientId}
         data={data}
         documents={documents}
@@ -187,7 +211,7 @@ export function ClinicalWorkspace({
         recorded allergies · {labs.length} verified test results
       </p>
       <p>No recorded allergies does not confirm that the patient has no allergies.</p>
-      <details>
+      <details hidden={activeArea !== 'records'}>
         <summary>Add patient information</summary>
         <fieldset disabled={busy}>
           <label>
@@ -246,7 +270,7 @@ export function ClinicalWorkspace({
           <button onClick={saveEntry}>Save patient information</button>
         </fieldset>
       </details>
-      <details>
+      <details hidden={activeArea !== 'records'}>
         <summary>Patient history and recorded changes</summary>
         <label>
           Find in recorded history
@@ -336,7 +360,7 @@ export function ClinicalWorkspace({
           </p>
         ))}
       </details>
-      <details>
+      <details hidden={activeArea !== 'records'}>
         <summary>Copy results from a report table</summary>
         <p>
           Paste rows separated by tabs: test name, numeric result, unit, optional lower limit, upper
@@ -381,7 +405,7 @@ export function ClinicalWorkspace({
           </button>
         </fieldset>
       </details>
-      <details>
+      <details hidden={activeArea !== 'records'}>
         <summary>Test results over time</summary>
         <p>
           Only verified numeric results appear here. Reference limits come from the report, not from
@@ -445,7 +469,7 @@ export function ClinicalWorkspace({
           </tbody>
         </table>
       </details>
-      <details>
+      <details hidden={activeArea !== 'records'}>
         <summary>Medicine record checks</summary>
         <p>{data.safety.limitations}</p>
         {!data.safety.warnings.length && (
@@ -471,7 +495,7 @@ export function ClinicalWorkspace({
           </p>
         ))}
       </details>
-      <details>
+      <details hidden={activeArea !== 'care'}>
         <summary>Instructions to give the patient</summary>
         <p>
           Prepare a copy from a signed note, edit it, then approve it. Hindi changes headings only;
@@ -629,7 +653,7 @@ export function ClinicalWorkspace({
           </article>
         ))}
       </details>
-      <details>
+      <details hidden={activeArea !== 'care'}>
         <summary>Plan the next steps</summary>
         <p>
           Prepare a sequence for this patient, then approve it. Due steps appear in your inbox.
@@ -905,7 +929,7 @@ export function ClinicalWorkspace({
           </article>
         ))}
       </details>
-      <details>
+      <details hidden={activeArea !== 'admin'}>
         <summary>Clinic charges and payments</summary>
         <p>
           Record charges and payments already received. This does not collect money or connect to a

@@ -26,6 +26,7 @@ test('clinic template becomes an editable patient draft; result and insurance re
   }
   await login(page, 'anil@demo.sahayak.in');
   await page.goto('/doctor/templates');
+  await page.getByRole('button', { name: 'Create reusable plan', exact: true }).click();
   await page.getByLabel('Plan title', { exact: true }).fill('Reusable synthetic report plan');
   await page.getByLabel('Task name', { exact: true }).fill('Review original report');
   await page
@@ -37,6 +38,10 @@ test('clinic template becomes an editable patient draft; result and insurance re
   await template.getByRole('button', { name: 'Approve reusable plan' }).click();
   await expect(template).toContainText('Approved');
   await page.goto(`/doctor/patients/${patient}`);
+  await page
+    .getByRole('navigation', { name: 'Patient record sections' })
+    .getByRole('link', { name: 'Care plan', exact: true })
+    .click();
   const care = page.locator('#care-workspace');
   await care.getByText('Use a reusable clinic plan', { exact: true }).click();
   await care
@@ -53,6 +58,10 @@ test('clinic template becomes an editable patient draft; result and insurance re
   await plan.getByRole('button', { name: 'Save patient step' }).click();
   await plan.getByRole('button', { name: 'Approve plan', exact: true }).click();
   await expect(plan.getByRole('button', { name: 'Pause plan' })).toBeVisible();
+  await page
+    .getByRole('navigation', { name: 'Patient record sections' })
+    .getByRole('link', { name: 'Records', exact: true })
+    .click();
   await care.getByText('Add patient information', { exact: true }).click();
   await care.getByLabel('Type of information').selectOption('lab');
   await care.getByLabel('Name', { exact: true }).fill('Synthetic outside-range value');
@@ -71,20 +80,24 @@ test('clinic template becomes an editable patient draft; result and insurance re
   await page.goto('/doctor/inbox');
   await page.locator('select').nth(1).selectOption('result');
   await expect(
-    page
-      .getByTestId('inbox-item')
-      .filter({ hasText: 'Test result outside supplied report range' }),
+    page.getByTestId('inbox-item').filter({ hasText: 'Test result outside supplied report range' }),
   ).toBeVisible();
   await page.goto(`/doctor/patients/${patient}`);
+  await page
+    .getByRole('navigation', { name: 'Patient record sections' })
+    .getByRole('link', { name: 'Records', exact: true })
+    .click();
   await care.getByText('Record review of test results', { exact: true }).click();
-  const result = care
-    .getByLabel('Doctor’s result review')
-    .locator('xpath=ancestor::article[1]');
+  const result = care.getByLabel('Doctor’s result review').locator('xpath=ancestor::article[1]');
   await result
     .getByLabel('Doctor’s result review')
     .fill('Original report reviewed; next review arranged.');
   await result.getByRole('button', { name: 'Save doctor review' }).click();
   await expect(care.getByText('Review recorded:', { exact: false })).toBeVisible();
+  await page
+    .getByRole('navigation', { name: 'Patient record sections' })
+    .getByRole('link', { name: 'Documents & billing', exact: true })
+    .click();
   await care.getByText('Insurance and pre-authorization paperwork', { exact: true }).click();
   await care.getByLabel('Paperwork title').fill('Synthetic insurance case');
   await care
@@ -98,6 +111,10 @@ test('clinic template becomes an editable patient draft; result and insurance re
     .fill('Submitted outside the app using synthetic paperwork.');
   await insurance.getByRole('button', { name: 'Record Submitted', exact: true }).click();
   await expect(insurance.getByRole('heading')).toContainText('Submitted');
+  await page
+    .getByRole('navigation', { name: 'Patient record sections' })
+    .getByRole('link', { name: 'Records', exact: true })
+    .click();
   await care.getByText('Find facts and browse the full record', { exact: true }).click();
   await care.getByLabel('Question or recorded words').fill('show test results outside range');
   await care.getByRole('button', { name: 'Find recorded facts' }).click();

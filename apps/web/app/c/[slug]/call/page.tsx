@@ -21,11 +21,15 @@ export default function Call({ params }: { params: { slug: string } }) {
     if (r.transferToHuman) setTransfer(true);
   };
   return (
-    <div className="wrap">
+    <div className="wrap practice-call-page">
       <h1>Try a phone conversation</h1>
       <label htmlFor="ph">Caller number</label>
       <input id="ph" value={phone} onChange={(e) => setPhone(e.target.value)} />
-      <div className="card" style={{ margin: '1rem 0', minHeight: 200 }} data-testid="call-log">
+      <div
+        className="card call-transcript"
+        style={{ margin: '1rem 0', minHeight: 200 }}
+        data-testid="call-log"
+      >
         {log.map((l, i) => (
           <p key={i} style={{ textAlign: l.who === 'caller' ? 'right' : 'left' }}>
             <span className="tag">
@@ -33,7 +37,11 @@ export default function Call({ params }: { params: { slug: string } }) {
             </span>
           </p>
         ))}
-        {transfer && <p className="banner warn">The assistant has asked the reception team to help. No real call is transferred.</p>}
+        {transfer && (
+          <p className="banner warn">
+            The assistant has asked the reception team to help. No real call is transferred.
+          </p>
+        )}
       </div>
       <form className="row" onSubmit={speak}>
         <input
@@ -45,7 +53,8 @@ export default function Call({ params }: { params: { slug: string } }) {
         <button type="submit">Send</button>
       </form>
       <p className="muted">
-        This is a practice conversation. Type what a patient might say to see the reply. No real phone call is made.
+        This is a practice conversation. Type what a patient might say to see the reply. No real
+        phone call is made.
       </p>
     </div>
   );

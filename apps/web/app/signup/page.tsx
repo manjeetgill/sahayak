@@ -28,7 +28,13 @@ export default function Signup() {
     }
   };
   return (
-    <div className="wrap">
+    <div className="wrap auth-page">
+      <a className="auth-brand" href="/">
+        <span className="clinic-brand-mark" aria-hidden="true">
+          ✚
+        </span>{' '}
+        Sahayak
+      </a>
       <h1>Set up your clinic</h1>
       <p className="muted">
         Takes about 10 minutes. You will need your clinic address and opening hours.

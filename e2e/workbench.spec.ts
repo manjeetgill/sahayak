@@ -36,6 +36,10 @@ test('doctor verifies history, approves instructions, follows up and records pay
   page.on('dialog', (d) => d.accept());
   await login(page, 'anil@demo.sahayak.in');
   await page.goto(`/doctor/patients/${patient}`);
+  await page
+    .getByRole('navigation', { name: 'Patient record sections' })
+    .getByRole('link', { name: 'Records', exact: true })
+    .click();
   const care = page.locator('#care-workspace');
   await expect(care.getByText('verified active medicines', { exact: false })).toBeVisible();
   await care.getByText('Add patient information', { exact: true }).click();
@@ -52,6 +56,10 @@ test('doctor verifies history, approves instructions, follows up and records pay
   await expect(entry).toContainText('2026-10-01');
   await entry.getByRole('button', { name: 'Confirm source checked' }).click();
   await expect(entry).toContainText('Doctor verified');
+  await page
+    .getByRole('navigation', { name: 'Patient record sections' })
+    .getByRole('link', { name: 'Care plan', exact: true })
+    .click();
   await care.getByText('Instructions to give the patient', { exact: true }).click();
   await care.getByLabel('Signed source note').selectOption({ index: 1 });
   await care.getByRole('button', { name: 'Prepare instructions from note' }).click();
@@ -78,6 +86,10 @@ test('doctor verifies history, approves instructions, follows up and records pay
   await plan.getByRole('button', { name: 'Record review and finish step' }).click();
   await plan.getByRole('button', { name: 'Close completed plan' }).click();
   await expect(plan.getByRole('heading')).toContainText('Completed');
+  await page
+    .getByRole('navigation', { name: 'Patient record sections' })
+    .getByRole('link', { name: 'Documents & billing', exact: true })
+    .click();
   await care.getByText('Clinic charges and payments', { exact: true }).click();
   await care.getByLabel('Charge description').fill('Synthetic consultation charge');
   await care.getByLabel('Charge amount (INR)').fill('100');

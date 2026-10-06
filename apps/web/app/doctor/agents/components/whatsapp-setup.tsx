@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { staff } from '../../../../lib/api';
 type Setup = { phone: string; faq: string; state: string; preparation?: string };
 type Status = {
@@ -23,6 +23,7 @@ export function WhatsAppSetup({ isDoctor }: { isDoctor: boolean }) {
     [faq, setFaq] = useState(''),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
+  const containerId = 'chakra-connect-' + useId().replace(/[^a-zA-Z0-9_-]/g, '');
   const container = useRef<HTMLDivElement>(null),
     widget = useRef<{ destroy: () => void } | null>(null);
   async function load() {
@@ -105,7 +106,7 @@ export function WhatsAppSetup({ isDoctor }: { isDoctor: boolean }) {
     widget.current?.destroy();
     widget.current = w.ChakraWhatsappConnect!.init({
       connectToken: session.connect_token,
-      container: container.current,
+      container: `#${containerId}`,
       onError: () => setError('Authorization interrupted. Check status before starting again.'),
       onSuccess: (data: { pluginId: string }) =>
         void run(async () => {
@@ -235,7 +236,7 @@ export function WhatsAppSetup({ isDoctor }: { isDoctor: boolean }) {
           Check connection status
         </button>
       )}
-      <div ref={container} />
+      <div id={containerId} ref={container} />
       <ol aria-label="WhatsApp setup progress">
         <li>Add clinic number and doctor timings.</li>
         <li>Owner completes Meta/Chakra authorization and phone verification.</li>
