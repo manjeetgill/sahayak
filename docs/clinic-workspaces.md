@@ -79,3 +79,20 @@ This version **records money already received**. It does not initiate an online 
 Private receipt links use random 256-bit tokens, stored only as hashes, expire after twelve hours, and omit patient name/phone. Public submitters cannot confirm payment or choose its amount. Clinic isolation, staff roles, erasure, cancellation, expired arrivals, fee changes and duplicate confirmations are covered by integration tests.
 
 For local phone testing, use the Mac's Wi-Fi address instead of localhost. Both web (3000) and API (4000) must be reachable on that network. A Wi-Fi address can change; update the setting and reprint the poster when it does. For public use, deploy web/API behind HTTPS and configure the web app's API address accordingly.
+
+## Online payment setup (Razorpay)
+
+Admin → Patient check-in QR now includes **Online payments — Razorpay** and payment activity. This extends the receptionist-confirmed flow above; no account is connected or enabled automatically.
+
+1. In the clinic Razorpay account, generate **test keys**. Put the clinic UUID, `keyId`, `keySecret` and a separately chosen `webhookSecret` into the private `RAZORPAY_CLINIC_CREDENTIALS` JSON environment setting. The admin payment panel shows the clinic UUID in the webhook path. The example file contains the structure; do not paste real keys into chat or Git.
+2. Restart the API and save the QR clinic fee (minimum ₹1 for online payment). Enable automatic capture in Razorpay. Configure a public HTTPS API webhook at `/integrations/razorpay/CLINIC_UUID`, subscribing to `payment.captured`, `order.paid`, and `refund.processed`, using the matching webhook secret.
+3. Admin reviews the mode/account and explicitly enables checkout. Patients can choose Razorpay on their private arrival page. No patient name, phone, visit text or medical information is prefilled or included in the provider order.
+4. Sahayak creates the order with its own saved fee. Checkout success alone is insufficient: the server checks the signature against its saved order ID, retrieves payment state from Razorpay, and requires matching order, INR amount and captured status. The signed webhook does the same even if the browser closes. Duplicate browser/webhook requests cannot double-record payment or issue another token.
+5. **Check payment status** (patient) or **Check provider status** (admin) recovers a missed callback without another charge. If order creation times out, its receipt is fenced; admin locates the receipt in Razorpay and uses **Verify and link this order**. Uncertain orders are never automatically recreated.
+6. Test payments are labelled and excluded from real collection totals. Use synthetic patients/a demo clinic: test checkout still creates a test visit and token so the queue can be demonstrated. Once verified in Razorpay test mode, replace the keys with live keys, use a public HTTPS patient address, check the live webhook configuration, and explicitly enable checkout for live use. Keep the original account keys available until its pending orders are resolved; the app rejects account changes for an existing order.
+
+Cancelled/expired arrivals, inactive doctors, changed visit ownership and refunds go to staff review. A captured payment is retained even when a visit cannot be queued. Refund events flag review; staff must reconcile the ledger and arrange any refund in Razorpay. Sahayak does not initiate refunds. An online order blocks manual payment confirmation for that arrival so a pending checkout cannot become a duplicate cash/UPI payment. Patient erasure removes the arrival link; provider references are retained as financial records.
+
+Reference contracts: [Razorpay Standard Checkout](https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/integration-steps/), [webhook verification](https://razorpay.com/docs/webhooks/validate-test/), [Orders API](https://razorpay.com/docs/api/orders/create/).
+
+Validation in this repository uses mocked Razorpay responses plus real local database transactions. Real test-mode checkout and real money delivery remain unverified until the owner supplies keys and completes the account/webhook setup.

@@ -6,12 +6,14 @@ export function FeedbackMessaging() {
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
     [template, setTemplate] = useState(''),
-    [reviewed, setReviewed] = useState(false);
+    [reviewed, setReviewed] = useState(false),
+    [evidence, setEvidence] = useState<any>(null);
   const load = async () => {
     try {
       const d = await staff('/staff/feedback/messaging');
       setData(d);
       setTemplate(d.settings.template_id ?? '');
+      setEvidence(await staff('/staff/feedback/delivery-evidence'));
     } catch (e: any) {
       setError(e.message);
     }
@@ -74,6 +76,39 @@ export function FeedbackMessaging() {
               </label>
             </>
           )}
+          {evidence && (
+            <section>
+              <h3>Delivery evidence</h3>
+              <p>
+                <strong>
+                  {evidence.summary.delivered > 0
+                    ? 'Provider delivery confirmed'
+                    : 'No confirmed delivery yet'}
+                </strong>
+              </p>
+              <p>
+                {evidence.summary.attempts} invitations prepared · {evidence.summary.delivered}{' '}
+                delivered · {evidence.summary.read} read ·{' '}
+                {evidence.summary.responses_after_delivery} patient responses after delivery ·{' '}
+                {evidence.summary.needs_review} needing review
+              </p>
+              <p>
+                Queued or accepted means the provider received the request. Only a delivery receipt
+                counts as delivered. A completed live test also needs the patient to open the form
+                and submit a response.
+              </p>
+              {evidence.receipts.slice(0, 10).map((r: any) => (
+                <p key={r.id}>
+                  {r.kind === 'initial' ? 'Invitation' : 'Reminder'}:{' '}
+                  <strong>{r.delivered_at ? 'Delivery confirmed' : r.state}</strong>
+                  {r.last_checked_at
+                    ? ' · Checked ' + new Date(r.last_checked_at).toLocaleString()
+                    : ''}
+                  {r.detail ? ' · ' + r.detail : ''}
+                </p>
+              ))}
+            </section>
+          )}
           <div className="feedback-actions">
             <button
               disabled={busy || !data.ready || !reviewed || !template}
@@ -129,6 +164,7 @@ export function FeedbackMessaging() {
                 setError('');
                 try {
                   await staff('/staff/feedback/delivery-refresh', {});
+                  await load();
                 } catch (e: any) {
                   setError(e.message);
                 } finally {

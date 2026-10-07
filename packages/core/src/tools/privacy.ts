@@ -205,6 +205,9 @@ export const exportPatientData = defineTool({
     const rows = async (sql: string) => (await db.query(sql, [patientId])).rows;
     await logRequest(r, 'export', 'staff');
     return {
+      onlinePayments: await rows(
+        'SELECT o.id,o.amount_paise,o.currency,o.state,o.provider_order_id,o.provider_payment_id,o.detail,o.verified_at,o.created_at FROM qr_payment_orders o JOIN qr_arrivals a ON a.id=o.arrival_id WHERE a.patient_id=$1',
+      ),
       qrArrivals: await rows(
         'SELECT id,doctor_id,arrival_date,amount_paise,status,queue_entry_id,created_at,confirmed_at FROM qr_arrivals WHERE patient_id=$1',
       ),

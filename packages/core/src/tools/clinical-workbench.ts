@@ -399,7 +399,7 @@ export const updateCareStep = defineTool({
       throw new ToolError('paused', 'Approve or resume this plan first');
     if (['completed', 'cancelled'].includes(s.status))
       throw new ToolError('closed', 'Step is already closed');
-    if (i.status === 'contacted' && !['pending','no_response'].includes(s.status))
+    if (i.status === 'contacted' && !['pending', 'no_response'].includes(s.status))
       throw new ToolError('transition', 'Outreach was already recorded');
     if (i.status === 'completed' && !i.response?.trim())
       throw new ToolError('review_required', 'Record your review or the completed outcome');
@@ -559,7 +559,7 @@ export const practiceOverview = defineTool({
       ).rows[0].count,
       finances: (
         await db.query(
-          `SELECT (SELECT COALESCE(sum(amount_paise),0) FROM clinic_payments WHERE created_at >= $1 AND voided_at IS NULL)::bigint AS collected, (SELECT COALESCE(sum(c.amount_paise-COALESCE((SELECT sum(p.amount_paise) FROM clinic_payments p WHERE p.charge_id=c.id AND p.voided_at IS NULL),0)),0) FROM clinic_charges c WHERE status='open')::bigint AS outstanding`,
+          `SELECT (SELECT COALESCE(sum(amount_paise),0) FROM clinic_payments WHERE created_at >= $1 AND voided_at IS NULL AND NOT is_test)::bigint AS collected, (SELECT COALESCE(sum(c.amount_paise-COALESCE((SELECT sum(p.amount_paise) FROM clinic_payments p WHERE p.charge_id=c.id AND p.voided_at IS NULL),0)),0) FROM clinic_charges c WHERE status='open' AND NOT c.is_test)::bigint AS outstanding`,
           [since],
         )
       ).rows[0],
@@ -574,7 +574,7 @@ export const practiceOverview = defineTool({
         (SELECT count(*)::int FROM care_plan_steps s JOIN care_plans p ON p.id=s.plan_id WHERE s.due_at >= $1 AND s.due_at<=now() AND s.status<>'cancelled' AND p.approved_at IS NOT NULL) AS followups_total,
         (SELECT round(avg(extract(epoch FROM finished_at-consultation_started_at)/60)::numeric,1) FROM queue_entries WHERE finished_at >= $1 AND status='done' AND consultation_started_at IS NOT NULL AND finished_at>=consultation_started_at) AS consultation_minutes,
         (SELECT count(*)::int FROM queue_entries WHERE finished_at >= $1 AND status='done' AND consultation_started_at IS NOT NULL AND finished_at>=consultation_started_at) AS timed_visits,
-        (SELECT round(sum(p.amount_paise)::numeric/NULLIF(count(DISTINCT c.patient_id),0)/100,2) FROM clinic_payments p JOIN clinic_charges c ON c.id=p.charge_id WHERE p.created_at >= $1 AND p.voided_at IS NULL AND c.patient_id IS NOT NULL) AS collected_per_paying_patient`,
+        (SELECT round(sum(p.amount_paise)::numeric/NULLIF(count(DISTINCT c.patient_id),0)/100,2) FROM clinic_payments p JOIN clinic_charges c ON c.id=p.charge_id WHERE p.created_at >= $1 AND p.voided_at IS NULL AND NOT p.is_test AND c.patient_id IS NOT NULL) AS collected_per_paying_patient`,
           [since],
         )
       ).rows[0],
@@ -747,8 +747,8 @@ export const recordPayment = defineTool({
     if (paid + i.amountPaise > charge.amount_paise)
       throw new ToolError('amount', 'Recorded payment exceeds the outstanding amount');
     await r.db.query(
-      'INSERT INTO clinic_payments(clinic_id,charge_id,request_id,amount_paise,method,recorded_by) VALUES ($1,$2,$3,$4,$5,$6)',
-      [r.ctx.clinicId, i.chargeId, i.requestId, i.amountPaise, i.method, user(r)],
+      'INSERT INTO clinic_payments(clinic_id,charge_id,request_id,amount_paise,method,recorded_by,is_test) VALUES ($1,$2,$3,$4,$5,$6,$7)',
+      [r.ctx.clinicId, i.chargeId, i.requestId, i.amountPaise, i.method, user(r), charge.is_test],
     );
     return { saved: true };
   },

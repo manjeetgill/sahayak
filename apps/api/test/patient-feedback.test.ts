@@ -25,7 +25,8 @@ const channel = randomUUID(),
 let templateChanged = false;
 let approvals = 0,
   prepared = 0,
-  delivered = false;
+  delivered = false,
+  readReceipt = false;
 const savedOrigin = process.env.CHECKIN_PUBLIC_WEB_URL;
 const call = (name: string, input: unknown) => callTool(rt, ctx, name, input);
 const api = async (method: any, url: string, body?: unknown, headers = auth) =>
@@ -114,7 +115,8 @@ beforeAll(async () => {
             {
               id: providerId,
               status: delivered ? 'ACCEPTED' : 'QUEUED',
-              delivery: delivered ? 'delivered' : null,
+              delivery: readReceipt ? 'read' : delivered ? 'delivered' : null,
+              idempotency_key: 'sahayak-checkin-' + checkin + '-initial',
             },
           ]),
         );
@@ -215,10 +217,38 @@ it('requires reviewed setup, queues one idempotent invitation and confirms deliv
   expect(approvals).toBe(1);
   let work = (await api('GET', '/staff/feedback')).json();
   expect(work.cases[0].delivery[0].delivered_at).toBe(null);
+  expect(
+    (await api('GET', '/staff/feedback/delivery-evidence', undefined, setupAuth)).json().summary
+      .delivered,
+  ).toBe(0);
+  expect((await api('GET', '/staff/feedback/delivery-evidence')).statusCode).toBe(403);
+  await admin.query(
+    "UPDATE patient_feedback_delivery SET provider_id=NULL,state='unknown' WHERE checkin_id=$1",
+    [checkin],
+  );
   delivered = true;
   await api('POST', '/staff/feedback/delivery-refresh', {}, setupAuth);
   work = (await api('GET', '/staff/feedback')).json();
   expect(work.cases[0].delivery[0].delivered_at).toBeTruthy();
+  expect(work.cases[0].delivery[0].provider_id).toBe(providerId);
+  expect(
+    (await api('GET', '/staff/feedback/delivery-evidence', undefined, setupAuth)).json().summary
+      .delivered,
+  ).toBe(1);
+  readReceipt = true;
+  await api('POST', '/staff/feedback/delivery-refresh', {}, setupAuth);
+  expect(
+    (await api('GET', '/staff/feedback/delivery-evidence', undefined, setupAuth)).json().summary
+      .read,
+  ).toBe(1);
+  readReceipt = false;
+  delivered = false;
+  await api('POST', '/staff/feedback/delivery-refresh', {}, setupAuth);
+  expect(
+    (await api('GET', '/staff/feedback/delivery-evidence', undefined, setupAuth)).json().summary
+      .read,
+  ).toBe(1);
+  delivered = true;
   await api('POST', `/staff/feedback/${checkin}/send`, { kind: 'reminder', approved: true });
   expect(prepared).toBe(1);
 });

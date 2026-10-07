@@ -18,12 +18,15 @@ export const qrArrivalTools = [
     input: z.object({}),
     async run({ db, ctx }) {
       const row = (
-        await db.query('SELECT enabled,amount_paise,public_web_url FROM clinic_qr_settings')
+        await db.query(
+          'SELECT enabled,amount_paise,public_web_url,online_payment_enabled FROM clinic_qr_settings',
+        )
       ).rows[0];
       const clinic = (await db.query('SELECT slug,name FROM clinics WHERE id=$1', [ctx.clinicId]))
         .rows[0];
       return {
         enabled: row?.enabled ?? false,
+        onlinePaymentEnabled: row?.online_payment_enabled ?? false,
         amountPaise: row?.amount_paise ?? 50000,
         publicWebUrl: row?.public_web_url ?? '',
         ...clinic,
@@ -157,9 +160,9 @@ export const qrArrivalTools = [
     async run({ db }, i) {
       const row = (
         await db.query(
-          `SELECT a.id,a.status,a.amount_paise,a.expires_at,d.name AS doctor,q.token_number,q.status AS visit_status,c.status AS feedback_status,c.scheduled_at AS feedback_at,
+          `SELECT a.id,a.status,a.amount_paise,a.expires_at,d.name AS doctor,q.token_number,q.status AS visit_status,o.state AS online_state,(o.key_id LIKE 'rzp_test_%') AS test_payment,c.status AS feedback_status,c.scheduled_at AS feedback_at,
  (SELECT COALESCE(sum(p.amount_paise),0) FROM clinic_payments p WHERE p.charge_id=a.charge_id AND p.voided_at IS NULL)::int AS paid
- FROM qr_arrivals a JOIN doctors d ON d.id=a.doctor_id LEFT JOIN queue_entries q ON q.id=a.queue_entry_id LEFT JOIN patient_checkins c ON c.queue_entry_id=q.id AND c.status='scheduled' WHERE a.access_hash=$1`,
+ FROM qr_arrivals a LEFT JOIN qr_payment_orders o ON o.arrival_id=a.id JOIN doctors d ON d.id=a.doctor_id LEFT JOIN queue_entries q ON q.id=a.queue_entry_id LEFT JOIN patient_checkins c ON c.queue_entry_id=q.id AND c.status='scheduled' WHERE a.access_hash=$1`,
           [digest(i.accessToken)],
         )
       ).rows[0];
@@ -170,6 +173,8 @@ export const qrArrivalTools = [
           410,
         );
       return {
+        onlineState: row.online_state,
+        testPayment: row.test_payment ?? false,
         reference: row.id.slice(0, 8).toUpperCase(),
         status: row.status,
         amountPaise: row.amount_paise,
@@ -193,8 +198,8 @@ export const qrArrivalTools = [
       return {
         arrivals: (
           await db.query(
-            `SELECT a.id,a.status,a.amount_paise,a.created_at,a.expires_at,a.confirmed_at,
-        (SELECT COALESCE(sum(pay.amount_paise),0)::int FROM clinic_payments pay WHERE pay.charge_id=a.charge_id AND pay.voided_at IS NULL) paid_paise,p.name,p.phone,d.name doctor,q.token_number,q.status visit_status FROM qr_arrivals a JOIN patients p ON p.id=a.patient_id JOIN doctors d ON d.id=a.doctor_id LEFT JOIN queue_entries q ON q.id=a.queue_entry_id WHERE a.arrival_date=$1 ORDER BY (a.status='awaiting_payment') DESC,a.created_at LIMIT 200`,
+            `SELECT a.id,a.status,a.amount_paise,a.created_at,a.expires_at,a.confirmed_at,o.state online_state,
+        (SELECT COALESCE(sum(pay.amount_paise),0)::int FROM clinic_payments pay WHERE pay.charge_id=a.charge_id AND pay.voided_at IS NULL) paid_paise,p.name,p.phone,d.name doctor,q.token_number,q.status visit_status FROM qr_arrivals a LEFT JOIN qr_payment_orders o ON o.arrival_id=a.id JOIN patients p ON p.id=a.patient_id JOIN doctors d ON d.id=a.doctor_id LEFT JOIN queue_entries q ON q.id=a.queue_entry_id WHERE a.arrival_date=$1 ORDER BY (a.status='awaiting_payment') DESC,a.created_at LIMIT 200`,
             [date],
           )
         ).rows,
@@ -224,6 +229,14 @@ export const qrArrivalTools = [
       ).rows[0];
       if (!a) throw new ToolError('not_found', 'Arrival not found', 404);
       if (a.status === 'queued') return { ok: true, alreadyConfirmed: true };
+      if (
+        (await r.db.query('SELECT id FROM qr_payment_orders WHERE arrival_id=$1', [a.id])).rowCount
+      )
+        throw new ToolError(
+          'online_payment_started',
+          'An online payment has been started. Check its status before accepting another payment.',
+          409,
+        );
       if (a.status !== 'awaiting_payment' || new Date(a.expires_at) <= new Date())
         throw new ToolError(
           'expired',

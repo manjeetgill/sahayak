@@ -970,7 +970,9 @@ export function ClinicalWorkspace({
           const payment = payments[c.id];
           return (
             <article key={c.id} className="card">
-              <b>{c.description}</b> · {c.status === 'cancelled' ? 'Cancelled' : 'Recorded charge'}
+              <b>{c.description}</b>{' '}
+              {c.is_test && <strong>Test only — excluded from real collections</strong>} ·{' '}
+              {c.status === 'cancelled' ? 'Cancelled' : 'Recorded charge'}
               <p>
                 Charge ₹{(c.amount_paise / 100).toFixed(2)} · Recorded paid ₹
                 {(c.paid / 100).toFixed(2)} · Outstanding ₹

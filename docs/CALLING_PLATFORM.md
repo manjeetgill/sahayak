@@ -99,3 +99,19 @@ The app's signed readiness probe runs only after those checks pass.
 
 The pilot still needs a voice-provider account login, incoming-number routing and
 a real call. No account was created, provider terms accepted, or number purchased.
+
+## Outgoing test-call controls in Sahayak (7 October 2026)
+
+Admin → Assistants → Phone calls now has **Have the assistant call your phone**. This is the Sahayak half of an optional platform contract; the current platform is not assumed to implement it. No direct telephone-provider code was added to Sahayak and no platform repository was changed.
+
+The panel remains disabled unless the existing `GET /v1/calling/agents/:agent/readiness` response explicitly includes:
+
+```json
+{"ready":true,"enabled":true,"outbound":{"contract_version":1,"supported":true,"enabled":true,"allowed_test_numbers":["+COUNTRYCODE_NUMBER"]}}
+```
+
+The platform must obtain the allowed test numbers from its verified voice-provider setup. Readiness for incoming calls by itself does not qualify. Admin selects their own approved number and explicitly confirms ownership/consent and call charges.
+
+When supported, Sahayak sends `POST /v1/calling/agents/:agent/outbound` with `request_id` (UUID), `destination`, `test_only: true`, `recipient_consented: true`, and `accepts_charges: true`. Platform authorization uses the existing clinic credentials and externally bound user identity. The response must be `{request_id, call_id: UUID|null, status}` with status accepted/ringing/answered/completed/failed/unknown. `GET /v1/calling/agents/:agent/outbound/:request_id` must return the same receipt, using the client request ID even after an uncertain POST response. These endpoints are a new required capability, not claims about existing platform functionality.
+
+The platform must enforce request-ID idempotency through the actual provider and reject a reused ID with different data. It must validate ownership, permissions and the test-number allow-list itself. Never advertise outbound support before those guarantees and the provider adapter exist. Sahayak commits a request fence before contacting the platform, permits only one unresolved call per number, limits test requests to five per clinic/hour, never automatically retries uncertain calls and masks numbers in its activity list. Call refresh is bound to the original clinic agent. A provider status is evidence of that status only; actual ringing, two-way audio and conversation outcome need a real phone test.

@@ -52,7 +52,7 @@ export async function callingRequest<T>(
   bindings: CallingBridgeOptions | undefined,
   platform: WhatsAppPlatformOptions | undefined,
   clinicId: string,
-  operation: 'readiness' | 'calls' | 'activation',
+  operation: 'readiness' | 'calls' | 'activation' | 'outbound' | `outbound/${string}`,
   schema: z.ZodType<T>,
   body?: unknown,
   before?: string,

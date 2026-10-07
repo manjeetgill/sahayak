@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { OnlinePaymentSetup } from '../../components/OnlinePaymentSetup';
 import { QRCodeSVG } from 'qrcode.react';
 import { staff } from '../../../lib/api';
 export default function QrSetup() {
@@ -94,6 +95,7 @@ export default function QrSetup() {
           <button disabled={busy}>Save QR settings</button>
         </form>
       )}
+      <OnlinePaymentSetup />
       {data && (
         <section className="card">
           <h2>Clinic QR</h2>

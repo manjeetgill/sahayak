@@ -66,3 +66,9 @@ See [patient-feedback-demo.md](patient-feedback-demo.md) for a short meeting wal
 - Settings changes apply to future visit completions, not past visits or already scheduled check-ins. Scheduling starts only after the doctor enables and saves the preference.
 - Admin delivery settings remain independent: verified WhatsApp connection, approved invitation template, public HTTPS form address and delivery enabled. Check-ins can be scheduled while delivery is paused; no live messages are sent by finishing a visit itself.
 - The finish checklist previews the schedule or explains why no automatic check-in will be created. Manual scheduling remains an optional exception.
+
+## Delivery evidence
+
+Admin → Patient check-in messages now reports attempts, provider-confirmed deliveries, read receipts, responses received after delivery, and cases needing review. The setup switch is not evidence of delivery. Acceptance/queue status never increments the delivered counter. Previously observed delivery/read receipts survive stale provider history, and each refreshed record shows when it was checked. The dispatching channel is retained so changing the configured channel does not silently attribute old receipts to the new connection. Uncertain preparation may be matched only by the exact existing idempotency key when the platform returns it.
+
+A live demonstration must show a provider delivery receipt, the recipient receiving the invitation, replying FEEDBACK, opening the private HTTPS form, and submitting a response that appears in the staff inbox. These owner-operated/live steps have not been replaced by mock tests. No real message was dispatched by this implementation work.

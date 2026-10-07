@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { PatientOnlinePayment } from '../../../components/PatientOnlinePayment';
 import { api } from '../../../../lib/api';
 export default function Arrival({ params }: { params: { slug: string } }) {
   const [info, setInfo] = useState<any>(null),
@@ -91,7 +92,9 @@ export default function Arrival({ params }: { params: { slug: string } }) {
       </button>
       <p>
         {text(
-          '1. Your details → 2. Pay at reception → 3. Join the doctor’s queue',
+          settings?.onlinePaymentEnabled
+            ? '1. Your details → 2. Pay online or at reception → 3. Join the doctor’s queue'
+            : '1. Your details → 2. Pay at reception → 3. Join the doctor’s queue',
           '1. अपनी जानकारी → 2. रिसेप्शन पर भुगतान → 3. डॉक्टर की कतार',
         )}
       </p>
@@ -109,14 +112,35 @@ export default function Arrival({ params }: { params: { slug: string } }) {
                 {text('Reference', 'संदर्भ')}: <strong>{receipt.reference}</strong>
               </p>
               <p>{receipt.doctor}</p>
+              {receipt.onlineState === 'review' && (
+                <p role="alert">
+                  {text(
+                    'Payment needs reception review. Do not pay again.',
+                    'रिसेप्शन से भुगतान की जांच करवाएं। दोबारा भुगतान न करें।',
+                  )}
+                </p>
+              )}
+              {(settings?.onlinePaymentEnabled || receipt.onlineState) &&
+                receipt.status !== 'queued' && (
+                  <PatientOnlinePayment
+                    slug={params.slug}
+                    token={token}
+                    mode={settings?.paymentMode ?? 'test'}
+                    onlineState={receipt.onlineState}
+                    enabled={!!settings?.onlinePaymentEnabled}
+                    hi={hi}
+                  />
+                )}
               {receipt.status === 'awaiting_payment' ? (
                 <>
                   <h3>{text('Details received', 'जानकारी मिल गई')}</h3>
                   <p>
-                    {text('Please pay', 'कृपया भुगतान करें')}{' '}
+                    {text('Consultation fee', 'परामर्श शुल्क')}{' '}
                     <strong>₹{(receipt.amountPaise / 100).toFixed(2)}</strong>{' '}
                     {text(
-                      'at reception. Show this screen. Your queue token appears here after staff confirms payment.',
+                      receipt.onlineState
+                        ? 'Online payment is in progress. Check payment status above before paying again.'
+                        : 'Pay at reception, or online if available above. Your queue token appears here after payment is confirmed.',
                       'रिसेप्शन पर। यह स्क्रीन दिखाएं। भुगतान की पुष्टि के बाद टोकन यहां दिखेगा।',
                     )}
                   </p>
@@ -132,7 +156,14 @@ export default function Arrival({ params }: { params: { slug: string } }) {
                 <>
                   <p>
                     {receipt.paidPaise >= receipt.amountPaise
-                      ? text('Payment recorded', 'भुगतान दर्ज है')
+                      ? text(
+                          receipt.testPayment
+                            ? 'Test payment verified — no real money collected'
+                            : 'Payment recorded',
+                          receipt.testPayment
+                            ? 'टेस्ट भुगतान की पुष्टि — असली पैसे नहीं लिए गए'
+                            : 'भुगतान दर्ज है',
+                        )
                       : text(
                           'Payment record needs reception review',
                           'भुगतान की जानकारी रिसेप्शन से जांचें',
@@ -218,7 +249,12 @@ export default function Arrival({ params }: { params: { slug: string } }) {
           <p>
             {text('Consultation fee', 'परामर्श शुल्क')}:{' '}
             <strong>₹{(settings.amountPaise / 100).toFixed(2)}</strong> ·{' '}
-            {text('Pay at reception', 'रिसेप्शन पर भुगतान करें')}
+            {text(
+              settings?.onlinePaymentEnabled ? 'Pay online or at reception' : 'Pay at reception',
+              settings?.onlinePaymentEnabled
+                ? 'ऑनलाइन या रिसेप्शन पर भुगतान करें'
+                : 'रिसेप्शन पर भुगतान करें',
+            )}
           </p>
           <label className="check">
             <input

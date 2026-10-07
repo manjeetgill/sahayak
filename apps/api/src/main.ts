@@ -1,3 +1,4 @@
+import { razorpayFromEnv } from './razorpay';
 import { callingBridgeFromEnv } from './calling-bridge';
 import { bridgeFromEnv, provisioningFromEnv } from './whatsapp-bridge';
 import { whatsappPlatformFromEnv } from './whatsapp-platform';
@@ -25,6 +26,7 @@ const gate = new LlmGate(modelProviderFromEnv(), bus, () => [...activeClinics]);
 const platformChannels = process.env.LIVE_CHANNEL_OWNER === 'platform';
 const whatsapp = platformChannels ? undefined : (pluginFromEnv() ?? undefined);
 const app = await buildApp({
+  razorpay: razorpayFromEnv(),
   liveChannelOwner: platformChannels ? 'platform' : 'local',
   whatsapp,
   agentPlatform: agentPlatformFromEnv(),

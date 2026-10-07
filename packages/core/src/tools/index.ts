@@ -1,3 +1,4 @@
+import { settleQrPayment } from './online-payments';
 import { qrArrivalTools } from './qr-arrivals';
 import { automaticFeedbackTools } from './automatic-feedback';
 import { feedbackTools } from './patient-feedback';
@@ -32,6 +33,7 @@ export function registerAllTools() {
   if (done) return;
   registerTools([
     ...qrArrivalTools,
+    settleQrPayment,
     ...automaticFeedbackTools,
     ...patientCheckinTools,
     ...feedbackTools,

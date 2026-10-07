@@ -1,3 +1,6 @@
+import { installOutboundCalls } from './outbound-calls';
+import { installOnlinePayments } from './online-payments';
+import type { RazorpayOptions } from './razorpay';
 import { installPatientFeedback } from './patient-feedback';
 import { callingStatus, callingRequest } from './calling-status';
 import { installCallingBridge, type CallingBridgeOptions } from './calling-bridge';
@@ -59,6 +62,7 @@ import {
 } from '@sahayak/shared';
 
 export interface AppDeps {
+  razorpay?: RazorpayOptions;
   liveChannelOwner?: 'platform' | 'local';
   /** Real WhatsApp channel + inbound adapter (omit for the mock simulator). */
   whatsapp?: ChannelPlugin;
@@ -158,8 +162,13 @@ export async function buildApp(deps: AppDeps) {
         '/me',
         '/staff/status',
         '/staff/qr-settings',
+        '/staff/payments',
+        '/staff/payments/setup',
+        '/staff/payments/:id/refresh',
+        '/staff/payments/:id/recover',
         '/staff/feedback/messaging',
         '/staff/feedback/delivery-refresh',
+        '/staff/feedback/delivery-evidence',
       ].includes(route);
     if (c.role === 'admin' && !adminRoute)
       throw new ToolError('forbidden', 'This workspace is for patient care staff', 403);
@@ -190,6 +199,8 @@ export async function buildApp(deps: AppDeps) {
   };
 
   await installPatientFeedback(app, deps, async (req, roles) => staffCtx(await claims(req, roles)));
+  await installOutboundCalls(app, deps, async (req, roles) => staffCtx(await claims(req, roles)));
+  await installOnlinePayments(app, deps, async (req, roles) => staffCtx(await claims(req, roles)));
 
   app.get('/health', async () => ({ ok: true }));
 
@@ -266,12 +277,16 @@ export async function buildApp(deps: AppDeps) {
     const c = await clinicBySlug((req.params as any).slug);
     return read(c.id, async (db) => {
       const row = (
-        await db.query('SELECT enabled,amount_paise,public_web_url FROM clinic_qr_settings')
+        await db.query(
+          'SELECT enabled,amount_paise,public_web_url,online_payment_enabled FROM clinic_qr_settings',
+        )
       ).rows[0];
       return {
         enabled: row?.enabled ?? false,
         amountPaise: row?.amount_paise ?? 0,
         publicWebUrl: row?.public_web_url ?? null,
+        onlinePaymentEnabled: !!row?.online_payment_enabled && !!deps.razorpay?.clinics[c.id],
+        paymentMode: deps.razorpay?.clinics[c.id]?.keyId.startsWith('rzp_live_') ? 'live' : 'test',
       };
     });
   });

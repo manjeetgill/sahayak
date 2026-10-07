@@ -18,6 +18,7 @@ const outboundSchema = z.object({
   status: z.string(),
   delivery: z.string().nullable().optional(),
   error: z.string().nullable().optional(),
+  idempotency_key: z.string().optional(),
 });
 export async function installPatientFeedback(
   app: FastifyInstance,
@@ -248,8 +249,8 @@ export async function installPatientFeedback(
       if (!row)
         row = (
           await db.query(
-            'INSERT INTO patient_feedback_delivery(clinic_id,checkin_id,kind) VALUES($1,$2,$3) RETURNING *',
-            [clinicId, checkinId, kind],
+            'INSERT INTO patient_feedback_delivery(clinic_id,checkin_id,kind,channel_id) VALUES($1,$2,$3,$4) RETURNING *',
+            [clinicId, checkinId, kind, settings.channel_id],
           )
         ).rows[0];
       let providerAttempted = false;
@@ -321,31 +322,70 @@ export async function installPatientFeedback(
     });
   }
   async function refreshDelivery(clinicId: string) {
-    const settings = await scoped(
+    const channels = await scoped(
       clinicId,
-      async (db) => (await db.query('SELECT * FROM patient_feedback_settings')).rows[0],
+      async (db) =>
+        (
+          await db.query(
+            `SELECT DISTINCT COALESCE(d.channel_id,s.channel_id) channel FROM patient_feedback_delivery d
+       LEFT JOIN patient_feedback_settings s ON s.clinic_id=d.clinic_id`,
+          )
+        ).rows,
     );
-    if (!settings?.channel_id) return;
-    const history = await whatsappPlatform(
-      deps.whatsappPlatform,
-      clinicId,
-      `/v1/whatsapp/channels/${settings.channel_id}/outbound`,
-      z.array(outboundSchema),
-    );
-    await scoped(clinicId, async (db) => {
-      for (const h of history)
-        await db.query(
-          'UPDATE patient_feedback_delivery SET state=$2,detail=$3,delivered_at=CASE WHEN $4 THEN COALESCE(delivered_at,now()) ELSE delivered_at END,updated_at=now() WHERE provider_id=$1',
-          [
-            h.id,
-            h.status.toLowerCase(),
-            h.error ? 'Provider could not complete delivery. Review platform history.' : null,
-            ['delivered', 'read'].includes((h.delivery ?? '').toLowerCase()) ||
-              ['DELIVERED', 'READ'].includes(h.status),
-          ],
-        );
-    });
+    for (const { channel } of channels) {
+      if (!channel) continue;
+      const history = await whatsappPlatform(
+        deps.whatsappPlatform,
+        clinicId,
+        `/v1/whatsapp/channels/${channel}/outbound`,
+        z.array(outboundSchema),
+      );
+      await scoped(clinicId, async (db) => {
+        for (const h of history) {
+          const delivery = (h.delivery ?? h.status).toLowerCase();
+          const delivered = ['delivered', 'read'].includes(delivery);
+          // Provider acceptance is not a delivery receipt. Never lose observed delivered/read evidence.
+          await db.query(
+            `UPDATE patient_feedback_delivery SET
+            provider_id=COALESCE(provider_id,$1),
+            state=CASE WHEN read_at IS NOT NULL OR $5 THEN 'read' WHEN delivered_at IS NOT NULL OR $4 THEN 'delivered' ELSE $2 END,
+            detail=$3,delivered_at=CASE WHEN $4 THEN COALESCE(delivered_at,now()) ELSE delivered_at END,
+            read_at=CASE WHEN $5 THEN COALESCE(read_at,now()) ELSE read_at END,
+            last_checked_at=now(),updated_at=now()
+            WHERE (channel_id=$6 OR channel_id IS NULL) AND
+              (provider_id=$1 OR (provider_id IS NULL AND $7=('sahayak-checkin-'||checkin_id::text||'-'||kind)))`,
+            [
+              h.id,
+              h.status.toLowerCase(),
+              h.error ? 'Provider could not complete delivery. Review platform history.' : null,
+              delivered,
+              delivery === 'read',
+              channel,
+              h.idempotency_key ?? null,
+            ],
+          );
+        }
+      });
+    }
   }
+  app.get('/staff/feedback/delivery-evidence', async (req) => {
+    const ctx = await staffContext(req, ['admin']);
+    return scoped(ctx.clinicId, async (db) => ({
+      summary: (
+        await db.query(`SELECT count(*)::int attempts,
+        count(*) FILTER(WHERE delivered_at IS NOT NULL)::int delivered,
+        count(*) FILTER(WHERE read_at IS NOT NULL)::int read,
+        count(*) FILTER(WHERE state IN ('unknown','blocked','failed'))::int needs_review,
+        count(DISTINCT d.checkin_id) FILTER(WHERE delivered_at IS NOT NULL AND EXISTS(SELECT 1 FROM patient_feedback_responses r WHERE r.checkin_id=d.checkin_id AND r.created_at>=d.delivered_at))::int responses_after_delivery
+        FROM patient_feedback_delivery d`)
+      ).rows[0],
+      receipts: (
+        await db.query(
+          'SELECT id,kind,state,provider_id,delivered_at,read_at,last_checked_at,detail FROM patient_feedback_delivery ORDER BY created_at DESC LIMIT 50',
+        )
+      ).rows,
+    }));
+  });
   app.post('/staff/feedback/delivery-refresh', async (req) => {
     const c = await staffContext(req, ['admin']);
     await refreshDelivery(c.clinicId);

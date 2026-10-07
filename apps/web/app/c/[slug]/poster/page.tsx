@@ -9,6 +9,7 @@ export default function Poster({ params }: { params: { slug: string } }) {
   const [clinic, setClinic] = useState(''),
     [url, setUrl] = useState('');
   const [payment, setPayment] = useState(false);
+  const [online, setOnline] = useState(false);
   const [unreachable, setUnreachable] = useState(false);
   useEffect(() => {
     api(`/public/${params.slug}`)
@@ -18,6 +19,7 @@ export default function Poster({ params }: { params: { slug: string } }) {
       .then((s) => {
         const base = s.publicWebUrl || location.origin;
         setPayment(s.enabled);
+        setOnline(s.onlinePaymentEnabled);
         setUrl(`${base}/c/${params.slug}/${s.enabled ? 'arrival' : 'checkin'}`);
         setUnreachable(['localhost', '127.0.0.1', '[::1]'].includes(new URL(base).hostname));
       })
@@ -50,7 +52,8 @@ export default function Poster({ params }: { params: { slug: string } }) {
         )}
         {payment && (
           <p>
-            Scan → enter your details → pay at reception → receive your queue token.
+            Scan → enter your details → {online ? 'pay online or at reception' : 'pay at reception'}{' '}
+            → receive your queue token.
             <br />
             स्कैन करें → जानकारी दें → रिसेप्शन पर भुगतान करें → टोकन पाएं।
           </p>

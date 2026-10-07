@@ -1,4 +1,5 @@
 'use client';
+import { OutboundCallTest } from '../../../components/OutboundCallTest';
 import { useState } from 'react';
 import { staff } from '../../../../lib/api';
 type Ready = {
@@ -134,8 +135,10 @@ export function CallingSetup({
       </ol>
       <p>
         A readiness check does not verify real audio or a completed booking. Reception follow-up
-        ends the call; it does not transfer it. Outbound calls and recordings are disabled.
+        ends the call; it does not transfer it. Outgoing test calls require separate platform
+        support. Recordings are not enabled here.
       </p>
+      {canManage && <OutboundCallTest />}
       <h3>Phone activity</h3>
       <button className="ghost small" disabled={busy} onClick={() => void history()}>
         Refresh call activity

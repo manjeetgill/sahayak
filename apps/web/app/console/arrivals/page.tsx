@@ -72,7 +72,19 @@ export default function Arrivals() {
           <p>
             Consultation fee: <strong>₹{(a.amount_paise / 100).toFixed(2)}</strong>
           </p>
-          {a.status === 'awaiting_payment' && new Date(a.expires_at) > new Date() ? (
+          {a.online_state && (
+            <p>
+              Online payment:{' '}
+              {a.online_state === 'review'
+                ? 'Staff review needed — do not take another payment'
+                : a.online_state === 'captured'
+                  ? 'Verified by Razorpay'
+                  : 'In progress — check with the setup team before taking another payment'}
+            </p>
+          )}
+          {a.status === 'awaiting_payment' &&
+          !a.online_state &&
+          new Date(a.expires_at) > new Date() ? (
             <>
               <p>Details received — waiting for payment confirmation</p>
               <label htmlFor={`method-${a.id}`}>Payment method</label>
@@ -124,7 +136,9 @@ export default function Arrivals() {
                 ? `${a.paid_paise >= a.amount_paise ? 'Payment recorded' : 'Payment needs review'} · Token ${a.token_number} · ${a.visit_status === 'done' ? 'Consultation complete' : a.visit_status === 'called' || a.visit_status === 'in_consultation' ? 'Doctor is ready' : 'In the queue'}`
                 : a.status === 'cancelled'
                   ? 'Cancelled'
-                  : 'Expired — cancel this unpaid check-in before the patient tries again'}
+                  : a.online_state
+                    ? 'Online payment pending or under review.'
+                    : 'Expired — cancel this unpaid check-in before the patient tries again'}
             </p>
           )}
           {a.status === 'awaiting_payment' && new Date(a.expires_at) <= new Date() && (
