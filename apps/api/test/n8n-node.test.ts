@@ -54,7 +54,7 @@ beforeAll(async () => {
   await admin.connect();
   A = await createTestClinic(admin, 'n8n');
   await admin.query(
-    "INSERT INTO staff_users (clinic_id,email,password_hash,name,role,doctor_id) VALUES ($1,$2,$3,'D','doctor',$4)",
+    "INSERT INTO staff_users (clinic_id,email,password_hash,name,role,doctor_id) VALUES ($1,$2,$3,'D','admin',$4)",
     [A.clinicId, `d-${A.slug}@t.in`, await hashPassword('pw-test-1234'), A.doctorIds[0]],
   );
   app = await buildApp({ pool, bus: new EventBus(''), gate: new LlmGate(null), jwtSecret: 't' });

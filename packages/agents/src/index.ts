@@ -13,3 +13,5 @@ export * from './agents/scribe';
 export * from './agents/customagent';
 
 export { translateInstructions } from './agents/translation';
+
+export * from './agents/patient-feedback';

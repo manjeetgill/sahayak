@@ -8,6 +8,7 @@ export default function Signup() {
     inviteCode: '',
     clinicName: '',
     doctorName: '',
+    adminName: '',
     email: '',
     password: '',
   });
@@ -21,7 +22,7 @@ export default function Signup() {
     try {
       const r = await api('/signup', { body: f });
       session.set(r);
-      location.href = '/setup';
+      location.href = '/admin/setup';
     } catch (x: any) {
       setErr(x.message);
       setBusy(false);
@@ -54,7 +55,14 @@ export default function Signup() {
           onChange={(e) => set('clinicName', e.target.value)}
           required
         />
-        <label htmlFor="dn">Your name (doctor)</label>
+        <label htmlFor="admin-name">Your name (clinic admin)</label>
+        <input
+          id="admin-name"
+          value={f.adminName}
+          onChange={(e) => set('adminName', e.target.value)}
+          required
+        />
+        <label htmlFor="dn">First doctor’s name</label>
         <input
           id="dn"
           value={f.doctorName}

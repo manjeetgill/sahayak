@@ -12,7 +12,8 @@ export default function Login() {
     try {
       const r = await api('/auth/login', { body: { email, password } });
       session.set(r);
-      location.href = r.user.role === 'doctor' ? '/doctor' : '/console';
+      location.href =
+        r.user.role === 'admin' ? '/admin' : r.user.role === 'doctor' ? '/doctor' : '/console';
     } catch (x: any) {
       setErr(x.message);
     }
@@ -26,6 +27,7 @@ export default function Login() {
         Sahayak
       </a>
       <h1>Staff sign-in</h1>
+      <p>Sign in to your Admin, Doctor, or Receptionist workspace.</p>
       <form className="card" onSubmit={submit}>
         <label htmlFor="email">Email</label>
         <input

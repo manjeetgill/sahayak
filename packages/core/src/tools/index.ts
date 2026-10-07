@@ -1,3 +1,7 @@
+import { qrArrivalTools } from './qr-arrivals';
+import { automaticFeedbackTools } from './automatic-feedback';
+import { feedbackTools } from './patient-feedback';
+import { patientCheckinTools } from './patient-checkins';
 import { extractReport, searchRecord } from './record-search';
 import { localWorkflowTools } from './local-workflows';
 import { whatsappSetupTools } from './whatsapp-setup';
@@ -27,6 +31,10 @@ let done = false;
 export function registerAllTools() {
   if (done) return;
   registerTools([
+    ...qrArrivalTools,
+    ...automaticFeedbackTools,
+    ...patientCheckinTools,
+    ...feedbackTools,
     ...whatsappSetupTools,
     ...checkinTools,
     ...queueTools,
@@ -46,7 +54,8 @@ export function registerAllTools() {
     ...inboxTools,
     ...workbenchTools,
     ...localWorkflowTools,
-    extractReport, searchRecord,
+    extractReport,
+    searchRecord,
     searchMedicalReferences,
     ...waitlistTools,
   ]);

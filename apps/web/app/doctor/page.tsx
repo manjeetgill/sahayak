@@ -89,7 +89,7 @@ export default function Doctor() {
       </header>
       {!setupDone && (
         <div className="banner warn" role="status">
-          Your clinic setup is not finished. <a href="/setup">Continue setup →</a>
+          Your clinic setup is not finished. Ask your clinic admin to complete it.
         </div>
       )}
       {llmDown && <div className="banner warn">{t('en', 'console.llm_down')}</div>}
@@ -313,8 +313,8 @@ export default function Doctor() {
                 <a href="/doctor/waitlist">Waiting list</a>
                 <a href="/doctor/templates">Reusable care plans</a>
                 <a href="/doctor/references">Medical reference</a>
-                <a href="/doctor/settings">Clinic settings</a>
-                <a href="/doctor/agents">Clinic assistants</a>
+                <a href="/doctor/settings">My professional details</a>
+
                 <a href="/safety">Safety report</a>
               </nav>
             </details>

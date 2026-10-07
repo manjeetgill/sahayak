@@ -29,7 +29,7 @@ beforeAll(async () => {
     [B, B.doctorIds[0], 'b'],
   ] as const) {
     await admin.query(
-      "INSERT INTO staff_users (clinic_id,email,password_hash,name,role,doctor_id) VALUES ($1,$2,$3,'D','doctor',$4),($1,$5,$3,'R','receptionist',NULL)",
+      "INSERT INTO staff_users (clinic_id,email,password_hash,name,role,doctor_id) VALUES ($1,$2,$3,'D','admin',$4),($1,$5,$3,'R','receptionist',NULL)",
       [
         cl.clinicId,
         `d${tag}-${cl.slug}@t.in`.toLowerCase(),
@@ -90,7 +90,7 @@ const day = () => new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 1
 
 describe('API keys', () => {
   let read: any, write: any, admin_: any;
-  it('only a doctor can create keys; the secret is shown once', async () => {
+  it('only an admin can create keys; the secret is shown once', async () => {
     expect(
       (
         await app.inject({

@@ -1,3 +1,4 @@
+import { installPatientFeedback } from './patient-feedback';
 import { callingStatus, callingRequest } from './calling-status';
 import { installCallingBridge, type CallingBridgeOptions } from './calling-bridge';
 import {
@@ -79,7 +80,7 @@ export const activeClinics = new Set<string>();
 type Claims = {
   uid: string;
   clinicId: string;
-  role: 'doctor' | 'receptionist';
+  role: 'admin' | 'doctor' | 'receptionist';
   doctorId: string | null;
   name: string;
 };
@@ -140,6 +141,28 @@ export async function buildApp(deps: AppDeps) {
       throw new ToolError('unauthorized', 'Sign in required', 401);
     }
     const c = req.user as Claims;
+    const account = await withClinic(
+      pool,
+      c.clinicId,
+      async (db) =>
+        (await db.query('SELECT role, doctor_id FROM staff_users WHERE id=$1', [c.uid])).rows[0],
+    );
+    if (!account || account.role !== c.role || (account.doctor_id ?? null) !== (c.doctorId ?? null))
+      throw new ToolError('unauthorized', 'Your sign-in has changed. Please sign in again.', 401);
+    const route = req.routeOptions.url ?? '';
+    const adminRoute =
+      /^\/staff\/(agents(?:\/|$)|integrations(?:\/|$)|setup(?:\/|$)|team(?:\/|$)|settings(?:\/|$)|doctors(?:\/|$))/.test(
+        route,
+      ) ||
+      [
+        '/me',
+        '/staff/status',
+        '/staff/qr-settings',
+        '/staff/feedback/messaging',
+        '/staff/feedback/delivery-refresh',
+      ].includes(route);
+    if (c.role === 'admin' && !adminRoute)
+      throw new ToolError('forbidden', 'This workspace is for patient care staff', 403);
     if (roles && !roles.includes(c.role))
       throw new ToolError('forbidden', 'Not allowed for your role', 403);
     return c;
@@ -165,6 +188,8 @@ export async function buildApp(deps: AppDeps) {
     socket.on('close', off);
     socket.on('error', off);
   };
+
+  await installPatientFeedback(app, deps, async (req, roles) => staffCtx(await claims(req, roles)));
 
   app.get('/health', async () => ({ ok: true }));
 
@@ -237,6 +262,70 @@ export async function buildApp(deps: AppDeps) {
       language: out.language,
     };
   });
+  app.get('/public/:slug/arrival/setup', async (req) => {
+    const c = await clinicBySlug((req.params as any).slug);
+    return read(c.id, async (db) => {
+      const row = (
+        await db.query('SELECT enabled,amount_paise,public_web_url FROM clinic_qr_settings')
+      ).rows[0];
+      return {
+        enabled: row?.enabled ?? false,
+        amountPaise: row?.amount_paise ?? 0,
+        publicWebUrl: row?.public_web_url ?? null,
+      };
+    });
+  });
+  app.post('/public/:slug/arrival', async (req) => {
+    limitPublic(req.ip);
+    const c = await clinicBySlug((req.params as any).slug);
+    return callTool(
+      rt,
+      { clinicId: c.id, actor: { kind: 'patient' } },
+      'submit_qr_arrival',
+      req.body,
+    );
+  });
+  // Receipt polling has its own budget so families on the clinic Wi-Fi do not
+  // exhaust the submission/document rate limit. Expired buckets are discarded.
+  const arrivalPolls = new Map<string, { count: number; until: number }>();
+  app.post('/public/:slug/arrival/status', async (req, reply) => {
+    reply.header('cache-control', 'private, no-store');
+    const now = Date.now();
+    for (const [key, bucket] of arrivalPolls) if (bucket.until <= now) arrivalPolls.delete(key);
+    const bucket = arrivalPolls.get(req.ip) ?? { count: 0, until: now + 60000 };
+    if (arrivalPolls.size >= 10000 && !arrivalPolls.has(req.ip))
+      throw new ToolError('rate_limited', 'Please try again shortly.', 429);
+    arrivalPolls.set(req.ip, bucket);
+    if (++bucket.count > 1200)
+      throw new ToolError('rate_limited', 'Please wait a minute before refreshing.', 429);
+    const c = await clinicBySlug((req.params as any).slug);
+    return callTool(
+      rt,
+      { clinicId: c.id, actor: { kind: 'patient' } },
+      'read_qr_arrival',
+      req.body,
+    );
+  });
+  app.get('/staff/qr-settings', async (req) =>
+    callTool(rt, staffCtx(await claims(req)), 'get_qr_settings', {}),
+  );
+  app.put('/staff/qr-settings', async (req) =>
+    callTool(rt, staffCtx(await claims(req, ['admin'])), 'save_qr_settings', req.body),
+  );
+  app.get('/staff/qr-arrivals', async (req) =>
+    callTool(rt, staffCtx(await claims(req, ['doctor', 'receptionist'])), 'list_qr_arrivals', {}),
+  );
+  app.post('/staff/qr-arrivals/:id/confirm', async (req) =>
+    callTool(rt, staffCtx(await claims(req, ['doctor', 'receptionist'])), 'confirm_qr_payment', {
+      ...(req.body as object),
+      id: idParam(req),
+    }),
+  );
+  app.post('/staff/qr-arrivals/:id/cancel', async (req) =>
+    callTool(rt, staffCtx(await claims(req, ['doctor', 'receptionist'])), 'cancel_qr_arrival', {
+      id: idParam(req),
+    }),
+  );
   app.get('/public/:slug/board', async (req) => {
     const c = await clinicBySlug((req.params as any).slug);
     return read(c.id, async (db) => {
@@ -280,6 +369,13 @@ export async function buildApp(deps: AppDeps) {
     } catch {
       return socket.close(1008, 'unauthorized');
     }
+    const account = await withClinic(
+      pool,
+      c.clinicId,
+      async (db) => (await db.query('SELECT role FROM staff_users WHERE id=$1', [c.uid])).rows[0],
+    );
+    if (!account || account.role !== c.role) return socket.close(1008, 'Sign in again');
+    if (c.role === 'admin') return socket.close(1008, 'Patient updates are for care staff');
     activeClinics.add(c.clinicId);
     sendSocket(socket, c.clinicId, () => true);
     socket.send(
@@ -582,6 +678,26 @@ export async function buildApp(deps: AppDeps) {
     const c = await claims(req, ['doctor']);
     return callTool(rt, staffCtx(c), 'get_previsit_brief', { patientId: idParam(req) });
   });
+  app.get('/staff/patient-checkins/preferences', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'get_feedback_preferences', {});
+  });
+  app.put('/staff/patient-checkins/preferences', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'save_feedback_preferences', req.body);
+  });
+  app.get('/staff/patient-checkins', async (req) => {
+    const c = await claims(req);
+    return callTool(rt, staffCtx(c), 'list_patient_checkins', req.query);
+  });
+  app.post('/staff/patient-checkins', async (req) => {
+    const c = await claims(req);
+    return callTool(rt, staffCtx(c), 'schedule_patient_checkin', req.body);
+  });
+  app.delete('/staff/patient-checkins/:id', async (req) => {
+    const c = await claims(req);
+    return callTool(rt, staffCtx(c), 'cancel_patient_checkin', { id: idParam(req) });
+  });
   app.get('/staff/care-tasks', async (req) => {
     const c = await claims(req, ['doctor']);
     return callTool(rt, staffCtx(c), 'list_care_tasks', req.query);
@@ -825,7 +941,7 @@ export async function buildApp(deps: AppDeps) {
 
   // ---- custom agents: describe in plain words, review, approve ----
   app.post('/staff/agents/test', async (req) => {
-    const c = await claims(req);
+    const c = await claims(req, ['admin']);
     if (deps.simulator === false) throw new ToolError('forbidden', 'Simulation is disabled', 403);
     const body = z
       .object({
@@ -844,7 +960,7 @@ export async function buildApp(deps: AppDeps) {
     );
   });
   app.get('/staff/agents/diagnostics', async (req) => {
-    const c = await claims(req);
+    const c = await claims(req, ['admin']);
     return read(c.clinicId, async (db) => {
       const messages = (
         await db.query(`SELECT id, status, attempts, created_at, next_attempt_at,
@@ -910,7 +1026,7 @@ export async function buildApp(deps: AppDeps) {
     };
   };
   app.get('/staff/agents/whatsapp/setup', async (req) => {
-    const c = await claims(req);
+    const c = await claims(req, ['admin']);
     let setup = await waRead(c.clinicId);
     let connectionAvailable = true;
     if (setup?.channel_id) {
@@ -947,11 +1063,11 @@ export async function buildApp(deps: AppDeps) {
     };
   });
   app.put('/staff/agents/whatsapp/setup', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'request_whatsapp_setup', req.body);
   });
   app.post('/staff/agents/whatsapp/connect', async (req, reply) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     reply.header('Cache-Control', 'no-store');
     const saved = await waRead(c.clinicId);
     if (saved?.state === 'CONNECTING' && saved.session_id)
@@ -991,7 +1107,7 @@ export async function buildApp(deps: AppDeps) {
     }
   });
   app.post('/staff/agents/whatsapp/complete', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     const row = await waRead(c.clinicId);
     if (!row?.session_id || row.state !== 'CONNECTING')
       throw new ToolError('setup_conflict', 'Refresh your saved setup status.', 409);
@@ -1072,11 +1188,11 @@ export async function buildApp(deps: AppDeps) {
     );
   };
   app.post('/staff/agents/whatsapp/prepare', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return prepareWhatsApp(c.clinicId);
   });
   app.post('/staff/agents/whatsapp/refresh', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     let row = await waRead(c.clinicId);
     if (row?.channel_id) {
       const fresh = await currentWhatsApp(c.clinicId, row);
@@ -1106,7 +1222,7 @@ export async function buildApp(deps: AppDeps) {
     return row;
   });
   app.post('/staff/agents/whatsapp/activation', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body);
     const row = await waRead(c.clinicId);
     if (!row?.channel_id)
@@ -1144,22 +1260,61 @@ export async function buildApp(deps: AppDeps) {
   });
 
   app.get('/staff/agents/calling/readiness', async (req) => {
-    const c=await claims(req);
-    return callingRequest(deps.callingBridge,deps.whatsappPlatform,c.clinicId,'readiness',z.object({ready:z.boolean(),code:z.string(),message:z.string(),enabled:z.boolean(),live_call_verified:z.boolean()}));
+    const c = await claims(req, ['admin']);
+    return callingRequest(
+      deps.callingBridge,
+      deps.whatsappPlatform,
+      c.clinicId,
+      'readiness',
+      z.object({
+        ready: z.boolean(),
+        code: z.string(),
+        message: z.string(),
+        enabled: z.boolean(),
+        live_call_verified: z.boolean(),
+      }),
+    );
   });
   app.get('/staff/agents/calling/calls', async (req) => {
-    const c=await claims(req);
-    const q=z.object({before:z.string().uuid().optional()}).parse(req.query);
-    return callingRequest(deps.callingBridge,deps.whatsappPlatform,c.clinicId,'calls',z.object({calls:z.array(z.object({id:z.string().uuid(),state:z.enum(['ACTIVE','HANDOFF','COMPLETED','FAILED']),last_turn:z.number().int(),duration_seconds:z.number().int().nullable(),created_at:z.string(),updated_at:z.string()})),next_before:z.string().uuid().nullable()}),undefined,q.before);
+    const c = await claims(req, ['admin']);
+    const q = z.object({ before: z.string().uuid().optional() }).parse(req.query);
+    return callingRequest(
+      deps.callingBridge,
+      deps.whatsappPlatform,
+      c.clinicId,
+      'calls',
+      z.object({
+        calls: z.array(
+          z.object({
+            id: z.string().uuid(),
+            state: z.enum(['ACTIVE', 'HANDOFF', 'COMPLETED', 'FAILED']),
+            last_turn: z.number().int(),
+            duration_seconds: z.number().int().nullable(),
+            created_at: z.string(),
+            updated_at: z.string(),
+          }),
+        ),
+        next_before: z.string().uuid().nullable(),
+      }),
+      undefined,
+      q.before,
+    );
   });
   app.post('/staff/agents/calling/activation', async (req) => {
-    const c=await claims(req,['doctor']);
-    const body=z.object({enabled:z.boolean()}).strict().parse(req.body);
-    return callingRequest(deps.callingBridge,deps.whatsappPlatform,c.clinicId,'activation',z.object({enabled:z.boolean(),live_call_verified:z.boolean()}),body);
+    const c = await claims(req, ['admin']);
+    const body = z.object({ enabled: z.boolean() }).strict().parse(req.body);
+    return callingRequest(
+      deps.callingBridge,
+      deps.whatsappPlatform,
+      c.clinicId,
+      'activation',
+      z.object({ enabled: z.boolean(), live_call_verified: z.boolean() }),
+      body,
+    );
   });
 
   app.get('/staff/agents/connections', async (req) => {
-    const c = await claims(req);
+    const c = await claims(req, ['admin']);
     const clinic = (await pool.query('SELECT slug FROM clinics WHERE id=$1', [c.clinicId])).rows[0];
     let channelActive = false;
     try {
@@ -1184,11 +1339,11 @@ export async function buildApp(deps: AppDeps) {
     };
   });
   app.get('/staff/agents', async (req) => {
-    const c = await claims(req);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'list_custom_agents', {});
   });
   app.post('/staff/agents/interpret', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     const { text } = z.object({ text: z.string().trim().min(5).max(500) }).parse(req.body);
     if (deps.agentPlatform) return draftFromPlatform(deps.agentPlatform, c.clinicId, text);
     const out = await callTool(rt, staffCtx(c), 'interpret_agent_request', { text });
@@ -1196,34 +1351,34 @@ export async function buildApp(deps: AppDeps) {
     return (await llmInterpret(gate, text)) ?? out;
   });
   app.post('/staff/agents/preview', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'preview_custom_agent', { spec: (req.body as any)?.spec });
   });
   app.post('/staff/agents', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'create_custom_agent', req.body);
   });
   app.patch('/staff/agents/:id', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'update_custom_agent', {
       ...(req.body as object),
       agentId: idParam(req),
     });
   });
   app.post('/staff/agents/:id/activate', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'activate_custom_agent', { agentId: idParam(req) });
   });
   app.post('/staff/agents/:id/pause', async (req) => {
-    const c = await claims(req);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'pause_custom_agent', { agentId: idParam(req) });
   });
   app.post('/staff/agents/:id/resume', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'resume_custom_agent', { agentId: idParam(req) });
   });
   app.delete('/staff/agents/:id', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'delete_custom_agent', { agentId: idParam(req) });
   });
 
@@ -1244,6 +1399,7 @@ export async function buildApp(deps: AppDeps) {
         clinicName: z.string().trim().min(2).max(80),
         slug: z.string().trim().toLowerCase().optional(),
         doctorName: z.string().trim().min(2).max(80),
+        adminName: z.string().trim().min(2).max(80),
         email: z.string().email().max(120),
         password: z.string().min(10, 'Password must be at least 10 characters').max(100),
       })
@@ -1260,10 +1416,11 @@ export async function buildApp(deps: AppDeps) {
         .replace(/^-+|-+$/g, '')
         .slice(0, 40);
     try {
-      const r = await pool.query('SELECT create_clinic($1,$2,$3,$4,$5) AS id', [
+      const r = await pool.query('SELECT create_clinic_with_admin($1,$2,$3,$4,$5,$6) AS id', [
         slug,
         b.clinicName,
         b.doctorName,
+        b.adminName,
         b.email,
         await hashPassword(b.password),
       ]);
@@ -1271,7 +1428,7 @@ export async function buildApp(deps: AppDeps) {
       const claimsOut: Claims = {
         uid: u.id,
         clinicId: r.rows[0].id,
-        role: 'doctor',
+        role: u.role,
         doctorId: u.doctor_id,
         name: u.name,
       };
@@ -1296,7 +1453,7 @@ export async function buildApp(deps: AppDeps) {
     return callTool(rt, staffCtx(c), 'get_setup_status', {});
   });
   app.post('/staff/setup/complete', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'complete_setup', {});
   });
   app.get('/staff/doctors/all', async (req) => {
@@ -1312,11 +1469,11 @@ export async function buildApp(deps: AppDeps) {
     );
   });
   app.post('/staff/doctors', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'add_doctor', req.body);
   });
   app.patch('/staff/doctors/:id', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin', 'doctor']);
     return callTool(rt, staffCtx(c), 'update_doctor', {
       ...(req.body as object),
       doctorId: idParam(req),
@@ -1327,17 +1484,17 @@ export async function buildApp(deps: AppDeps) {
     return callTool(rt, staffCtx(c), 'list_staff', {});
   });
   app.post('/staff/team', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'add_staff', req.body);
   });
   app.delete('/staff/team/:id', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'remove_staff', { id: idParam(req) });
   });
 
   // ---- integrations (doctor): API keys and webhooks ----
   app.get('/staff/integrations', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     const [keys, hooks] = await Promise.all([
       callTool(rt, staffCtx(c), 'list_api_keys', {}),
       callTool(rt, staffCtx(c), 'list_webhooks', {}),
@@ -1345,34 +1502,34 @@ export async function buildApp(deps: AppDeps) {
     return { ...keys, ...hooks, events: WEBHOOK_EVENTS };
   });
   app.post('/staff/integrations/keys', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'create_api_key', req.body);
   });
   app.delete('/staff/integrations/keys/:id', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'revoke_api_key', { id: idParam(req) });
   });
   app.post('/staff/integrations/webhooks', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'create_webhook', req.body);
   });
   app.patch('/staff/integrations/webhooks/:id', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'update_webhook', {
       ...(req.body as object),
       id: idParam(req),
     });
   });
   app.delete('/staff/integrations/webhooks/:id', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'delete_webhook', { id: idParam(req) });
   });
   app.get('/staff/integrations/webhooks/:id/deliveries', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'list_webhook_deliveries', { webhookId: idParam(req) });
   });
   app.post('/staff/integrations/test', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'test_webhook', {});
   });
 
@@ -1747,11 +1904,11 @@ export async function buildApp(deps: AppDeps) {
     return callTool(rt, staffCtx(c), 'get_clinic_settings', {});
   });
   app.put('/staff/settings', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'update_clinic_settings', req.body);
   });
   app.put('/staff/settings/whatsapp', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'set_doctor_whatsapp_number', req.body);
   });
   app.post('/staff/settings/phrases', async (req) => {
@@ -1759,7 +1916,7 @@ export async function buildApp(deps: AppDeps) {
     return callTool(rt, staffCtx(c), 'add_red_flag_phrase', req.body);
   });
   app.delete('/staff/settings/phrases/:id', async (req) => {
-    const c = await claims(req, ['doctor']);
+    const c = await claims(req, ['admin', 'doctor']);
     return callTool(rt, staffCtx(c), 'remove_red_flag_phrase', { id: idParam(req) });
   });
 

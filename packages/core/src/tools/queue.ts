@@ -1,3 +1,4 @@
+import { scheduleFinishedVisitFeedback } from './automatic-feedback';
 import { z } from 'zod';
 import { defineTool, ToolError, type ToolRun } from './registry';
 import { clinicToday, getSettings, notifyPatient, queueSnapshot } from './common';
@@ -36,6 +37,7 @@ export const callNextPatient = defineTool({
     );
     for (const f of finished.rows) {
       await planFollowups(r, 'finished', f.patient_id, undefined, f.id);
+      await scheduleFinishedVisitFeedback(r, f.id);
       await emitWebhook(
         db,
         ctx.clinicId,
@@ -112,6 +114,7 @@ export const finishVisit = defineTool({
     );
     if (!u.rowCount) throw new ToolError('not_found', 'No active visit with that id', 404);
     await planFollowups(r, 'finished', u.rows[0].patient_id, undefined, queueEntryId);
+    const feedback = await scheduleFinishedVisitFeedback(r, queueEntryId);
     await emitWebhook(
       r.db,
       r.ctx.clinicId,
@@ -120,7 +123,7 @@ export const finishVisit = defineTool({
       { patientId: u.rows[0].patient_id },
     );
     r.emit({ type: 'queue_changed', doctorId: u.rows[0].doctor_id });
-    return { ok: true };
+    return { ok: true, feedback };
   },
 });
 

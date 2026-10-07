@@ -2,35 +2,50 @@
 
 import { useSection } from './useSection';
 import { usePathname } from 'next/navigation';
-import { session, useSession } from '../../lib/api';
+import { session, useSession, roleHome } from '../../lib/api';
 
 const doctorNav = [
   { label: 'Today', href: '/doctor', group: 'today' },
   { label: 'Patients', href: '/doctor#patient-search', group: 'patients' },
   { label: 'Care', href: '/doctor/care', group: 'care' },
-  { label: 'Assistants', href: '/doctor/agents', group: 'assistants' },
   { label: 'Clinic', href: '/doctor/practice', group: 'clinic' },
 ];
 
+const adminNav = [
+  { label: 'Overview', href: '/admin', group: 'overview' },
+  { label: 'Clinic details', href: '/admin/settings', group: 'settings' },
+  { label: 'Doctors & team', href: '/admin/team', group: 'team' },
+  { label: 'Assistants', href: '/admin/agents', group: 'agents' },
+  { label: 'Connections', href: '/admin/integrations', group: 'integrations' },
+];
 const receptionNav = [
   { label: 'Today', href: '/console', group: 'today' },
+  { label: 'QR arrivals', href: '/console/arrivals', group: 'arrivals' },
   { label: 'Conversations', href: '/console#conversations', group: 'conversations' },
   { label: 'Waiting list', href: '/doctor/waitlist', group: 'waitlist' },
+  { label: 'Patient check-ins', href: '/console/checkins', group: 'checkins' },
   { label: 'Privacy requests', href: '/console/privacy', group: 'privacy' },
 ];
 
 const currentHash = (hash: string) => hash;
 
 function activeGroup(pathname: string, role: string, hash: string) {
+  if (role === 'admin') return pathname.split('/')[2] || 'overview';
   if (role === 'receptionist') {
     if (pathname === '/console' && hash === 'conversations') return 'conversations';
+    if (pathname.includes('/arrivals')) return 'arrivals';
+    if (pathname.includes('/checkins')) return 'checkins';
     if (pathname.includes('/privacy')) return 'privacy';
     if (pathname.includes('/waitlist')) return 'waitlist';
     return 'today';
   }
   if (pathname === '/doctor' && hash === 'patient-search') return 'patients';
   if (pathname.includes('/patients/')) return 'patients';
-  if (['/inbox', '/care', '/waitlist', '/templates'].some((part) => pathname.includes(part)))
+  if (
+    ['/inbox', '/care', '/waitlist', '/templates', '/checkins', '/feedback'].some((part) =>
+      pathname.includes(part),
+    )
+  )
     return 'care';
   if (pathname.includes('/agents')) return 'assistants';
   if (
@@ -49,7 +64,7 @@ export function ClinicShell({ children }: { children: React.ReactNode }) {
   const hash = useSection(currentHash, '');
   if (!current) return <>{children}</>;
   const role = current.user.role;
-  const nav = role === 'receptionist' ? receptionNav : doctorNav;
+  const nav = role === 'admin' ? adminNav : role === 'receptionist' ? receptionNav : doctorNav;
   const active = activeGroup(pathname, role, hash);
   const initials = current.user.name
     .split(/\s+/)
@@ -61,7 +76,7 @@ export function ClinicShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="clinic-shell">
       <aside className="clinic-sidebar" aria-label="Main navigation">
-        <a className="clinic-brand" href={role === 'receptionist' ? '/console' : '/doctor'}>
+        <a className="clinic-brand" href={roleHome(role)}>
           <span className="clinic-brand-mark" aria-hidden="true">
             ✚
           </span>
@@ -70,7 +85,8 @@ export function ClinicShell({ children }: { children: React.ReactNode }) {
         <div className="clinic-identity">
           <b>Clinic workspace</b>
           <span>
-            {current.user.name} · {role === 'receptionist' ? 'Reception' : 'Doctor'}
+            {current.user.name} ·{' '}
+            {role === 'admin' ? 'Admin' : role === 'receptionist' ? 'Receptionist' : 'Doctor'}
           </span>
         </div>
         <nav className="clinic-nav">
@@ -86,8 +102,9 @@ export function ClinicShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
         <nav className="clinic-secondary-nav" aria-label="Clinic administration">
-          {role !== 'receptionist' && <a href="/doctor/settings">Settings</a>}
-          <a href="/safety">Safety &amp; privacy</a>
+          {role === 'doctor' && <a href="/doctor/settings">My profile</a>}
+          {role === 'admin' && <a href="/admin/setup">Setup checklist</a>}
+          {role !== 'admin' && <a href="/safety">Safety &amp; privacy</a>}
           <button
             type="button"
             onClick={() => {
@@ -103,14 +120,22 @@ export function ClinicShell({ children }: { children: React.ReactNode }) {
         <header className="clinic-global-bar">
           <a
             className="clinic-global-search"
-            href={role === 'receptionist' ? '/console' : '/doctor#patient-search'}
+            href={
+              role === 'admin'
+                ? '/admin/setup'
+                : role === 'receptionist'
+                  ? '/console'
+                  : '/doctor#patient-search'
+            }
           >
             <span aria-hidden="true">⌕</span>
-            {role === 'receptionist'
-              ? 'Open reception workspace'
-              : 'Find a patient by name or phone'}
+            {role === 'admin'
+              ? 'Open clinic setup checklist'
+              : role === 'receptionist'
+                ? 'Open reception workspace'
+                : 'Find a patient by name or phone'}
           </a>
-          <a className="clinic-help" href="/safety">
+          <a className="clinic-help" href={role === 'admin' ? '/admin/setup' : '/safety'}>
             Help
           </a>
           <span className="clinic-avatar" aria-label={current.user.name}>
@@ -118,7 +143,11 @@ export function ClinicShell({ children }: { children: React.ReactNode }) {
           </span>
         </header>
         <div className="app-shell-content">{children}</div>
-        <nav className="clinic-mobile-nav" aria-label="Mobile navigation">
+        <nav
+          className="clinic-mobile-nav"
+          aria-label="Mobile navigation"
+          style={{ gridTemplateColumns: `repeat(${nav.length}, minmax(0, 1fr))` }}
+        >
           {nav.map((item) => (
             <a
               key={item.group}

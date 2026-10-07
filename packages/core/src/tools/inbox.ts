@@ -20,6 +20,7 @@ export const doctorInbox = defineTool({
         'messages',
         'result',
         'insurance',
+        'checkin',
       ])
       .default('all'),
   }),
@@ -51,6 +52,12 @@ export const doctorInbox = defineTool({
         t.title,CASE t.status WHEN 'requested' THEN 'Requested work is still outstanding.' WHEN 'received' THEN 'Ready for doctor review.' ELSE 'Patient still needs to be informed.' END,
         t.created_at,t.due_at,u.name,NULL,'/doctor/patients/'||t.patient_id||'#care-tasks','[]'::jsonb
       FROM care_tasks t LEFT JOIN staff_users u ON u.id=t.assigned_to WHERE t.status NOT IN ('informed','cancelled')
+      UNION ALL
+      SELECT 'checkin:'||c.id,'checkin',c.patient_id,CASE WHEN c.urgent THEN 0 WHEN COALESCE(c.response_due_at,c.scheduled_at)<now() THEN 1 ELSE 2 END,
+        CASE WHEN c.urgent THEN 'Urgent patient check-in' WHEN c.work_status='planned' THEN 'Patient check-in due' ELSE 'Patient feedback needs follow-through' END,
+        CASE WHEN c.work_status='planned' THEN 'No response recorded; review contact and delivery status.' ELSE 'Review the original response and record the clinic action.' END,
+        c.updated_at,COALESCE(c.response_due_at,c.scheduled_at),u.name,NULL,'/doctor/checkins#case-'||c.id,'[]'::jsonb
+      FROM patient_checkins c JOIN staff_users u ON u.id=c.assigned_to WHERE c.status='scheduled' AND c.work_status<>'closed' AND (c.work_status<>'planned' OR c.scheduled_at<now())
       UNION ALL
       SELECT 'report:'||d.id,'report',d.patient_id,2,'Report or photo awaiting review',d.filename,d.created_at,NULL,NULL,NULL,
         '/doctor/patients/'||d.patient_id||'#documents','[]'::jsonb FROM patient_documents d WHERE d.status='new'
@@ -87,6 +94,7 @@ export const doctorInbox = defineTool({
         WHEN i.kind='conversation' THEN (SELECT human_user_id FROM conversations WHERE id=i.conversation_id)
         WHEN i.kind='task' THEN (SELECT assigned_to FROM care_tasks WHERE id=split_part(i.key,':',2)::uuid)
         WHEN i.kind='followup' THEN (SELECT cp.assigned_to FROM care_plan_steps cs JOIN care_plans cp ON cp.id=cs.plan_id WHERE cs.id=split_part(i.key,':',2)::uuid)
+        WHEN i.kind='checkin' THEN (SELECT assigned_to FROM patient_checkins WHERE id=split_part(i.key,':',2)::uuid)
         WHEN i.kind='insurance' THEN (SELECT assigned_to FROM insurance_cases WHERE id=split_part(i.key,':',2)::uuid)
         WHEN i.kind='draft' THEN $2::uuid
         ELSE NULL::uuid

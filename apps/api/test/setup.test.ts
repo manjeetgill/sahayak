@@ -20,6 +20,7 @@ const good = {
   clinicName: 'Setup Test Clinic',
   slug,
   doctorName: 'Dr. Owner',
+  adminName: 'Clinic Owner',
   email: docEmail,
   password: 'a-long-password-1',
 };
@@ -53,6 +54,7 @@ describe('signup (invite only)', () => {
     expect(ok.statusCode).toBe(200);
     tok = ok.json().token;
     expect(ok.json().slug).toBe(slug);
+    expect(ok.json().user.role).toBe('admin');
     const pub = (await app.inject({ url: `/public/${slug}` })).json();
     expect(pub.clinic).toBe('Setup Test Clinic');
     expect(pub.doctors).toHaveLength(1);
@@ -223,6 +225,23 @@ describe('guided checklist', () => {
     });
   });
   it('can finish once the required items are done', async () => {
+    const doctors = (await app.inject({ url: '/staff/doctors/all', headers: h() })).json();
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/staff/team',
+          headers: h(),
+          payload: {
+            name: 'Dr Owner',
+            email: `doctor-${tag}@t.in`,
+            role: 'doctor',
+            doctorId: doctors[0].id,
+            password: 'doctor-password-123',
+          },
+        })
+      ).statusCode,
+    ).toBe(200);
     const st = (await app.inject({ url: '/staff/setup', headers: h() })).json();
     expect(st.readyToFinish).toBe(true);
     expect(

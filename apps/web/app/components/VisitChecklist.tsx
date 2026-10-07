@@ -1,4 +1,5 @@
 'use client';
+import { PatientCheckins } from './PatientCheckins';
 import { displayLabel } from '../../lib/labels';
 import { useState } from 'react';
 import { staff } from '../../lib/api';
@@ -69,6 +70,51 @@ export function VisitChecklist({ id, onFinished }: { id: string; onFinished: () 
           <a href={`/doctor/patients/${data.visit.patient_id}`}>
             Review notes, documents and follow-up tasks
           </a>
+          <section className="card" aria-label="Feedback after this visit">
+            <h3>Feedback after this visit</h3>
+            {data.feedbackPlan?.state === 'ready' ? (
+              <>
+                <p>
+                  Finishing this visit will automatically schedule a check-in for{' '}
+                  <strong>
+                    {new Date(data.feedbackPlan.scheduledAt).toLocaleString(undefined, {
+                      timeZone: data.feedbackPlan.timezone,
+                    })}{' '}
+                    ({data.feedbackPlan.timezone})
+                  </strong>
+                  , assigned to {data.feedbackPlan.assignee}.
+                </p>
+                {!data.feedbackPlan.deliveryEnabled && (
+                  <p>
+                    WhatsApp invitations are paused. Your admin needs to enable delivery; the
+                    check-in will still be scheduled.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p>
+                {data.feedbackPlan?.state === 'existing'
+                  ? 'A check-in already exists for this visit. No duplicate will be created.'
+                  : data.feedbackPlan?.state === 'cancelled'
+                    ? 'The check-in for this visit was cancelled. Finishing will not create it again.'
+                    : data.feedbackPlan?.state === 'no_permission'
+                      ? 'Feedback will not be scheduled: patient messaging and follow-up permission is missing.'
+                      : data.feedbackPlan?.state === 'no_owner'
+                        ? 'Feedback needs a responsible care staff member. Check your feedback settings.'
+                        : 'Automatic feedback is off. Turn it on once in your feedback settings.'}
+              </p>
+            )}
+            <a href="/doctor/checkins#settings" target="_blank" rel="noreferrer">
+              Change my automatic feedback settings
+            </a>
+            <p className="muted">
+              Reopen this checklist after changing settings to refresh this preview.
+            </p>
+          </section>
+          <details>
+            <summary>Schedule a different check-in for this patient</summary>
+            <PatientCheckins patientId={data.visit.patient_id} visitId={id} />
+          </details>
           <label className="check">
             <input
               type="checkbox"

@@ -2,8 +2,8 @@ import { z } from 'zod';
 import { ClinicSettingsUpdate, violatesMedicalPolicy } from '@sahayak/shared';
 import { defineTool, ToolError } from './registry';
 
-const DOCTOR = ['staff:doctor'];
-const STAFF = ['staff:doctor', 'staff:receptionist'];
+const ADMIN = ['staff:admin'];
+const STAFF = ['staff:admin', 'staff:doctor', 'staff:receptionist'];
 
 export const getClinicSettings = defineTool({
   name: 'get_clinic_settings',
@@ -77,7 +77,7 @@ export const updateClinicSettings = defineTool({
     'Doctor changes how the agents behave: clinic info, intake questions, FAQs, follow-up timings, which agents are on.',
   module: 'core',
   input: ClinicSettingsUpdate,
-  allow: DOCTOR,
+  allow: ADMIN,
   async run({ db, ctx }, patch) {
     const cur = (await db.query('SELECT * FROM clinic_settings WHERE clinic_id=$1', [ctx.clinicId]))
       .rows[0];
@@ -155,7 +155,7 @@ export const removeRedFlagPhrase = defineTool({
     'Remove a phrase this clinic added earlier. Built-in phrases live in code and are not affected.',
   module: 'core',
   input: z.object({ id: z.string().uuid() }),
-  allow: DOCTOR,
+  allow: [...ADMIN, 'staff:doctor'],
   async run({ db }, { id }) {
     await db.query('DELETE FROM red_flag_phrases WHERE id=$1', [id]);
     return { ok: true };
@@ -171,7 +171,7 @@ export const setDoctorWhatsappNumber = defineTool({
     doctorId: z.string().uuid().optional(),
     number: z.string().regex(/^(\+\d{10,14})?$/, 'Use international format, e.g. +919876543210'),
   }),
-  allow: DOCTOR,
+  allow: ADMIN,
   async run({ db, ctx }, i) {
     const a = ctx.actor;
     const doctorId = a.kind === 'staff' && a.doctorId ? a.doctorId : i.doctorId;

@@ -69,7 +69,7 @@ export const whatsappSetupTools = [
       phone: z.string().regex(/^\+[1-9]\d{7,14}$/),
       faq: z.string().max(12000).default(''),
     }),
-    allow: ['staff:doctor'],
+    allow: ['staff:admin'],
     auditInput: () => ({ details: 'redacted' }),
     auditOutput: () => ({ saved: true }),
     async run({ db, ctx }, i) {

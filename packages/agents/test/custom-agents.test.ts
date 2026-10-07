@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
-import { addPatient, createTestClinic, dropTestClinic, makePool, withClinic } from '@sahayak/db';
+import { addPatient, createTestClinic, dropTestClinic, makePool } from '@sahayak/db';
 import { EventBus, callTool, registerAllTools, type ToolContext } from '@sahayak/core';
 import { LlmGate, handleInbound } from '../src';
 
@@ -10,7 +10,7 @@ const rt = { pool, bus: new EventBus('') };
 const env = { rt, gate: new LlmGate(null) };
 let A: Awaited<ReturnType<typeof createTestClinic>>,
   B: Awaited<ReturnType<typeof createTestClinic>>;
-let doc: ToolContext, rec: ToolContext, sys: ToolContext, docB: ToolContext;
+let manager: ToolContext, managerB: ToolContext, doc: ToolContext, rec: ToolContext;
 const ids: Record<string, string> = {};
 
 const weekly = (
@@ -22,7 +22,7 @@ const weekly = (
   audience: { tags: [tag] },
   action: { type: 'message_patients', text: { en: text, hi } },
 });
-const create = async (spec: object, name = 'Test agent', ctx = doc) =>
+const create = async (spec: object, name = 'Test agent', ctx = manager) =>
   (await callTool(rt, ctx, 'create_custom_agent', { name, spec })).agentId as string;
 const dueNow = (agentId: string) =>
   admin.query("UPDATE custom_agents SET next_run_at = now() - interval '1 minute' WHERE id=$1", [
@@ -54,9 +54,11 @@ const staffOf = async (clinic: typeof A, role: string, doctorId: string | null, 
   return {
     clinicId: clinic.clinicId,
     actor:
-      role === 'doctor'
-        ? { kind: 'staff' as const, role: 'doctor' as const, userId: u, doctorId }
-        : { kind: 'staff' as const, role: 'receptionist' as const, userId: u },
+      role === 'admin'
+        ? { kind: 'staff' as const, role: 'admin' as const, userId: u }
+        : role === 'doctor'
+          ? { kind: 'staff' as const, role: 'doctor' as const, userId: u, doctorId }
+          : { kind: 'staff' as const, role: 'receptionist' as const, userId: u },
   } as ToolContext;
 };
 const tag = (id: string, tags: string[]) =>
@@ -67,10 +69,11 @@ beforeAll(async () => {
   registerAllTools();
   A = await createTestClinic(admin, 'cag');
   B = await createTestClinic(admin, 'cagb');
+  manager = await staffOf(A, 'admin', null);
+  managerB = await staffOf(B, 'admin', null);
   doc = await staffOf(A, 'doctor', A.doctorIds[0], '+919810000001');
   rec = await staffOf(A, 'receptionist', null, '+919810000002');
-  docB = await staffOf(B, 'doctor', B.doctorIds[0]);
-  sys = { clinicId: A.clinicId, actor: { kind: 'system' } };
+
   ids.ok = await addPatient(admin, A.clinicId, 'Asha Diab', '+919811000001');
   ids.hindi = await addPatient(admin, A.clinicId, 'Hindi Pt', '+919811000002', { lang: 'hi' });
   ids.noConsent = await addPatient(admin, A.clinicId, 'No Consent', '+919811000003', {
@@ -91,7 +94,7 @@ afterAll(async () => {
 });
 
 describe('lifecycle and approval', () => {
-  it('a new agent is a draft and does nothing; only a doctor can activate', async () => {
+  it('a new agent is a draft and does nothing; only an admin can activate', async () => {
     const id = await create(weekly('diabetes'), 'Diabetes reminder');
     expect(
       (await admin.query('SELECT status, next_run_at FROM custom_agents WHERE id=$1', [id]))
@@ -103,19 +106,19 @@ describe('lifecycle and approval', () => {
     await expect(
       callTool(rt, rec, 'create_custom_agent', { name: 'x y z', spec: weekly('a') }),
     ).rejects.toThrow(/may not call/);
-    const act = await callTool(rt, doc, 'activate_custom_agent', { agentId: id });
+    const act = await callTool(rt, manager, 'activate_custom_agent', { agentId: id });
     expect(new Date(act.nextRunAt).getTime()).toBeGreaterThan(Date.now());
     expect(new Date(act.nextRunAt).getUTCDay()).toBeDefined();
   });
   it('invalid specs cannot even be saved', async () => {
     await expect(
-      callTool(rt, doc, 'create_custom_agent', {
+      callTool(rt, manager, 'create_custom_agent', {
         name: 'Bad one',
         spec: weekly('x', 'Take paracetamol 500 mg'),
       }),
     ).rejects.toThrow(/medical advice/);
     await expect(
-      callTool(rt, doc, 'create_custom_agent', {
+      callTool(rt, manager, 'create_custom_agent', {
         name: 'Bad two',
         spec: { ...weekly('x'), audience: {} },
       }),
@@ -123,13 +126,16 @@ describe('lifecycle and approval', () => {
   });
   it('editing sets it back to draft and cancels pending runs; the receptionist can pause but not resume', async () => {
     const id = await create(weekly('diabetes'), 'Edit me');
-    await callTool(rt, doc, 'activate_custom_agent', { agentId: id });
+    await callTool(rt, manager, 'activate_custom_agent', { agentId: id });
     await callTool(rt, rec, 'pause_custom_agent', { agentId: id });
     await expect(callTool(rt, rec, 'resume_custom_agent', { agentId: id })).rejects.toThrow(
       /may not call/,
     );
-    await callTool(rt, doc, 'resume_custom_agent', { agentId: id });
-    const u = await callTool(rt, doc, 'update_custom_agent', { agentId: id, spec: weekly('bp') });
+    await callTool(rt, manager, 'resume_custom_agent', { agentId: id });
+    const u = await callTool(rt, manager, 'update_custom_agent', {
+      agentId: id,
+      spec: weekly('bp'),
+    });
     expect(u.status).toBe('draft');
     expect(
       (await admin.query('SELECT status FROM custom_agents WHERE id=$1', [id])).rows[0].status,
@@ -140,17 +146,17 @@ describe('lifecycle and approval', () => {
     const made: string[] = [];
     for (let i = 0; i < 6; i++) made.push(await create(weekly(`tag${i}`), `Agent number ${i}`));
     for (let i = 0; i < 5; i++)
-      await callTool(rt, doc, 'activate_custom_agent', { agentId: made[i] });
-    await expect(callTool(rt, doc, 'activate_custom_agent', { agentId: made[5] })).rejects.toThrow(
-      /At most 5/,
-    );
+      await callTool(rt, manager, 'activate_custom_agent', { agentId: made[i] });
+    await expect(
+      callTool(rt, manager, 'activate_custom_agent', { agentId: made[5] }),
+    ).rejects.toThrow(/At most 5/);
     await admin.query('DELETE FROM custom_agents WHERE clinic_id=$1', [A.clinicId]);
   });
 });
 
 describe('preview shows what would happen, and sends nothing', () => {
   it('counts only patients who may be messaged', async () => {
-    const p = await callTool(rt, doc, 'preview_custom_agent', { spec: weekly('diabetes') });
+    const p = await callTool(rt, manager, 'preview_custom_agent', { spec: weekly('diabetes') });
     expect(p.valid).toBe(true);
     expect(p.audience.count).toBe(2); // Asha and the Hindi patient: no-consent and other-clinic patients are excluded
     expect(p.audience.sample.sort()).toEqual(['Asha', 'Hindi']);
@@ -161,7 +167,7 @@ describe('preview shows what would happen, and sends nothing', () => {
     ).toBe(0);
   });
   it('explains a problem instead of previewing an invalid agent', async () => {
-    const p = await callTool(rt, doc, 'preview_custom_agent', {
+    const p = await callTool(rt, manager, 'preview_custom_agent', {
       spec: weekly('x', 'visit https://evil.test'),
     });
     expect(p.valid).toBe(false);
@@ -180,7 +186,7 @@ describe('running under the fixed rules', () => {
       ),
       'Weekly diabetes reminder',
     );
-    await callTool(rt, doc, 'activate_custom_agent', { agentId });
+    await callTool(rt, manager, 'activate_custom_agent', { agentId });
     await dueNow(agentId);
     const out = await run();
     expect(out.started).toBe(1);
@@ -200,7 +206,7 @@ describe('running under the fixed rules', () => {
       weekly('diabetes', 'Another note from {clinic}, {name}.'),
       'Second agent',
     );
-    await callTool(rt, doc, 'activate_custom_agent', { agentId: second });
+    await callTool(rt, manager, 'activate_custom_agent', { agentId: second });
     await dueNow(second);
     await dueNow(agentId);
     await run();
@@ -250,20 +256,20 @@ describe('running under the fixed rules', () => {
         )
       ).rows[0].status,
     ).toBe('skipped');
-    await callTool(rt, doc, 'delete_custom_agent', { agentId });
+    await callTool(rt, manager, 'delete_custom_agent', { agentId });
     expect((await admin.query('SELECT 1 FROM custom_agents WHERE id=$1', [agentId])).rowCount).toBe(
       0,
     );
   });
   it("a clinic's agents never touch another clinic", async () => {
     const hindiBefore = (await bodies('+919811000002')).length;
-    const idB = await create(weekly('diabetes'), 'Clinic B agent', docB);
-    await callTool(rt, docB, 'activate_custom_agent', { agentId: idB });
+    const idB = await create(weekly('diabetes'), 'Clinic B agent', managerB);
+    await callTool(rt, managerB, 'activate_custom_agent', { agentId: idB });
     await dueNow(idB);
     await run(B);
     expect(await bodies('+919811000005')).toHaveLength(1);
     expect(await bodies('+919811000002')).toHaveLength(hindiBefore); // clinic A patient got nothing from clinic B's agent
-    await expect(callTool(rt, doc, 'delete_custom_agent', { agentId: idB })).rejects.toThrow(
+    await expect(callTool(rt, manager, 'delete_custom_agent', { agentId: idB })).rejects.toThrow(
       /not found/i,
     );
   });
@@ -280,7 +286,7 @@ describe('quiet hours', () => {
     await admin.query('DELETE FROM custom_agent_sends');
     await tag(ids.other, ['quiet']);
     const id = await create(weekly('quiet'), 'Quiet hours agent');
-    await callTool(rt, doc, 'activate_custom_agent', { agentId: id });
+    await callTool(rt, manager, 'activate_custom_agent', { agentId: id });
     await dueNow(id);
     const out = await run();
     expect(out.deferred).toBe(1);
@@ -308,7 +314,7 @@ describe('event-triggered and staff agents', () => {
       },
       'Thank after visit',
     );
-    await callTool(rt, doc, 'activate_custom_agent', { agentId: id });
+    await callTool(rt, manager, 'activate_custom_agent', { agentId: id });
     for (const [pid, phone] of [
       [ids.ok, '+919811000001'],
       [ids.noConsent, '+919811000003'],
@@ -354,7 +360,7 @@ describe('event-triggered and staff agents', () => {
       },
       'Tell reception',
     );
-    await callTool(rt, doc, 'activate_custom_agent', { agentId: id });
+    await callTool(rt, manager, 'activate_custom_agent', { agentId: id });
     const slot = (
       await callTool(rt, rec, 'list_free_slots', { doctorId: A.doctorIds[0], count: 1 })
     ).slots[0];
@@ -385,7 +391,7 @@ describe('event-triggered and staff agents', () => {
       },
       'Evening numbers',
     );
-    await callTool(rt, doc, 'activate_custom_agent', { agentId: id });
+    await callTool(rt, manager, 'activate_custom_agent', { agentId: id });
     await dueNow(id);
     await run();
     const m = await bodies('+919810000001');

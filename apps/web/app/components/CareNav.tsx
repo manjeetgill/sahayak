@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 
 const links = [
   ['/doctor/care', 'Open work'],
+  ['/doctor/checkins', 'Patient check-ins'],
   ['/doctor/waitlist', 'Waiting list'],
   ['/doctor/templates', 'Reusable plans'],
 ] as const;

@@ -5,7 +5,12 @@ import type { LiveEvent, Lang } from '@sahayak/shared';
 import type { EventBus } from '../events';
 
 export type Actor =
-  | { kind: 'staff'; role: 'doctor' | 'receptionist'; userId: string; doctorId?: string | null }
+  | {
+      kind: 'staff';
+      role: 'admin' | 'doctor' | 'receptionist';
+      userId: string;
+      doctorId?: string | null;
+    }
   | { kind: 'agent'; agent: string }
   | { kind: 'api'; keyId: string; scopes: string[] }
   | { kind: 'patient' }
@@ -106,7 +111,9 @@ async function audit(
         ctx.conversationId ?? null,
         actorLabel(ctx.actor),
         tool,
-        JSON.stringify(input ?? null),
+        JSON.stringify(input ?? null, (key, value) =>
+          /password|secret|token/i.test(key) ? '[redacted]' : value,
+        ),
         JSON.stringify(output ?? null),
         ok,
       ],

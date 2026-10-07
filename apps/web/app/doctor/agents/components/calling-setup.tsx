@@ -22,10 +22,10 @@ const states = {
   FAILED: 'Failed',
 };
 export function CallingSetup({
-  isDoctor,
+  canManage,
   onChanged,
 }: {
-  isDoctor: boolean;
+  canManage: boolean;
   onChanged: () => Promise<void>;
 }) {
   const [readiness, setReadiness] = useState<Ready | null>(null),
@@ -94,7 +94,7 @@ export function CallingSetup({
         Check voice connection
       </button>
       {readiness && <p role="status">{readiness.message}</p>}
-      {isDoctor && readiness && !readiness.enabled && readiness.ready && (
+      {canManage && readiness && !readiness.enabled && readiness.ready && (
         <div>
           <label>
             <input
@@ -110,7 +110,7 @@ export function CallingSetup({
           </button>
         </div>
       )}
-      {isDoctor && readiness?.enabled && (
+      {canManage && readiness?.enabled && (
         <button disabled={busy} onClick={() => void activation(false)}>
           Pause incoming calling
         </button>

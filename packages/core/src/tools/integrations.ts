@@ -11,7 +11,7 @@ import {
   clinicToday,
 } from './common';
 
-const DOCTOR = ['staff:doctor'];
+const ADMIN = ['staff:admin'];
 const STAFF = ['staff:doctor', 'staff:receptionist'];
 const EventEnum = z.enum(WEBHOOK_EVENTS);
 
@@ -28,7 +28,7 @@ export const createApiKey = defineTool({
     name: z.string().trim().min(1).max(60),
     scope: z.enum(['read', 'write', 'admin']),
   }),
-  allow: DOCTOR,
+  allow: ADMIN,
   auditOutput: (o: any) => ({ id: o.id, prefix: o.prefix }), // never log the key
   async run({ db, ctx }, i) {
     const prefix = randomBytes(4).toString('hex');
@@ -49,7 +49,7 @@ export const listApiKeys = defineTool({
   module: 'core',
   scope: 'admin',
   input: z.object({}),
-  allow: DOCTOR,
+  allow: ADMIN,
   async run({ db }) {
     return {
       keys: (
@@ -67,7 +67,7 @@ export const revokeApiKey = defineTool({
   module: 'core',
   scope: 'admin',
   input: z.object({ id: z.string().uuid() }),
-  allow: DOCTOR,
+  allow: ADMIN,
   async run({ db }, { id }) {
     const u = await db.query(
       'UPDATE api_keys SET revoked_at=now() WHERE id=$1 AND revoked_at IS NULL RETURNING id',
@@ -91,7 +91,7 @@ export const createWebhook = defineTool({
   module: 'core',
   scope: 'admin',
   input: hookInput,
-  allow: [...DOCTOR, 'api'],
+  allow: [...ADMIN, 'api'],
   auditOutput: (o: any) => ({ id: o.id }), // never log the signing secret
   async run({ db, ctx }, i) {
     try {
@@ -121,7 +121,7 @@ export const updateWebhook = defineTool({
     level: z.enum(['minimal', 'full']).optional(),
     active: z.boolean().optional(),
   }),
-  allow: DOCTOR,
+  allow: ADMIN,
   async run({ db }, i) {
     const u = await db.query(
       `UPDATE webhooks SET events=COALESCE($2,events), level=COALESCE($3,level), active=COALESCE($4,active),
@@ -139,7 +139,7 @@ export const deleteWebhook = defineTool({
   module: 'core',
   scope: 'admin',
   input: z.object({ id: z.string().uuid() }),
-  allow: [...DOCTOR, 'api'],
+  allow: [...ADMIN, 'api'],
   async run({ db }, { id }) {
     const d = await db.query('DELETE FROM webhooks WHERE id=$1 RETURNING id', [id]);
     if (!d.rowCount) throw new ToolError('not_found', 'Webhook not found', 404);
@@ -153,7 +153,7 @@ export const listWebhooks = defineTool({
   module: 'core',
   scope: 'admin',
   input: z.object({}),
-  allow: DOCTOR,
+  allow: ADMIN,
   async run({ db }) {
     const hooks = (
       await db.query(
@@ -174,7 +174,7 @@ export const listWebhookDeliveries = defineTool({
   module: 'core',
   scope: 'admin',
   input: z.object({ webhookId: z.string().uuid() }),
-  allow: DOCTOR,
+  allow: ADMIN,
   async run({ db }, { webhookId }) {
     return {
       deliveries: (
@@ -193,7 +193,7 @@ export const testWebhook = defineTool({
   module: 'core',
   scope: 'admin',
   input: z.object({}),
-  allow: DOCTOR,
+  allow: ADMIN,
   async run({ db, ctx }) {
     await db.query(
       "UPDATE webhooks SET events = array_append(events,'ping') WHERE active AND NOT 'ping' = ANY(events)",

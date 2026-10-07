@@ -1,0 +1,3 @@
+
+# Preserve PDF bytes and avoid treating document streams as source diffs.
+*.pdf binary

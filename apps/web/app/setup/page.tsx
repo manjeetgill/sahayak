@@ -66,7 +66,7 @@ const genPassword = () =>
 
 /** Guided setup: seven short steps from a new account to a clinic that is ready for patients. */
 export default function Setup() {
-  const s = useSession('doctor');
+  const s = useSession('admin');
   const [step, setStep] = useState(0);
   const [cfg, setCfg] = useState<any>(null),
     [status, setStatus] = useState<any>(null),
@@ -140,7 +140,7 @@ export default function Setup() {
             See your public page
           </button>
         </a>
-        <a href="/doctor">Skip for now</a>
+        <a href="/admin">Skip for now</a>
       </div>
       <div className="wrap" style={{ maxWidth: 860 }}>
         <header className="screen-heading">
@@ -392,6 +392,7 @@ export default function Setup() {
                 </div>
               </div>
             )}
+            <p><a href="/admin/team">Create doctor and admin logins in Doctors &amp; team →</a></p>
             <h3 style={{ marginTop: '1rem' }}>Add a receptionist</h3>
             <input
               aria-label="Receptionist name"
@@ -595,7 +596,7 @@ export default function Setup() {
                       Open the waiting-room TV
                     </button>
                   </a>
-                  <a href="/doctor">
+                  <a href="/admin">
                     <button type="button" className="ghost">
                       Go to the doctor screen
                     </button>

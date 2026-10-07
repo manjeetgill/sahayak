@@ -8,11 +8,20 @@ import { api } from '../../../../lib/api';
 export default function Poster({ params }: { params: { slug: string } }) {
   const [clinic, setClinic] = useState(''),
     [url, setUrl] = useState('');
+  const [payment, setPayment] = useState(false);
+  const [unreachable, setUnreachable] = useState(false);
   useEffect(() => {
     api(`/public/${params.slug}`)
       .then((i) => setClinic(i.clinic))
       .catch(() => {});
-    setUrl(`${location.origin}/c/${params.slug}/checkin`);
+    api(`/public/${params.slug}/arrival/setup`)
+      .then((s) => {
+        const base = s.publicWebUrl || location.origin;
+        setPayment(s.enabled);
+        setUrl(`${base}/c/${params.slug}/${s.enabled ? 'arrival' : 'checkin'}`);
+        setUnreachable(['localhost', '127.0.0.1', '[::1]'].includes(new URL(base).hostname));
+      })
+      .catch(() => setUnreachable(true));
   }, [params.slug]);
   return (
     <div
@@ -30,13 +39,32 @@ export default function Poster({ params }: { params: { slug: string } }) {
         <h1 style={{ fontSize: '2.6rem', margin: 0 }}>{clinic}</h1>
         <p style={{ fontSize: '1.6rem', margin: '1.5rem 0 .2rem' }}>{t('en', 'tv.scan')}</p>
         <p style={{ fontSize: '1.6rem', margin: '0 0 1.5rem' }}>{t('hi', 'tv.scan')}</p>
-        {url && <QRCodeSVG value={url} size={360} />}
+        {url && !unreachable && (
+          <QRCodeSVG value={url} size={360} style={{ maxWidth: '100%', height: 'auto' }} />
+        )}
+        {unreachable && (
+          <p className="error">
+            This address only works on this computer. Ask your admin to save a phone-accessible
+            address under Patient check-in QR before printing.
+          </p>
+        )}
+        {payment && (
+          <p>
+            Scan → enter your details → pay at reception → receive your queue token.
+            <br />
+            स्कैन करें → जानकारी दें → रिसेप्शन पर भुगतान करें → टोकन पाएं।
+          </p>
+        )}
         <p style={{ fontSize: '1.1rem', marginTop: '1.2rem' }}>
           {t('en', 'checkin.title', { clinic })}
         </p>
         <p style={{ color: '#555', wordBreak: 'break-all' }}>{url}</p>
         <p className="noprint">
-          <button onClick={() => window.print()} style={{ fontSize: '1.1rem' }}>
+          <button
+            disabled={unreachable || !url}
+            onClick={() => window.print()}
+            style={{ fontSize: '1.1rem' }}
+          >
             Print this poster
           </button>
         </p>

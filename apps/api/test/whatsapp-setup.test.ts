@@ -26,16 +26,26 @@ const remote = vi.fn(
       { status: 200 },
     ),
 );
-const h = (clinicId: string, role = 'doctor') => ({
+const h = (clinicId: string, role = 'admin') => ({
   authorization:
     'Bearer ' +
-    app.jwt.sign({ uid: a.doctorIds[0], clinicId, role, doctorId: a.doctorIds[0], name: 'Test' }),
+    app.jwt.sign({ uid: staffIds[clinicId + role], clinicId, role, doctorId: null, name: 'Test' }),
 });
+const staffIds: Record<string, string> = {};
 beforeAll(async () => {
   await migrate();
   await admin.connect();
   a = await createTestClinic(admin, 'was');
   b = await createTestClinic(admin, 'wab');
+  for (const c of [a, b])
+    for (const role of ['admin', 'doctor', 'receptionist']) {
+      staffIds[c.clinicId + role] = (
+        await admin.query(
+          "INSERT INTO staff_users(clinic_id,email,password_hash,name,role) VALUES($1,$2,'unused',$3,$3) RETURNING id",
+          [c.clinicId, `${role}-${c.slug}@test.invalid`, role],
+        )
+      ).rows[0].id;
+    }
   app = await buildApp({
     pool,
     bus: new EventBus(''),
@@ -59,7 +69,7 @@ afterAll(async () => {
   await pool.end();
   await admin.end();
 });
-it('restricts setup editing to doctors and isolates clinic details', async () => {
+it('restricts setup editing to admins and isolates clinic details', async () => {
   const payload = { phone: '+919876543210', faq: 'Open weekdays' };
   expect(
     (

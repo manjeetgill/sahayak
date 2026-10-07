@@ -2,8 +2,8 @@ import { z } from 'zod';
 import { hashPassword } from '@sahayak/db';
 import { defineTool, ToolError } from './registry';
 
-const DOCTOR = ['staff:doctor'];
-const STAFF = ['staff:doctor', 'staff:receptionist'];
+const ADMIN = ['staff:admin'];
+const STAFF = ['staff:admin', 'staff:doctor', 'staff:receptionist'];
 const NUM = /^(\+\d{10,14})?$/;
 
 export const addDoctor = defineTool({
@@ -16,7 +16,7 @@ export const addDoctor = defineTool({
     slotMinutes: z.number().int().min(5).max(120).default(15),
     whatsappNumber: z.string().regex(NUM).optional(),
   }),
-  allow: DOCTOR,
+  allow: ADMIN,
   async run({ db, ctx }, i) {
     try {
       const r = await db.query(
@@ -50,8 +50,19 @@ export const updateDoctor = defineTool({
     registrationNo: z.string().trim().min(3).max(40).optional(),
     qualifications: z.string().trim().max(120).optional(),
   }),
-  allow: DOCTOR,
+  allow: [...ADMIN, 'staff:doctor'],
   async run({ db, ctx }, i) {
+    if (
+      ctx.actor.kind === 'staff' &&
+      ctx.actor.role === 'doctor' &&
+      (ctx.actor.doctorId !== i.doctorId ||
+        Object.keys(i).some((k) => !['doctorId', 'registrationNo', 'qualifications'].includes(k)))
+    )
+      throw new ToolError(
+        'forbidden',
+        'Ask your clinic admin to change clinic or team details',
+        403,
+      );
     if (
       (i.registrationNo !== undefined || i.qualifications !== undefined) &&
       !(ctx.actor.kind === 'staff' && ctx.actor.doctorId === i.doctorId)
@@ -98,8 +109,7 @@ export const updateDoctor = defineTool({
 
 export const addStaff = defineTool({
   name: 'add_staff',
-  description:
-    'Create a login for a receptionist or another doctor. The doctor shares the temporary password in person.',
+  description: 'Create an admin, doctor, or receptionist login. Share the password privately.',
   module: 'core',
   input: z.object({
     email: z
@@ -108,15 +118,21 @@ export const addStaff = defineTool({
       .max(120)
       .transform((e) => e.toLowerCase()),
     name: z.string().trim().min(2).max(80),
-    role: z.enum(['receptionist', 'doctor']),
+    role: z.enum(['admin', 'receptionist', 'doctor']),
     password: z.string().min(10, 'Password must be at least 10 characters').max(100),
     doctorId: z.string().uuid().optional(),
   }),
-  allow: DOCTOR,
+  allow: ADMIN,
+  auditInput: (i) => ({ email: i.email, name: i.name, role: i.role, doctorId: i.doctorId }),
   auditOutput: (o: any) => ({ id: o.id }),
   async run({ db, ctx }, i) {
     if (i.role === 'doctor' && !i.doctorId)
       throw new ToolError('doctor_required', 'Link a doctor login to a doctor');
+    if (
+      i.role === 'doctor' &&
+      !(await db.query('SELECT id FROM doctors WHERE id=$1 AND active', [i.doctorId])).rowCount
+    )
+      throw new ToolError('doctor_required', 'Choose an active doctor from this clinic');
     try {
       const r = await db.query(
         'INSERT INTO staff_users (clinic_id,email,password_hash,name,role,doctor_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id',
@@ -159,7 +175,7 @@ export const removeStaff = defineTool({
   description: 'Delete a login (not your own, and not the last doctor login).',
   module: 'core',
   input: z.object({ id: z.string().uuid() }),
-  allow: DOCTOR,
+  allow: ADMIN,
   async run({ db, ctx }, { id }) {
     if (ctx.actor.kind === 'staff' && ctx.actor.userId === id)
       throw new ToolError('self', 'You cannot remove your own login');
@@ -174,6 +190,10 @@ export const removeStaff = defineTool({
       ).rows[0].n === 0
     )
       throw new ToolError('last_doctor', 'The clinic needs at least one doctor login');
+    if (u.role === 'admin') {
+      const admins = await db.query("SELECT id FROM staff_users WHERE role='admin' FOR UPDATE");
+      if (admins.rowCount === 1) throw new ToolError('last_admin', 'Keep at least one admin login');
+    }
     await db.query('DELETE FROM staff_users WHERE id=$1', [id]);
     return { ok: true };
   },
@@ -218,6 +238,13 @@ export const getSetupStatus = defineTool({
         ok: (await count('SELECT count(*)::int n FROM doctors WHERE active')) > 0,
         label: 'At least one doctor',
         hint: '',
+      },
+      {
+        id: 'doctor-login',
+        required: true,
+        ok: (await count("SELECT count(*)::int n FROM staff_users WHERE role='doctor'")) > 0,
+        label: 'A doctor login',
+        hint: 'Create the doctor’s own sign-in from Doctors & team.',
       },
       {
         id: 'receptionist',
@@ -273,7 +300,7 @@ export const completeSetup = defineTool({
   description: 'Mark onboarding finished (all required items must be done).',
   module: 'core',
   input: z.object({}),
-  allow: DOCTOR,
+  allow: ADMIN,
   async run(r) {
     const st = await getSetupStatus.run(r, {});
     if (!st.readyToFinish)

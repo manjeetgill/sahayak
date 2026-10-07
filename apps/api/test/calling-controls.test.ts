@@ -14,10 +14,20 @@ const agent = randomUUID(),
   appId = randomUUID(),
   seen: { path: string; method: string; body: unknown }[] = [];
 let fail = false;
+const staffIds: Record<string, string> = {};
 beforeAll(async () => {
   await admin.connect();
   clinic = await createTestClinic(admin, 'callctl');
   other = await createTestClinic(admin, 'callctlother');
+  for (const c of [clinic, other])
+    for (const role of ['admin', 'doctor', 'receptionist']) {
+      staffIds[c.clinicId + role] = (
+        await admin.query(
+          "INSERT INTO staff_users(clinic_id,email,password_hash,name,role) VALUES($1,$2,'unused',$3,$3) RETURNING id",
+          [c.clinicId, `${role}-${c.slug}@test.invalid`, role],
+        )
+      ).rows[0].id;
+    }
   app = await buildApp({
     pool,
     bus: new EventBus(''),
@@ -66,8 +76,9 @@ afterAll(async () => {
   await admin.end();
   await pool.end();
 });
-const headers = (role = 'doctor', clinicId = clinic.clinicId) => ({
-  authorization: 'Bearer ' + app.jwt.sign({ uid: randomUUID(), clinicId, role, name: 'Test' }),
+const headers = (role = 'admin', clinicId = clinic.clinicId) => ({
+  authorization:
+    'Bearer ' + app.jwt.sign({ uid: staffIds[clinicId + role], clinicId, role, name: 'Test' }),
 });
 it('scopes readiness and history to the signed-in clinic agent', async () => {
   expect((await app.inject({ url: '/staff/agents/calling/readiness' })).statusCode).toBe(401);
@@ -84,7 +95,7 @@ it('scopes readiness and history to the signed-in clinic agent', async () => {
     (
       await app.inject({
         url: '/staff/agents/calling/calls',
-        headers: headers('doctor', other.clinicId),
+        headers: headers('admin', other.clinicId),
       })
     ).statusCode,
   ).toBe(409);
@@ -94,7 +105,7 @@ it('scopes readiness and history to the signed-in clinic agent', async () => {
       .statusCode,
   ).toBe(400);
 });
-it('only the doctor can change activation and errors never get retried', async () => {
+it('only the admin can change activation and errors never get retried', async () => {
   expect(
     (
       await app.inject({

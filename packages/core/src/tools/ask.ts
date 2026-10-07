@@ -482,9 +482,10 @@ export const identifyStaffPhone = defineTool({
   allow: ['patient', 'system'],
   async run({ db }, { phone }) {
     const u = (
-      await db.query('SELECT id, role, doctor_id, name FROM staff_users WHERE phone=$1 LIMIT 1', [
-        phone,
-      ])
+      await db.query(
+        "SELECT id, role, doctor_id, name FROM staff_users WHERE phone=$1 AND role IN ('doctor','receptionist') LIMIT 1",
+        [phone],
+      )
     ).rows[0];
     return u
       ? {
@@ -521,7 +522,7 @@ export const sendDailyBriefs = defineTool({
     let sent = 0;
     const users = (
       await db.query(
-        'SELECT id, name, role, doctor_id, phone FROM staff_users WHERE phone IS NOT NULL',
+        "SELECT id, name, role, doctor_id, phone FROM staff_users WHERE phone IS NOT NULL AND role IN ('doctor','receptionist')",
       )
     ).rows;
     for (const u of users) {

@@ -39,6 +39,10 @@ beforeAll(async () => {
     "INSERT INTO staff_users (clinic_id,email,password_hash,name,role,doctor_id) VALUES ($1,$2,$3,'D','doctor',$4),($1,$5,$3,'R','receptionist',NULL)",
     [c.clinicId, `d-${c.slug}@t.in`, pw, c.doctorIds[0], `r-${c.slug}@t.in`],
   );
+  await admin.query(
+    "INSERT INTO staff_users(clinic_id,email,password_hash,name,role) VALUES($1,$2,$3,'Admin','admin')",
+    [c.clinicId, `admin-${c.slug}@t.in`, pw],
+  );
   await addPatient(admin, c.clinicId, 'Wa Patient', '+919400000001');
   app = await buildApp({
     pool,
@@ -49,6 +53,7 @@ beforeAll(async () => {
   });
   for (const [k, e] of [
     ['doc', `d-${c.slug}@t.in`],
+    ['admin', `admin-${c.slug}@t.in`],
     ['rec', `r-${c.slug}@t.in`],
   ])
     tok[k] = (
@@ -124,7 +129,7 @@ it('guided tests require staff and never queue a provider delivery', async () =>
   const result = await app.inject({
     method: 'POST',
     url: '/staff/agents/test',
-    headers: h('doc'),
+    headers: h('admin'),
     payload,
   });
   expect(result.statusCode).toBe(200);
@@ -144,7 +149,7 @@ it('diagnostics exclude recipient, message bodies, and raw provider errors', asy
   ).rows[0].id;
   try {
     expect((await app.inject({ url: '/staff/agents/diagnostics' })).statusCode).toBe(401);
-    const result = await app.inject({ url: '/staff/agents/diagnostics', headers: h('doc') });
+    const result = await app.inject({ url: '/staff/agents/diagnostics', headers: h('admin') });
     expect(result.statusCode).toBe(200);
     expect(result.json().messages.find((m: any) => m.id === id).has_error).toBe(true);
     expect(result.body).not.toContain('private');
@@ -157,7 +162,7 @@ it('urgent handoffs require resolution before return to agent', async () => {
   const test = await app.inject({
     method: 'POST',
     url: '/staff/agents/test',
-    headers: h('rec'),
+    headers: h('admin'),
     payload: {
       from: '+199900098765',
       text: 'severe chest pain and cannot breathe',
@@ -192,7 +197,7 @@ it('urgent handoffs require resolution before return to agent', async () => {
 });
 it('shows staff only their clinic connection configuration without secrets', async () => {
   expect((await app.inject({ url: '/staff/agents/connections' })).statusCode).toBe(401);
-  const response = await app.inject({ url: '/staff/agents/connections', headers: h('rec') });
+  const response = await app.inject({ url: '/staff/agents/connections', headers: h('admin') });
   expect(response.statusCode).toBe(200);
   expect(response.json()).toEqual({
     liveChannelOwner: 'local',
@@ -201,7 +206,12 @@ it('shows staff only their clinic connection configuration without secrets', asy
     voiceSimulator: true,
     platform: { configured: false },
     whatsapp: { configured: true, provider: plugin.messaging.name },
-    phone: { configured: false },
+    phone: {
+      configured: false,
+      bookingAdapter: false,
+      requestedNumber: null,
+      state: 'NOT_CONFIGURED',
+    },
   });
   expect(response.body).not.toContain(SECRET);
 });
@@ -211,7 +221,7 @@ const sim = (text: string, from = '9400000001') =>
     .then((r) => r.json());
 
 describe('agent builder', () => {
-  it('only the doctor can change settings; the receptionist can read them', async () => {
+  it('only the admin can change settings; the receptionist can read them', async () => {
     expect(
       (
         await app.inject({
@@ -230,16 +240,16 @@ describe('agent builder', () => {
     const r = await app.inject({
       method: 'PUT',
       url: '/staff/settings',
-      headers: h('doc'),
+      headers: h('admin'),
       payload: { timings: { mon: '9am to 5pm' } },
     });
     expect(r.statusCode).toBe(400);
   });
-  it("a FAQ written by the doctor is answered, in the patient's language", async () => {
+  it("a FAQ written by the admin is answered, in the patient's language", async () => {
     const put = await app.inject({
       method: 'PUT',
       url: '/staff/settings',
-      headers: h('doc'),
+      headers: h('admin'),
       payload: {
         faqs: [
           {
@@ -261,7 +271,7 @@ describe('agent builder', () => {
     const r = await app.inject({
       method: 'PUT',
       url: '/staff/settings',
-      headers: h('doc'),
+      headers: h('admin'),
       payload: {
         faqs: [
           {
@@ -280,7 +290,7 @@ describe('agent builder', () => {
     await app.inject({
       method: 'PUT',
       url: '/staff/settings',
-      headers: h('doc'),
+      headers: h('admin'),
       payload: { intakeQuestions: [{ id: 'q1', en: 'Any pain today?', hi: 'आज कोई दर्द?' }] },
     });
     const ci = await app.inject({
@@ -302,7 +312,7 @@ describe('agent builder', () => {
     await app.inject({
       method: 'PUT',
       url: '/staff/settings',
-      headers: h('doc'),
+      headers: h('admin'),
       payload: { agents: { front_desk: false } },
     });
     const r = await sim('what are your timings', '9400000003');
@@ -394,8 +404,8 @@ describe('real WhatsApp channel (vendor-neutral bridge)', () => {
     const set = await app.inject({
       method: 'PUT',
       url: '/staff/settings/whatsapp',
-      headers: h('doc'),
-      payload: { number: docNumber },
+      headers: h('admin'),
+      payload: { number: docNumber, doctorId: c.doctorIds[0] },
     });
     expect(set.statusCode).toBe(200);
     await admin.query('UPDATE doctors SET whatsapp_number=NULL WHERE id=$1 AND false', [
@@ -425,7 +435,7 @@ describe('real WhatsApp channel (vendor-neutral bridge)', () => {
       method: 'PUT',
       url: '/staff/settings/whatsapp',
       headers: h('rec'),
-      payload: { number: docNumber },
+      payload: { number: docNumber, doctorId: c.doctorIds[0] },
     });
     expect(dup.statusCode).toBe(403);
   });

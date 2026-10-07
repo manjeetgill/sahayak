@@ -43,10 +43,10 @@ type Connections = {
 };
 
 export function Connections({
-  isDoctor,
+  canManage,
   view = 'overview',
 }: {
-  isDoctor: boolean;
+  canManage: boolean;
   view?: 'overview' | 'whatsapp' | 'phone';
 }) {
   const [connections, setConnections] = useState<Connections | null>(null);
@@ -167,8 +167,8 @@ export function Connections({
               </p>
             </>
           )}
-          {view === 'whatsapp' && <WhatsAppSetup isDoctor={isDoctor} />}
-          {view === 'phone' && <CallingSetup isDoctor={isDoctor} onChanged={load} />}
+          {view === 'whatsapp' && <WhatsAppSetup canManage={canManage} />}
+          {view === 'phone' && <CallingSetup canManage={canManage} onChanged={load} />}
         </div>
         {view !== 'overview' && (
           <aside className="workspace-stack">
@@ -203,7 +203,7 @@ export function Connections({
                     {descriptions[name]}
                   </p>
                 </div>
-                {isDoctor && (
+                {canManage && (
                   <button
                     className="small ghost"
                     disabled={busy}
@@ -216,9 +216,9 @@ export function Connections({
             ))}
         </div>
       )}
-      {isDoctor && (
+      {canManage && (
         <p className="connection-footer">
-          <a href="/doctor/settings">Edit clinic details and patient safety settings</a>
+          <a href="/admin/settings">Edit clinic details and patient safety settings</a>
         </p>
       )}
       <details className="card connection-footer" style={{ marginTop: 16 }}>
@@ -237,7 +237,7 @@ export function Connections({
             : 'Sahayak local builder'}
           .
         </p>
-        {isDoctor && <a href="/doctor/integrations">Connected software setup</a>}
+        {canManage && <a href="/admin/integrations">Connected software setup</a>}
       </details>
     </section>
   );

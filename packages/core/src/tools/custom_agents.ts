@@ -11,8 +11,8 @@ import { defineTool, ToolError, type ToolRun } from './registry';
 import { deliver, ensureConversation, getSettings, storeMessage } from './common';
 import { runMetric, formatMetric, parseRange } from './ask';
 
-const DOCTOR = ['staff:doctor'];
-const STAFF = ['staff:doctor', 'staff:receptionist'];
+const ADMIN = ['staff:admin'];
+const STAFF = ['staff:admin', 'staff:doctor', 'staff:receptionist'];
 const UUID = z.string().uuid();
 const MAX_ACTIVE = 5;
 const PER_PATIENT_DAYS = 7; // never more than one custom-agent message per patient per week
@@ -186,7 +186,7 @@ export const interpretRequest = defineTool({
     'Turn a plain-language request into a PROPOSED agent. Nothing runs until the doctor reviews and activates it.',
   module: 'core',
   input: z.object({ text: z.string().trim().min(5).max(500) }),
-  allow: DOCTOR,
+  allow: ADMIN,
   async run(_r, { text }) {
     const i = interpretAgentRequest(text);
     if (!i.understood) return { understood: false, help: i.help, notes: i.notes };
@@ -208,7 +208,7 @@ export const previewCustomAgent = defineTool({
     'Show exactly what an agent would do, and how many patients it would reach right now. Sends nothing.',
   module: 'core',
   input: z.object({ spec: z.any() }),
-  allow: DOCTOR,
+  allow: ADMIN,
   async run(r, { spec: raw }) {
     const v = validateSpec(raw);
     if (!v.ok) return { valid: false, problems: v.problems };
@@ -240,7 +240,7 @@ export const createCustomAgent = defineTool({
     platformDraftId: UUID.optional(),
     platformVersion: z.number().int().positive().optional(),
   }),
-  allow: DOCTOR,
+  allow: ADMIN,
   auditInput: (i) => ({ name: i.name }),
   async run({ db, ctx }, i) {
     if ((i.platformDraftId === undefined) !== (i.platformVersion === undefined))
@@ -264,7 +264,7 @@ export const updateCustomAgent = defineTool({
     name: z.string().trim().min(3).max(80).optional(),
     spec: z.any().optional(),
   }),
-  allow: DOCTOR,
+  allow: ADMIN,
   auditInput: (i) => ({ agentId: i.agentId }),
   async run({ db }, i) {
     const spec = i.spec !== undefined ? mustBeValid(i.spec) : null;
@@ -286,7 +286,7 @@ export const activateCustomAgent = defineTool({
   description: 'The doctor approves an agent: it starts running on its schedule or events.',
   module: 'core',
   input: z.object({ agentId: UUID }),
-  allow: DOCTOR,
+  allow: ADMIN,
   auditInput: (i) => ({ agentId: i.agentId }),
   async run({ db, ctx }, { agentId }) {
     const a = (await db.query('SELECT * FROM custom_agents WHERE id=$1 FOR UPDATE', [agentId]))
@@ -340,7 +340,7 @@ export const resumeCustomAgent = defineTool({
   description: 'A doctor resumes a paused agent.',
   module: 'core',
   input: z.object({ agentId: UUID }),
-  allow: DOCTOR,
+  allow: ADMIN,
   auditInput: (i) => ({ agentId: i.agentId }),
   async run({ db, ctx }, { agentId }) {
     const a = (
@@ -371,7 +371,7 @@ export const deleteCustomAgent = defineTool({
   description: 'Delete an agent and its run history.',
   module: 'core',
   input: z.object({ agentId: UUID }),
-  allow: DOCTOR,
+  allow: ADMIN,
   auditInput: (i) => ({ agentId: i.agentId }),
   async run({ db }, { agentId }) {
     const d = await db.query('DELETE FROM custom_agents WHERE id=$1 RETURNING id', [agentId]);

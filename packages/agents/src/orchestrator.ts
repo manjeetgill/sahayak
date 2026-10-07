@@ -124,6 +124,12 @@ export async function handleInbound(
     const privacy = detectPrivacyRequest(turn.text);
     if (privacy && (await handlePrivacy(turn, privacy))) return result();
 
+    if (/^(feedback|patient feedback|check.?in feedback|फीडबैक)$/i.test(turn.text.trim())) {
+      const invitation = await call(turn, 'system', 'patient_feedback_invitation', {});
+      await sayText(turn, 'system', invitation.text);
+      return result();
+    }
+
     if (wantsHuman(turn.text) || isUpset(turn.text)) {
       const reason = wantsHuman(turn.text) ? 'human_requested' : 'upset';
       await call(turn, 'system', 'handoff_to_human', {

@@ -1648,3 +1648,25 @@ summary:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+/* Patient check-ins reuse the clinic cards, forms and navigation. */
+.feedback-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.feedback-heading h3,.feedback-heading h2{margin-top:0}
+.feedback-actions{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:16px 0}
+.feedback-detail{margin-top:20px;border-top:1px solid var(--line,#e1e8e4);padding-top:20px}
+.feedback-detail blockquote,.feedback-patient blockquote{border-left:3px solid #348a69;padding:12px 16px;margin:12px 0;background:#f4f8f5}
+.feedback-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:24px 0}
+.feedback-metrics strong{font-size:28px}
+.feedback-patient{padding-top:32px;padding-bottom:48px}
+.feedback-patient fieldset{border:0;padding:0;margin:16px 0 24px}
+.feedback-patient legend{font-weight:650;margin-bottom:12px}
+.feedback-patient .check{padding:12px;border:1px solid #dce6de;border-radius:10px;margin:8px 0;display:flex;gap:12px;align-items:center}
+.feedback-patient .check input{width:auto}
+@media(max-width:640px){.feedback-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.feedback-detail form button{width:100%}.feedback-actions{gap:12px}}
+
+/* Role-specific clinic administration, using the shared clinic surfaces. */
+.admin-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); gap: 1rem; margin: 1.25rem 0; align-items: start; }
+.admin-card { display: block; color: inherit; text-decoration: none; min-height: 170px; }
+.admin-card:hover { border-color: var(--primary, #17685b); }
+.admin-card span { font-weight: 700; }
+.table-scroll { overflow-x: auto; }

@@ -1,4 +1,5 @@
 'use client';
+import { PatientCheckins } from '../../../components/PatientCheckins';
 import { displayLabel } from '../../../../lib/labels';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { API, session, staff, useSession } from '../../../../lib/api';
@@ -605,6 +606,9 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
           </div>
         </div>
         <aside className="patient-tools workspace-stack">
+          <section className="card">
+            <PatientCheckins patientId={params.id} />
+          </section>
           <section className="card">
             <h2>{activeSection === 'visit' ? 'Finish this visit' : 'Visit checklist'}</h2>
             {rec.visits.find(

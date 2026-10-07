@@ -1,3 +1,4 @@
+import { automaticFeedbackPlan } from './automatic-feedback';
 import { z } from 'zod';
 import { defineTool, ToolError } from './registry';
 const UUID = z.string().uuid();
@@ -310,6 +311,7 @@ export const visitChecklist = defineTool({
       tasks: clinical
         ? tasks
         : tasks.map(({ id, kind, status, due_at }: any) => ({ id, kind, status, due_at })),
+      feedbackPlan: await automaticFeedbackPlan({ db, ctx }, queueEntryId),
       signedNote: notes.some((n) => n.status === 'signed'),
     };
   },

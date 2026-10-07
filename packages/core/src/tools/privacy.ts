@@ -109,6 +109,12 @@ export async function erasePatient(
     await db.query("DELETE FROM patient_instructions WHERE patient_id=$1 AND status='draft'", [
       patientId,
     ]);
+    await db.query(
+      "UPDATE patient_feedback_improvements SET title='Clinic improvement (patient details removed)' WHERE source_checkin_id IN (SELECT id FROM patient_checkins WHERE patient_id=$1)",
+      [patientId],
+    );
+    await db.query('DELETE FROM qr_arrivals WHERE patient_id=$1', [patientId]);
+    await db.query('DELETE FROM patient_checkins WHERE patient_id=$1', [patientId]);
     await db.query('DELETE FROM care_tasks WHERE patient_id=$1', [patientId]);
     await db.query('DELETE FROM appointment_waitlist WHERE patient_id=$1', [patientId]);
     await db.query('DELETE FROM follow_ups WHERE patient_id=$1', [patientId]);
@@ -199,6 +205,21 @@ export const exportPatientData = defineTool({
     const rows = async (sql: string) => (await db.query(sql, [patientId])).rows;
     await logRequest(r, 'export', 'staff');
     return {
+      qrArrivals: await rows(
+        'SELECT id,doctor_id,arrival_date,amount_paise,status,queue_entry_id,created_at,confirmed_at FROM qr_arrivals WHERE patient_id=$1',
+      ),
+      patientFeedback: await rows(
+        'SELECT f.* FROM patient_feedback_responses f JOIN patient_checkins c ON c.id=f.checkin_id WHERE c.patient_id=$1',
+      ),
+      patientFeedbackHistory: await rows(
+        'SELECT e.* FROM patient_feedback_events e JOIN patient_checkins c ON c.id=e.checkin_id WHERE c.patient_id=$1',
+      ),
+      patientFeedbackResolutions: await rows(
+        'SELECT r.* FROM patient_feedback_resolutions r JOIN patient_checkins c ON c.id=r.checkin_id WHERE c.patient_id=$1',
+      ),
+      patientCheckins: await rows(
+        'SELECT * FROM patient_checkins WHERE patient_id=$1 ORDER BY created_at',
+      ),
       exportedAt: new Date().toISOString(),
       patient: p,
       consents: await rows(
@@ -307,12 +328,21 @@ export const withdrawMessaging = defineTool({
   async run(r, { patientId }) {
     assertOwn(r.ctx, patientId);
     const { db } = r;
+    await db.query('SELECT id FROM patients WHERE id=$1 FOR UPDATE', [patientId]);
     await db.query(
       "UPDATE consents SET withdrawn_at=now() WHERE patient_id=$1 AND purpose IN ('whatsapp_messaging','reminders_followups') AND withdrawn_at IS NULL",
       [patientId],
     );
     await db.query(
       "UPDATE follow_ups SET status='skipped', detail='consent_withdrawn' WHERE patient_id=$1 AND status='pending'",
+      [patientId],
+    );
+    await db.query(
+      "UPDATE patient_checkins SET status=CASE WHEN work_status='planned' THEN 'cancelled' ELSE status END,cancelled_at=now(),cancellation_reason='consent_withdrawn' WHERE patient_id=$1 AND status='scheduled'",
+      [patientId],
+    );
+    await db.query(
+      'UPDATE patient_feedback_links SET expires_at=now() WHERE checkin_id IN (SELECT id FROM patient_checkins WHERE patient_id=$1)',
       [patientId],
     );
     await logRequest(r, 'withdraw_messaging', r.ctx.actor.kind === 'staff' ? 'staff' : 'whatsapp');

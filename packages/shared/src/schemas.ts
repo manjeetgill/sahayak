@@ -9,7 +9,7 @@ export const PhoneSchema = z
     const d = p.replace(/^\+/, '');
     return d.length === 10 ? `+91${d}` : `+${d}`;
   });
-export const RoleSchema = z.enum(['doctor', 'receptionist']);
+export const RoleSchema = z.enum(['admin', 'doctor', 'receptionist']);
 export const QueueStatusSchema = z.enum([
   'waiting',
   'called',

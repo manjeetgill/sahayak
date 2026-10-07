@@ -124,10 +124,10 @@ export default function Practice() {
               <section className="card">
                 <h2>Clinic administration</h2>
                 <nav className="action-links">
-                  <a href="/doctor/settings">Settings</a>
+                  <a href="/doctor/settings">My professional details</a>
                   <a href="/doctor/references">Medical reference</a>
                   <a href="/safety">Safety report</a>
-                  <a href="/doctor/integrations">Connected software</a>
+                  <span className="muted">Connections are managed by your clinic admin.</span>
                 </nav>
               </section>
               <section className="card">

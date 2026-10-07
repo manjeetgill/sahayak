@@ -116,6 +116,7 @@ export default function Inbox() {
                 }}
               >
                 <option value="all">All outstanding work</option>
+                <option value="checkin">Patient check-ins</option>
                 <option value="urgent">Urgent alerts</option>
                 <option value="task">Care tasks</option>
                 <option value="result">Test results needing review</option>

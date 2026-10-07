@@ -17,7 +17,7 @@ const labels: Record<string, string> = {
   CHECK_REQUIRED: 'Setup team needs to check the interrupted connection',
   CONNECTED: 'Number ownership verified — preparing your appointment assistant',
 };
-export function WhatsAppSetup({ isDoctor }: { isDoctor: boolean }) {
+export function WhatsAppSetup({ canManage }: { canManage: boolean }) {
   const [status, setStatus] = useState<Status | null>(null),
     [phone, setPhone] = useState(''),
     [faq, setFaq] = useState(''),
@@ -53,7 +53,7 @@ export function WhatsAppSetup({ isDoctor }: { isDoctor: boolean }) {
   }
   useEffect(() => {
     if (
-      !isDoctor ||
+      !canManage ||
       !['CONNECTING', 'OWNERSHIP_CHECK_REQUIRED'].includes(status?.setup?.state ?? '')
     )
       return;
@@ -75,7 +75,7 @@ export function WhatsAppSetup({ isDoctor }: { isDoctor: boolean }) {
       stopped = true;
       clearInterval(timer);
     };
-  }, [isDoctor, status?.setup?.state]);
+  }, [canManage, status?.setup?.state]);
   async function save() {
     await staff(
       '/staff/agents/whatsapp/setup',
@@ -126,7 +126,7 @@ export function WhatsAppSetup({ isDoctor }: { isDoctor: boolean }) {
     ACTIVE:
       'WhatsApp replies are enabled. Send Hi from a second number to test booking in Sahayak.',
   };
-  const editable = isDoctor && (!status?.setup || status.setup.state === 'REQUESTED');
+  const editable = canManage && (!status?.setup || status.setup.state === 'REQUESTED');
   return (
     <section className="card" aria-label="Connect your clinic WhatsApp">
       <h3>Connect your clinic WhatsApp</h3>
@@ -172,19 +172,19 @@ export function WhatsAppSetup({ isDoctor }: { isDoctor: boolean }) {
           {status?.onboardingAvailable ? 'Save and connect WhatsApp' : 'Save clinic number'}
         </button>
       )}
-      {isDoctor && status?.setup?.state === 'CONNECTING' && (
+      {canManage && status?.setup?.state === 'CONNECTING' && (
         <button disabled={busy} onClick={() => void run(connect)}>
           Continue owner authorization
         </button>
       )}
-      {isDoctor &&
+      {canManage &&
         status?.setup?.state === 'CONNECTED' &&
         !['READY', 'ACTIVE'].includes(phase ?? '') && (
           <button disabled={busy} onClick={() => void run(refresh)}>
             Finish connection / check test message
           </button>
         )}
-      {isDoctor && phase === 'READY' && (
+      {canManage && phase === 'READY' && (
         <button
           disabled={busy}
           onClick={() =>
@@ -197,7 +197,7 @@ export function WhatsAppSetup({ isDoctor }: { isDoctor: boolean }) {
           Enable WhatsApp replies
         </button>
       )}
-      {isDoctor && phase === 'ACTIVE' && (
+      {canManage && phase === 'ACTIVE' && (
         <button
           disabled={busy}
           onClick={() =>
@@ -223,7 +223,7 @@ export function WhatsAppSetup({ isDoctor }: { isDoctor: boolean }) {
           connection before authorization.
         </p>
       )}
-      {isDoctor && status?.setup && (
+      {canManage && status?.setup && (
         <button
           disabled={busy}
           onClick={() =>

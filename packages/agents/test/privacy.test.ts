@@ -281,12 +281,12 @@ describe('retention rules', () => {
     ).rejects.toThrow(/365 days/);
     await dropTestClinic(admin, other.clinicId);
   });
-  it('retention floors are enforced when a doctor changes the rules', async () => {
+  it('retention floors are enforced when an admin changes the rules', async () => {
     const doc = {
       clinicId: c.clinicId,
       actor: {
         kind: 'staff' as const,
-        role: 'doctor' as const,
+        role: 'admin' as const,
         userId: rec.actor.kind === 'staff' ? rec.actor.userId : '',
         doctorId: c.doctorIds[0],
       },

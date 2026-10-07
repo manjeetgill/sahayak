@@ -2,17 +2,22 @@
 import { useEffect, useRef, useState } from 'react';
 import type { LiveEvent } from '@sahayak/shared';
 
-export const API = process.env.NEXT_PUBLIC_API_URL ||
-  (typeof window === 'undefined' ? 'http://127.0.0.1:4000' : `${window.location.protocol}//${window.location.hostname}:4000`);
+export const API =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window === 'undefined'
+    ? 'http://127.0.0.1:4000'
+    : `${window.location.protocol}//${window.location.hostname}:4000`);
 const WS = API.replace(/^http/, 'ws');
 
 export type User = {
   uid: string;
   clinicId: string;
-  role: 'doctor' | 'receptionist';
+  role: 'admin' | 'doctor' | 'receptionist';
   doctorId: string | null;
   name: string;
 };
+export const roleHome = (role: User['role']) =>
+  role === 'admin' ? '/admin' : role === 'doctor' ? '/doctor' : '/console';
 const KEY = 'sahayak.session';
 export const session = {
   get(): { token: string; user: User } | null {
@@ -109,13 +114,13 @@ export function useLive(path: string | null, onEvent: (e: LiveEvent) => void) {
   return connected;
 }
 
-export function useSession(role?: 'doctor' | 'receptionist') {
+export function useSession(role?: 'admin' | 'doctor' | 'receptionist') {
   const [s, setS] = useState<{ token: string; user: User } | null>(null);
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const cur = session.get();
     if (!cur || (role && cur.user.role !== role)) {
-      location.href = '/login';
+      location.href = cur ? roleHome(cur.user.role) : '/login';
       return;
     }
     setS(cur);

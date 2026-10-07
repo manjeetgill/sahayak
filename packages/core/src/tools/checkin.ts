@@ -69,6 +69,53 @@ export const lookupPatientByPhone = defineTool({
   },
 });
 
+export async function registerCheckinPatient(r: ToolRun, input: z.infer<typeof CheckinInput>) {
+  const { db, ctx } = r;
+  if (!(await db.query('SELECT id FROM doctors WHERE id=$1 AND active', [input.doctorId])).rowCount)
+    throw new ToolError('doctor_not_found', 'Choose an active doctor from this clinic', 404);
+  await db.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+    `${ctx.clinicId}:patient:${input.phone}`,
+  ]);
+  const found = await db.query('SELECT id, name, language FROM patients WHERE phone=$1', [
+    input.phone,
+  ]);
+  let patientId: string,
+    name: string,
+    language = input.language,
+    returning = false;
+  if (found.rowCount) {
+    returning = true;
+    patientId = found.rows[0].id;
+    name = found.rows[0].name;
+    language = found.rows[0].language;
+  } else {
+    if (!input.consent.visit_data)
+      throw new ToolError(
+        'consent_required',
+        'Consent to store visit data is required to check in',
+      );
+    if (!input.name) throw new ToolError('name_required', 'Name is required for a new patient');
+    name = input.name;
+    patientId = (
+      await db.query(
+        'INSERT INTO patients (clinic_id,name,phone,language) VALUES ($1,$2,$3,$4) RETURNING id',
+        [ctx.clinicId, name, input.phone, language],
+      )
+    ).rows[0].id;
+  }
+  // Record each consent that was granted and is not already active (minimal, purpose-specific, versioned).
+  for (const [purpose, granted] of Object.entries(input.consent)) {
+    if (!granted) continue;
+    await db.query(
+      `INSERT INTO consents (clinic_id,patient_id,purpose,notice_version)
+         SELECT $1,$2,$3,$4 WHERE NOT EXISTS (SELECT 1 FROM consents WHERE patient_id=$2 AND purpose=$3 AND withdrawn_at IS NULL)`,
+      [ctx.clinicId, patientId, purpose, CONSENT_NOTICE_VERSION],
+    );
+  }
+  r.ctx.patientId = patientId;
+  return { patientId, name, language, returning };
+}
+
 export const checkInPatient = defineTool({
   name: 'check_in_patient',
   description:
@@ -78,43 +125,7 @@ export const checkInPatient = defineTool({
   allow: FRONT,
   async run(r, input) {
     const { db, ctx } = r;
-    const found = await db.query('SELECT id, name, language FROM patients WHERE phone=$1', [
-      input.phone,
-    ]);
-    let patientId: string,
-      name: string,
-      language = input.language,
-      returning = false;
-    if (found.rowCount) {
-      returning = true;
-      patientId = found.rows[0].id;
-      name = found.rows[0].name;
-      language = found.rows[0].language;
-    } else {
-      if (!input.consent.visit_data)
-        throw new ToolError(
-          'consent_required',
-          'Consent to store visit data is required to check in',
-        );
-      if (!input.name) throw new ToolError('name_required', 'Name is required for a new patient');
-      name = input.name;
-      patientId = (
-        await db.query(
-          'INSERT INTO patients (clinic_id,name,phone,language) VALUES ($1,$2,$3,$4) RETURNING id',
-          [ctx.clinicId, name, input.phone, language],
-        )
-      ).rows[0].id;
-    }
-    // Record each consent that was granted and is not already active (minimal, purpose-specific, versioned).
-    for (const [purpose, granted] of Object.entries(input.consent)) {
-      if (!granted) continue;
-      await db.query(
-        `INSERT INTO consents (clinic_id,patient_id,purpose,notice_version)
-         SELECT $1,$2,$3,$4 WHERE NOT EXISTS (SELECT 1 FROM consents WHERE patient_id=$2 AND purpose=$3 AND withdrawn_at IS NULL)`,
-        [ctx.clinicId, patientId, purpose, CONSENT_NOTICE_VERSION],
-      );
-    }
-    r.ctx.patientId = patientId;
+    const { patientId, name, language, returning } = await registerCheckinPatient(r, input);
     // Link today's booked appointment for this doctor, if there is one.
     const { date } = await clinicToday(db, ctx.clinicId);
     let apptId = input.appointmentId ?? null;

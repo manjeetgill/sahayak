@@ -327,9 +327,10 @@ export default function Console() {
           <section className="card">
             <h2>Quick actions</h2>
             <nav className="action-links">
+              <a href="/console/arrivals">QR arrivals &amp; payments</a>
               <a href="/doctor/waitlist">Waiting list</a>
               <a href="/console/privacy">Privacy requests</a>
-              <a href="/doctor/agents">Clinic assistants</a>
+
               <a href="/safety">Safety report</a>
             </nav>
           </section>
