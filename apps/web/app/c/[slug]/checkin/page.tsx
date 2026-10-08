@@ -66,6 +66,7 @@ export default function CheckIn({ params }: { params: { slug: string } }) {
           phone: phone.replace(/[\s-]/g, ''),
           doctorId,
           language: lang,
+          source: new URLSearchParams(location.search).get('src')?.toLowerCase() || undefined,
           consent: { visit_data: visit, whatsapp_messaging: wa, reminders_followups: rem },
         },
       });

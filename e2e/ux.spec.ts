@@ -142,3 +142,63 @@ test('visit shortcuts: templates, blanks check, favourite medicines, and the not
   await page.getByRole('button', { name: 'Repeat last prescription' }).click();
   await expect(page.locator('.error')).toContainText('no signed prescription to repeat');
 });
+
+test('reception imports a patient list: preview, no messages, first check-in asks for consent', async ({
+  page,
+  request,
+}) => {
+  await login(page, 'reception@demo.sahayak.in');
+  await page.goto('/console/import');
+  const csv =
+    'Name,Phone,Age,Language\nImport One,9811100001,35,Hindi\nBad Row,12,,\nImport Two,9811100002,,\n';
+  await page.setInputFiles('#csv', {
+    name: 'patients.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(csv),
+  });
+  await expect(page.getByTestId('import-preview')).toContainText('2 new');
+  await expect(page.getByTestId('import-preview')).toContainText('Phone number is not valid');
+  await page.getByRole('button', { name: /Import 2 patients/ }).click();
+  await expect(page.getByTestId('import-done')).toContainText('Nobody was messaged');
+  // the imported patient is asked for consent like a new patient
+  const look = await (
+    await request.post(`${API}/public/dr-sharma/lookup`, { data: { phone: '9811100001' } })
+  ).json();
+  expect(look.returning).toBe(false);
+  await page.getByRole('button', { name: 'Undo this import' }).click();
+  await expect(page.getByText('Undone: 2 removed.')).toBeVisible();
+});
+
+test('doctor marks themselves away; the share kit shows links and sources; the app is installable', async ({
+  page,
+  request,
+}) => {
+  await login(page, 'anil@demo.sahayak.in');
+  await page.goto('/doctor/away');
+  const d = new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10);
+  await page.getByLabel('From').fill(d);
+  await page.getByRole('button', { name: 'Mark as away' }).click();
+  await expect(page.getByText('Planned time away')).toBeVisible();
+  await expect(page.getByTestId('away')).toContainText(d);
+  await page.getByRole('button', { name: 'Remove' }).click();
+  await expect(page.getByTestId('away')).not.toContainText(d);
+
+  await page.goto('/doctor/share');
+  await expect(page.getByTestId('share-kit')).toContainText('?src=whatsapp');
+  await request.post(`${API}/public/dr-sharma/checkin`, {
+    data: {
+      name: 'Src Patient',
+      phone: '9811100003',
+      doctorId: (await (await request.get(`${API}/public/dr-sharma`)).json()).doctors[0].id,
+      language: 'en',
+      source: 'instagram',
+      consent: { visit_data: true },
+    },
+  });
+  await page.reload();
+  await expect(page.getByTestId('sources')).toContainText('instagram');
+
+  const m = await page.request.get('/manifest.webmanifest');
+  expect(m.ok()).toBeTruthy();
+  expect((await m.json()).display).toBe('standalone');
+});

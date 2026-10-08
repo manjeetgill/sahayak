@@ -7,7 +7,7 @@ type Row = { name: string; phone: string; yearOfBirth?: string; age?: string; la
 /** Minimal CSV reader: quoted fields, commas, tabs and semicolons, a header row if the first row has "name". */
 function parseCsv(text: string): Row[] {
   const lines = text
-    .replace(/^﻿/, '')
+    .replace(/^\uFEFF/, '')
     .split(/\r?\n/)
     .filter((l) => l.trim());
   if (!lines.length) return [];
@@ -21,12 +21,16 @@ function parseCsv(text: string): Row[] {
     for (let i = 0; i < l.length; i++) {
       const ch = l[i];
       if (q) {
-        if (ch === '"' && l[i + 1] === '"') ((cur += '"'), i++);
-        else if (ch === '"') q = false;
+        if (ch === '"' && l[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else if (ch === '"') q = false;
         else cur += ch;
       } else if (ch === '"') q = true;
-      else if (ch === delim) (out.push(cur.trim()), (cur = ''));
-      else cur += ch;
+      else if (ch === delim) {
+        out.push(cur.trim());
+        cur = '';
+      } else cur += ch;
     }
     out.push(cur.trim());
     return out;
@@ -60,6 +64,7 @@ export default function ImportPatients() {
   const [preview, setPreview] = useState<any>(null);
   const [done, setDone] = useState<any>(null);
   const [err, setErr] = useState(''),
+    [msg, setMsg] = useState(''),
     [busy, setBusy] = useState(false);
   if (!s) return null;
   const run = async (fn: () => Promise<void>) => {
@@ -102,6 +107,7 @@ export default function ImportPatients() {
           accept=".csv,text/csv,text/plain"
           onChange={(e) => onFile(e.target.files?.[0])}
         />
+        {msg && <p role="status">{msg}</p>}
         {err && (
           <div className="error" role="alert">
             {err}
@@ -149,7 +155,7 @@ export default function ImportPatients() {
                   const u = await staff(`/staff/patient-import/${done.batchId}/undo`, {});
                   setDone(null);
                   setPreview(null);
-                  setErr(
+                  setMsg(
                     `Undone: ${u.removed} removed${u.kept ? `, ${u.kept} kept because they already have records` : ''}.`,
                   );
                 })

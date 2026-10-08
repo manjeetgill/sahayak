@@ -22,6 +22,7 @@ const HI: Record<string, string> = {
   'My profile': 'मेरी प्रोफ़ाइल',
   'Import patients': 'मरीज़ों की सूची जोड़ें',
   "I'm away": 'मैं छुट्टी पर हूँ',
+  'Share your clinic': 'अपना क्लिनिक शेयर करें',
   'Doctor away': 'डॉक्टर छुट्टी पर',
   'Safety & privacy': 'सुरक्षा और गोपनीयता',
   'Sign out': 'साइन आउट',

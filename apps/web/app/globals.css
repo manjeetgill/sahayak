@@ -1758,3 +1758,5 @@ summary:focus-visible {
 .attention-clear .panel-heading { margin-bottom: 0; }
 
 .assistant-locked { margin: 0; padding: .55rem .8rem; border-radius: 10px; background: #f1f5f4; color: var(--muted, #667085); font-size: .9rem; }
+
+.offline-banner{position:sticky;top:0;z-index:50;margin:0;border-radius:0;text-align:center}

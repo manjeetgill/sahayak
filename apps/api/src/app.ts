@@ -871,6 +871,17 @@ export async function buildApp(deps: AppDeps) {
       patientId: idParam(req),
     });
   });
+  // ---- share and grow ----
+  app.get('/staff/growth', async (req) => {
+    const c = await claims(req, ['doctor', 'receptionist']);
+    const sources = await callTool(rt, staffCtx(c), 'patient_sources', {});
+    const clinic = await read(
+      c.clinicId,
+      async (db) =>
+        (await db.query('SELECT slug, name FROM clinics WHERE id=$1', [c.clinicId])).rows[0],
+    );
+    return { ...sources, slug: clinic.slug as string, clinic: clinic.name as string };
+  });
   // ---- "I'm away" ----
   app.get('/staff/leave', async (req) => {
     const c = await claims(req, ['doctor', 'receptionist']);

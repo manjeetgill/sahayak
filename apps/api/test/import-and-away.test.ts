@@ -229,3 +229,28 @@ describe('doctor away', () => {
     expect(pub.doctors.find((d: any) => d.id === doc).awayUntil).toBe(day(1));
   });
 });
+
+describe('share and grow', () => {
+  it('counts new patients by the link they used; bad source values are dropped', async () => {
+    const go = (phone: string, source?: string) =>
+      app.inject({
+        method: 'POST',
+        url: `/public/${A.slug}/checkin`,
+        payload: {
+          phone,
+          name: 'Src',
+          doctorId: A.doctorIds[0],
+          consent: { visit_data: true },
+          source,
+        },
+      });
+    expect((await go('9877700020', 'whatsapp')).statusCode).toBe(200);
+    expect((await go('9877700021', 'whatsapp')).statusCode).toBe(200);
+    expect((await go('9877700022', 'Insta gram <script>')).statusCode).toBe(200);
+    const g = (await call('docA', 'GET', '/staff/growth')).json();
+    expect(g.slug).toBe(A.slug);
+    expect(g.sources.find((s: any) => s.source === 'whatsapp').patients).toBe(2);
+    expect(g.sources.find((s: any) => s.source === 'other').patients).toBeGreaterThanOrEqual(1);
+    expect((await call('admA', 'GET', '/staff/growth')).statusCode).toBe(403);
+  });
+});

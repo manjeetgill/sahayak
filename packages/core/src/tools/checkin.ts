@@ -112,8 +112,8 @@ export async function registerCheckinPatient(r: ToolRun, input: z.infer<typeof C
     name = input.name;
     patientId = (
       await db.query(
-        'INSERT INTO patients (clinic_id,name,phone,language) VALUES ($1,$2,$3,$4) RETURNING id',
-        [ctx.clinicId, name, input.phone, language],
+        'INSERT INTO patients (clinic_id,name,phone,language,source) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+        [ctx.clinicId, name, input.phone, language, input.source ?? null],
       )
     ).rows[0].id;
   }

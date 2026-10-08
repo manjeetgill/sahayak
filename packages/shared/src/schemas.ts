@@ -28,6 +28,12 @@ export const CheckinInput = z.object({
   phone: PhoneSchema,
   doctorId: z.string().uuid(),
   language: LangSchema.default('en'),
+  /** Which link the patient used (from ?src=). Anything that is not a short plain word is dropped. */
+  source: z
+    .string()
+    .regex(/^[a-z0-9_-]{1,30}$/)
+    .optional()
+    .catch(undefined),
   consent: z
     .object({
       visit_data: z.boolean().default(false), // mandatory for new patients
