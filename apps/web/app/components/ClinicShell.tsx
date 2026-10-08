@@ -148,7 +148,7 @@ export function ClinicShell({ children }: { children: React.ReactNode }) {
           >
             {lang === 'hi' ? 'English' : 'हिन्दी'}
           </button>
-          <a className="clinic-help" href="/help">
+          <a className="clinic-help" href={role === 'admin' ? '/admin/setup' : '/help'}>
             {x('Help')}
           </a>
           <span className="clinic-avatar" aria-label={current.user.name}>
