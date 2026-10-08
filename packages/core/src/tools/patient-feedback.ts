@@ -299,7 +299,12 @@ export const feedbackTools = [
         throw new ToolError('doctor_required', 'A doctor must review this concern', 403);
       if (
         i.assignedTo &&
-        !(await r.db.query("SELECT 1 FROM staff_users WHERE id=$1 AND role IN ('doctor','receptionist')", [i.assignedTo])).rowCount
+        !(
+          await r.db.query(
+            "SELECT 1 FROM staff_users WHERE id=$1 AND role IN ('doctor','receptionist')",
+            [i.assignedTo],
+          )
+        ).rowCount
       )
         throw new ToolError('owner', 'Choose a staff member from this clinic');
       if (i.action === 'assign' && !i.assignedTo)
@@ -363,7 +368,11 @@ export const feedbackTools = [
       ).rows;
       return {
         cases: rows,
-        staff: (await r.db.query("SELECT id,name,role FROM staff_users WHERE role IN ('doctor','receptionist') ORDER BY name")).rows,
+        staff: (
+          await r.db.query(
+            "SELECT id,name,role FROM staff_users WHERE role IN ('doctor','receptionist') ORDER BY name",
+          )
+        ).rows,
       };
     },
   }),
@@ -418,7 +427,14 @@ export const feedbackTools = [
     auditInput,
     auditOutput,
     async run(r, i) {
-      if (!(await r.db.query("SELECT 1 FROM staff_users WHERE id=$1 AND role IN ('doctor','receptionist')", [i.assignedTo])).rowCount)
+      if (
+        !(
+          await r.db.query(
+            "SELECT 1 FROM staff_users WHERE id=$1 AND role IN ('doctor','receptionist')",
+            [i.assignedTo],
+          )
+        ).rowCount
+      )
         throw new ToolError('owner', 'Choose a clinic staff member');
       if (i.sourceId) await feedbackCase(r, i.sourceId);
       if (i.id) {

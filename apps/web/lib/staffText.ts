@@ -21,6 +21,8 @@ const HI: Record<string, string> = {
   'Privacy requests': 'गोपनीयता अनुरोध',
   'My profile': 'मेरी प्रोफ़ाइल',
   'Import patients': 'मरीज़ों की सूची जोड़ें',
+  "I'm away": 'मैं छुट्टी पर हूँ',
+  'Doctor away': 'डॉक्टर छुट्टी पर',
   'Safety & privacy': 'सुरक्षा और गोपनीयता',
   'Sign out': 'साइन आउट',
   Help: 'सहायता',

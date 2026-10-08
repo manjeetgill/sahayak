@@ -235,7 +235,12 @@ export async function buildApp(deps: AppDeps) {
       clinic: c.name,
       defaultLanguage: c.default_language,
       doctors: (
-        await db.query('SELECT id, name, speciality FROM doctors WHERE active ORDER BY name')
+        await db.query(
+          `SELECT d.id, d.name, d.speciality,
+                  (SELECT to_char(max(l.ends_on),'YYYY-MM-DD') FROM doctor_leave l
+                    WHERE l.doctor_id=d.id AND (now() AT TIME ZONE (SELECT timezone FROM clinics WHERE id=d.clinic_id))::date BETWEEN l.starts_on AND l.ends_on) AS "awayUntil"
+             FROM doctors d WHERE d.active ORDER BY d.name`,
+        )
       ).rows,
     }));
   });
@@ -412,8 +417,14 @@ export async function buildApp(deps: AppDeps) {
     return read(
       c.clinicId,
       async (db) =>
-        (await db.query('SELECT id, name, speciality FROM doctors WHERE active ORDER BY name'))
-          .rows,
+        (
+          await db.query(
+            `SELECT d.id, d.name, d.speciality,
+                  (SELECT to_char(max(l.ends_on),'YYYY-MM-DD') FROM doctor_leave l
+                    WHERE l.doctor_id=d.id AND (now() AT TIME ZONE (SELECT timezone FROM clinics WHERE id=d.clinic_id))::date BETWEEN l.starts_on AND l.ends_on) AS "awayUntil"
+             FROM doctors d WHERE d.active ORDER BY d.name`,
+          )
+        ).rows,
     );
   });
   app.get('/staff/patients/:id/workspace', async (req) => {
@@ -859,6 +870,25 @@ export async function buildApp(deps: AppDeps) {
       ...(req.body as object),
       patientId: idParam(req),
     });
+  });
+  // ---- "I'm away" ----
+  app.get('/staff/leave', async (req) => {
+    const c = await claims(req, ['doctor', 'receptionist']);
+    return callTool(rt, staffCtx(c), 'list_leave', {
+      doctorId: (req.query as any).doctorId || undefined,
+    });
+  });
+  app.post('/staff/leave', async (req) => {
+    const c = await claims(req, ['doctor', 'receptionist']);
+    return callTool(rt, staffCtx(c), 'add_leave', req.body);
+  });
+  app.delete('/staff/leave/:id', async (req) => {
+    const c = await claims(req, ['doctor', 'receptionist']);
+    return callTool(rt, staffCtx(c), 'delete_leave', { id: idParam(req) });
+  });
+  app.post('/staff/appointments/:id/cancel', async (req) => {
+    const c = await claims(req, ['doctor', 'receptionist']);
+    return callTool(rt, staffCtx(c), 'cancel_appointment', { appointmentId: idParam(req) });
   });
   // ---- bring your own patient list ----
   app.post('/staff/patient-import/preview', async (req) => {

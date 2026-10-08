@@ -1,7 +1,14 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
-import { addPatient, createTestClinic, dropTestClinic, hashPassword, makePool } from '@sahayak/db';
-import { EventBus, registerAllTools } from '@sahayak/core';
+import {
+  withClinic,
+  addPatient,
+  createTestClinic,
+  dropTestClinic,
+  hashPassword,
+  makePool,
+} from '@sahayak/db';
+import { EventBus, registerAllTools, freeSlots } from '@sahayak/core';
 import { LlmGate } from '@sahayak/agents';
 import { buildApp } from '../src/app';
 
@@ -165,5 +172,60 @@ describe('patient import', () => {
     );
     const u = (await call('recA', 'POST', `/staff/patient-import/${c.batchId}/undo`)).json();
     expect(u).toEqual({ removed: 1, kept: 1 });
+  });
+});
+
+describe('doctor away', () => {
+  const day = (n: number) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+  const slots = (d: string) =>
+    withClinic(pool, A.clinicId, (db) => freeSlots(db, A.clinicId, A.doctorIds[0], d, 10));
+  it('blocks slots on those days, lists existing bookings, and reopens on removal', async () => {
+    const doc = A.doctorIds[0];
+    expect((await slots(day(3))).length).toBeGreaterThan(0);
+    const patient = (
+      await admin.query('SELECT id FROM patients WHERE clinic_id=$1 LIMIT 1', [A.clinicId])
+    ).rows[0].id;
+    await admin.query(
+      "INSERT INTO appointments (clinic_id,doctor_id,patient_id,starts_at,ends_at,source) VALUES ($1,$2,$3,$4,$4::timestamptz + interval '10 minutes','manual')",
+      [A.clinicId, doc, patient, new Date(Date.now() + 3 * 864e5).toISOString()],
+    );
+    const add = await call('recA', 'POST', '/staff/leave', {
+      doctorId: doc,
+      startsOn: day(1),
+      endsOn: day(5),
+    });
+    expect(add.statusCode).toBe(200);
+    expect(add.json().affected.length).toBe(1);
+    expect(await slots(day(3))).toEqual([]);
+    expect((await slots(day(7))).length).toBeGreaterThan(0);
+    // a doctor manages only their own leave
+    expect(
+      (
+        await call('docA', 'POST', '/staff/leave', {
+          doctorId: A.doctorIds[1],
+          startsOn: day(1),
+          endsOn: day(2),
+        })
+      ).statusCode,
+    ).toBe(403);
+    const mine = await call('docA', 'POST', '/staff/leave', { startsOn: day(20), endsOn: day(21) });
+    expect(mine.statusCode).toBe(200);
+    // the booking can be cancelled one by one
+    const aff = add.json().affected[0];
+    expect((await call('recA', 'POST', `/staff/appointments/${aff.id}/cancel`)).statusCode).toBe(
+      200,
+    );
+    const list = (await call('recA', 'GET', `/staff/leave?doctorId=${doc}`)).json().leave;
+    for (const l of list)
+      expect((await call('recA', 'DELETE', `/staff/leave/${l.id}`)).statusCode).toBe(200);
+    expect((await slots(day(3))).length).toBeGreaterThan(0);
+    // public page shows who is away today
+    await call('recA', 'POST', '/staff/leave', {
+      doctorId: doc,
+      startsOn: day(-1),
+      endsOn: day(1),
+    });
+    const pub = (await app.inject({ method: 'GET', url: `/public/${A.slug}` })).json();
+    expect(pub.doctors.find((d: any) => d.id === doc).awayUntil).toBe(day(1));
   });
 });

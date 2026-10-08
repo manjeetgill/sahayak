@@ -29,6 +29,7 @@ import { waitlistTools } from './waitlist';
 import { customAgentTools } from './custom_agents';
 import { shortcutTools } from './shortcuts';
 import { patientImportTools } from './patient-import';
+import { leaveTools } from './leave';
 
 let done = false;
 /** Register every tool module once. Called by the API/agent runtime at startup. */
@@ -66,6 +67,7 @@ export function registerAllTools() {
     ...waitlistTools,
     ...shortcutTools,
     ...patientImportTools,
+    ...leaveTools,
   ]);
   done = true;
 }

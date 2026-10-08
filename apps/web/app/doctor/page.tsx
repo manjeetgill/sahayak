@@ -338,6 +338,7 @@ export default function Doctor() {
                 <a href="/doctor/waitlist">Waiting list</a>
                 <a href="/doctor/templates">Reusable care plans</a>
                 <a href="/doctor/references">Medical reference</a>
+                <a href="/doctor/away">{x("I'm away")}</a>
                 <a href="/doctor/shortcuts">My visit shortcuts</a>
                 <a href="/doctor/settings">My professional details</a>
 

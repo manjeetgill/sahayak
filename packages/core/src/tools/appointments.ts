@@ -19,6 +19,16 @@ export async function freeSlots(
   const doc = await db.query('SELECT slot_minutes FROM doctors WHERE id=$1 AND active', [doctorId]);
   if (!doc.rowCount) throw new ToolError('not_found', 'Doctor not found', 404);
   const slot = doc.rows[0].slot_minutes as number;
+  // A doctor who is away takes no bookings on those days (this one function feeds listing and booking).
+  if (
+    (
+      await db.query(
+        'SELECT 1 FROM doctor_leave WHERE doctor_id=$1 AND $2::date BETWEEN starts_on AND ends_on',
+        [doctorId, date],
+      )
+    ).rowCount
+  )
+    return [];
   const s = await db.query(
     `SELECT timings, c.timezone, lower(to_char($2::date,'dy')) AS dow FROM clinic_settings s JOIN clinics c ON c.id=s.clinic_id WHERE s.clinic_id=$1`,
     [clinicId, date],
