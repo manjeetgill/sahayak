@@ -132,22 +132,27 @@ export default function DoctorAssistantAccess({
                   <p>{copy.description}</p>
                   <p className="assistant-choice-help">{help}</p>
                   <div className="assistant-choice-actions">
-                    <button
-                      className={a.enabled ? 'ghost' : ''}
-                      disabled={busy || !a.allowed}
-                      aria-label={`${a.enabled ? 'Pause' : 'Turn on'} ${labels[a.kind]}`}
-                      onClick={() => save(d.id, a.kind, !a.enabled)}
-                    >
-                      {busy
-                        ? 'Saving…'
-                        : !a.allowed
-                          ? 'Admin access needed'
+                    {a.allowed ? (
+                      <button
+                        className={a.enabled ? 'ghost' : ''}
+                        disabled={busy}
+                        aria-label={`${a.enabled ? 'Pause' : 'Turn on'} ${labels[a.kind]}`}
+                        onClick={() => save(d.id, a.kind, !a.enabled)}
+                      >
+                        {busy
+                          ? 'Saving…'
                           : a.enabled
                             ? 'Pause for me'
                             : connected
                               ? 'Turn on for me'
                               : 'Enable when connected'}
-                    </button>
+                      </button>
+                    ) : (
+                      // A greyed-out button reads as broken. This is a decision the clinic admin makes, so say so plainly.
+                      <p className="assistant-locked" role="note">
+                        🔒 Your clinic admin controls this assistant.
+                      </p>
+                    )}
                     {a.kind === 'reminders' && a.allowed && (
                       <button className="ghost" onClick={onReminders}>
                         Choose a reminder →

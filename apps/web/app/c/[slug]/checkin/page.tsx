@@ -123,8 +123,8 @@ export default function CheckIn({ params }: { params: { slug: string } }) {
           />
           {returning === null && (
             <p>
-              <button type="button" className="ghost" onClick={lookup}>
-                →
+              <button type="button" onClick={lookup}>
+                {t(lang, 'checkin.continue')} →
               </button>
             </p>
           )}

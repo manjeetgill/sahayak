@@ -4,11 +4,13 @@ import { displayLabel } from '../../lib/labels';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '@sahayak/shared';
 import { AskClinic } from '../components/AskClinic';
+import { useStaffLang } from '../../lib/staffText';
 import { beep, staff, useLive, useSession } from '../../lib/api';
 
 const receptionSection = (hash: string) => (hash === 'conversations' ? 'conversations' : 'today');
 export default function Console() {
   const s = useSession('receptionist');
+  const { x } = useStaffLang();
   const section = useSection(receptionSection, 'today');
   const [checkinOpen, setCheckinOpen] = useState(false);
   const [queue, setQueue] = useState<any[]>([]),
@@ -99,15 +101,15 @@ export default function Console() {
   return (
     <div className="reception-page" data-reception-view={section}>
       <header className="screen-heading">
-        <span className="eyebrow">Reception</span>
-        <h1>{section === 'conversations' ? 'Conversations' : 'Today at the front desk'}</h1>
+        <span className="eyebrow">{x('Reception')}</span>
+        <h1>{x(section === 'conversations' ? 'Conversations' : 'Today at the front desk')}</h1>
         <p className="muted">
           {section === 'conversations'
-            ? 'Messages that need a person or clinic review.'
-            : 'Check in patients, manage the queue and answer clinic messages.'}
+            ? x('Messages that need a person or clinic review.')
+            : x('Check in patients, manage the queue and answer clinic messages.')}
         </p>
         {section === 'today' ? (
-          <button onClick={() => setCheckinOpen(true)}>Check in patient</button>
+          <button onClick={() => setCheckinOpen(true)}>{x('Check in patient')}</button>
         ) : (
           <button className="ghost" onClick={() => void act(load)}>
             Refresh
@@ -281,13 +283,13 @@ export default function Console() {
                   </div>
                 </div>
               ))}
-              {!flags.length && <p className="muted">Nothing needs attention.</p>}
+              {!flags.length && <p className="muted">{x('Nothing needs attention.')}</p>}
             </div>
           </div>
           <section className="card">
             <div className="panel-heading">
-              <h2>Conversations needing a reply</h2>
-              <a href="#conversations">View all</a>
+              <h2>{x('Conversations needing a reply')}</h2>
+              <a href="#conversations">{x('View all')}</a>
             </div>
             {convs
               .filter((c) => c.handled_by === 'human')
@@ -308,30 +310,30 @@ export default function Console() {
         </div>
         <aside className="workspace-stack reception-aside" hidden={section !== 'today'}>
           <section className="card">
-            <h2>Today</h2>
+            <h2>{x('Today')}</h2>
             <div className="metric-grid">
               <div className="metric-tile">
                 <strong>{queue.length}</strong>
-                <span>Checked in</span>
+                <span>{x('Checked in')}</span>
               </div>
               <div className="metric-tile">
                 <strong>{queue.filter((q) => q.status === 'done').length}</strong>
-                <span>Seen</span>
+                <span>{x('Seen')}</span>
               </div>
               <div className="metric-tile">
                 <strong>{queue.filter((q) => q.status === 'waiting').length}</strong>
-                <span>Waiting</span>
+                <span>{x('Waiting')}</span>
               </div>
             </div>
           </section>
           <section className="card">
-            <h2>Quick actions</h2>
+            <h2>{x('Quick actions')}</h2>
             <nav className="action-links">
               <a href="/console/arrivals">QR arrivals &amp; payments</a>
-              <a href="/doctor/waitlist">Waiting list</a>
-              <a href="/console/privacy">Privacy requests</a>
+              <a href="/doctor/waitlist">{x('Waiting list')}</a>
+              <a href="/console/privacy">{x('Privacy requests')}</a>
 
-              <a href="/safety">Safety report</a>
+              <a href="/safety">{x('Safety report')}</a>
             </nav>
           </section>
           <AskClinic />

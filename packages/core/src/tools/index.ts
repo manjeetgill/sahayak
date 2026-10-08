@@ -27,6 +27,7 @@ import { issuedTools } from './issued';
 import { careTools } from './care';
 import { waitlistTools } from './waitlist';
 import { customAgentTools } from './custom_agents';
+import { shortcutTools } from './shortcuts';
 
 let done = false;
 /** Register every tool module once. Called by the API/agent runtime at startup. */
@@ -62,6 +63,7 @@ export function registerAllTools() {
     searchRecord,
     searchMedicalReferences,
     ...waitlistTools,
+    ...shortcutTools,
   ]);
   done = true;
 }

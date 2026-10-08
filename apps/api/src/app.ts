@@ -203,7 +203,9 @@ export async function buildApp(deps: AppDeps) {
 
   await installPatientFeedback(app, deps, async (req, roles) => staffCtx(await claims(req, roles)));
   await installOutboundCalls(app, deps, async (req, roles) => staffCtx(await claims(req, roles)));
-  await installGoogleConnections(app, deps, async (req, roles) => staffCtx(await claims(req, roles)));
+  await installGoogleConnections(app, deps, async (req, roles) =>
+    staffCtx(await claims(req, roles)),
+  );
   await installOnlinePayments(app, deps, async (req, roles) => staffCtx(await claims(req, roles)));
 
   app.get('/health', async () => ({ ok: true }));
@@ -854,6 +856,38 @@ export async function buildApp(deps: AppDeps) {
   app.post('/staff/patients/:id/prescriptions', async (req) => {
     const c = await claims(req, ['doctor']);
     return callTool(rt, staffCtx(c), 'draft_prescription', {
+      ...(req.body as object),
+      patientId: idParam(req),
+    });
+  });
+  // ---- doctor shortcuts: visit templates, favourite medicines, "same as last time" ----
+  app.get('/staff/shortcuts', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'list_visit_shortcuts', {});
+  });
+  app.post('/staff/shortcuts/templates', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'save_visit_template', req.body);
+  });
+  app.delete('/staff/shortcuts/templates/:id', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'delete_visit_template', { id: idParam(req) });
+  });
+  app.post('/staff/shortcuts/starter', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'add_starter_templates', {});
+  });
+  app.post('/staff/shortcuts/medicines', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'save_favourite_medicine', req.body);
+  });
+  app.delete('/staff/shortcuts/medicines/:id', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'delete_favourite_medicine', { id: idParam(req) });
+  });
+  app.post('/staff/patients/:id/prescriptions/repeat', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'repeat_last_prescription', {
       ...(req.body as object),
       patientId: idParam(req),
     });

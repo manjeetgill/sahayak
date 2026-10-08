@@ -34,7 +34,7 @@ export function AskClinic() {
     <div className="card" data-testid="ask-clinic">
       <h3>Ask your clinic</h3>
       <form
-        className="row"
+        className="row ask-form"
         onSubmit={(e) => {
           e.preventDefault();
           ask(q);

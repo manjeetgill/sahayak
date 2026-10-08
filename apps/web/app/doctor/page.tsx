@@ -7,10 +7,14 @@ import { t } from '@sahayak/shared';
 import { AskClinic } from '../components/AskClinic';
 import { PatientSearch } from '../components/PatientSearch';
 import { beep, staff, useLive, useSession } from '../../lib/api';
+import { useStaffLang } from '../../lib/staffText';
 
 const utilitySection = (hash: string) => hash;
+const greeting = (d = new Date()) =>
+  d.getHours() < 12 ? 'Good morning' : d.getHours() < 17 ? 'Good afternoon' : 'Good evening';
 export default function Doctor() {
   const s = useSession('doctor');
+  const { lang, x } = useStaffLang();
   const utility = useSection(utilitySection, '');
   const [queue, setQueue] = useState<any[]>([]),
     [today, setToday] = useState<any[]>([]),
@@ -76,15 +80,15 @@ export default function Doctor() {
     <div className="doctor-today">
       <header className="doctor-page-heading">
         <div>
-          <span className="page-eyebrow">Today&apos;s clinic</span>
+          <span className="page-eyebrow">{x("Today's clinic")}</span>
           <h1>Good afternoon, Dr. {s.user.name.replace(/^Dr\.\s*/i, '').split(' ')[0]}</h1>
-          <p className="muted">Your next patient and outstanding work are together here.</p>
+          <p className="muted">{x('Your next patient and outstanding work are together here.')}</p>
         </div>
         <button
           onClick={() => act('/staff/queue/call-next', {})}
           disabled={!waiting.length && !current}
         >
-          {t('en', 'doctor.next')} →
+          {t(lang, 'doctor.next')} →
         </button>
       </header>
       {!setupDone && (
@@ -107,48 +111,67 @@ export default function Doctor() {
       ))}
       <div className="grid3" style={{ gridTemplateColumns: '1.3fr 1fr' }}>
         <div>
-          <AttentionSummary />
           <div className="card current-consultation" hidden={!current} data-testid="patient-card">
             {current ? (
               <>
                 <div className="row between">
-                  <h2>{current.patient_name}</h2>
+                  <div>
+                    <span className="page-eyebrow">{x('Now seeing')}</span>
+                    <h2>{current.patient_name}</h2>
+                  </div>
                   <span className="tag called">Token {current.token_number}</span>
                 </div>
                 <p className="muted">{current.age ? `Age ${current.age}` : ''}</p>
-                <p>
-                  <a href={`/doctor/patients/${current.patient_id}`}>
-                    Open record and write note →
-                  </a>
-                </p>
                 <p>
                   <b>Intake:</b>{' '}
                   {current.intake_summary ?? <span className="muted">No intake answers yet</span>}
                 </p>
                 <div className="row">
-                  {current.status === 'called' && (
+                  {current.status === 'called' ? (
                     <button onClick={() => act(`/staff/queue/${current.id}/start`)}>
-                      Patient is here
+                      {x('Patient is here')}
                     </button>
+                  ) : (
+                    <a
+                      className="button-link primary"
+                      href={`/doctor/patients/${current.patient_id}#note-composer`}
+                    >
+                      {x('Open record and write note →')}
+                    </a>
                   )}
-                  <button className="ghost" onClick={() => act(`/staff/queue/${current.id}/hold`)}>
-                    {t('en', 'doctor.hold')}
-                  </button>
-                  <button className="ghost" onClick={() => act(`/staff/queue/${current.id}/skip`)}>
-                    {t('en', 'doctor.skip')}
-                  </button>
+                  {current.status === 'called' && (
+                    <a className="button-link" href={`/doctor/patients/${current.patient_id}`}>
+                      {x('Open record')}
+                    </a>
+                  )}
+                  <details className="more-actions">
+                    <summary>{x('More')}</summary>
+                    <button
+                      className="ghost small"
+                      onClick={() => act(`/staff/queue/${current.id}/hold`)}
+                    >
+                      {t(lang, 'doctor.hold')}
+                    </button>
+                    <button
+                      className="ghost small"
+                      onClick={() => act(`/staff/queue/${current.id}/skip`)}
+                    >
+                      {t(lang, 'doctor.skip')}
+                    </button>
+                  </details>
                 </div>
                 <div style={{ marginTop: 12 }}>
                   <VisitChecklist key={current.id} id={current.id} onFinished={() => void load()} />
                 </div>
               </>
             ) : (
-              <p className="muted">No patient in the room. Press Next patient.</p>
+              <p className="muted">{x('No patient in the room. Press Next patient.')}</p>
             )}
           </div>
+          <AttentionSummary />
           <div className="card" style={{ marginTop: '1rem' }}>
             <h3>
-              {t('en', 'doctor.waiting')} ({waiting.length})
+              {t(lang, 'doctor.waiting')} ({waiting.length})
             </h3>
             <div className="list">
               {waiting.map((q) => (
@@ -162,13 +185,13 @@ export default function Doctor() {
                       className="small ghost"
                       onClick={() => act(`/staff/queue/${q.id}/hold`)}
                     >
-                      {t('en', 'doctor.hold')}
+                      {t(lang, 'doctor.hold')}
                     </button>
                     <button
                       className="small ghost"
                       onClick={() => act(`/staff/queue/${q.id}/skip`)}
                     >
-                      {t('en', 'doctor.skip')}
+                      {t(lang, 'doctor.skip')}
                     </button>
                   </span>
                 </div>
@@ -202,15 +225,15 @@ export default function Doctor() {
             <div className="metric-grid">
               <div className="metric-tile">
                 <strong>{today.length}</strong>
-                <span>Booked</span>
+                <span>{x('Booked')}</span>
               </div>
               <div className="metric-tile">
                 <strong>{done}</strong>
-                <span>Seen</span>
+                <span>{x('Seen')}</span>
               </div>
               <div className="metric-tile">
                 <strong>{waiting.length}</strong>
-                <span>Waiting</span>
+                <span>{x('Waiting')}</span>
               </div>
             </div>
             <details>
@@ -242,8 +265,8 @@ export default function Doctor() {
             <PatientSearch />
           </section>
           <div className="card" style={{ marginBottom: '1rem' }} data-testid="late-box">
-            <h3>Running late?</h3>
-            <p className="muted">Preview affected patients before sending.</p>
+            <h3>{x('Running late?')}</h3>
+            <p className="muted">{x('Preview affected patients before sending.')}</p>
             <form className="row" onSubmit={proposeLate}>
               <input
                 aria-label="Running late"
@@ -252,7 +275,7 @@ export default function Doctor() {
                 onChange={(e) => setLate(e.target.value)}
               />
               <button type="submit" className="ghost">
-                Check impact
+                {x('Check impact')}
               </button>
             </form>
             {err && (
@@ -299,11 +322,11 @@ export default function Doctor() {
             )}
           </div>
           <section className="card">
-            <h2>Quick actions</h2>
+            <h2>{x('Quick actions')}</h2>
             <nav className="action-links">
-              <a href="#patient-search">Find patient</a>
-              <a href="/doctor/care">Create care task</a>
-              <a href="/doctor/practice">Clinic overview</a>
+              <a href="#patient-search">{x('Find patient')}</a>
+              <a href="/doctor/care">{x('Create care task')}</a>
+              <a href="/doctor/practice">{x('Clinic overview')}</a>
             </nav>
             <details className="more-clinic-tools">
               <summary>More clinic tools</summary>

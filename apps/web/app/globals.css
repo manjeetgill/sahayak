@@ -1744,3 +1744,17 @@ summary:focus-visible {
 .direct-connection-card details {margin-top:12px;}
 .direct-connection-card button {min-height:44px;}
 @media (max-width:800px) {.direct-connections-grid {grid-template-columns:1fr;}}
+
+/* Ask-your-clinic: the question box must never be squeezed by the buttons beside it (narrow side columns). */
+.ask-form { flex-wrap: wrap; }
+.ask-form input { flex: 1 1 100%; min-width: 0; }
+
+/* Doctor Today: one primary action for the patient in the room; secondary actions tucked under "More". */
+.button-link.primary { background: var(--brand, #176b55); color: #fff; border-radius: 10px; padding: .6rem 1rem; font-weight: 600; text-decoration: none; display: inline-block; }
+.more-actions { display: inline-block; }
+.more-actions > summary { cursor: pointer; padding: .5rem .8rem; border: 1px solid var(--line, #e4e7ec); border-radius: 10px; list-style: none; }
+.more-actions[open] { display: inline-flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.attention-clear { padding-top: .6rem; padding-bottom: .6rem; }
+.attention-clear .panel-heading { margin-bottom: 0; }
+
+.assistant-locked { margin: 0; padding: .55rem .8rem; border-radius: 10px; background: #f1f5f4; color: var(--muted, #667085); font-size: .9rem; }

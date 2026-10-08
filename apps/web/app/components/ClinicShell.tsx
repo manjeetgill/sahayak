@@ -3,6 +3,7 @@
 import { useSection } from './useSection';
 import { usePathname } from 'next/navigation';
 import { session, useSession, roleHome } from '../../lib/api';
+import { useStaffLang } from '../../lib/staffText';
 
 const doctorNav = [
   { label: 'My assistants', href: '/doctor/agents', group: 'assistants' },
@@ -63,6 +64,7 @@ export function ClinicShell({ children }: { children: React.ReactNode }) {
   const current = useSession();
   const pathname = usePathname();
   const hash = useSection(currentHash, '');
+  const { lang, setLang, x } = useStaffLang();
   if (!current) return <>{children}</>;
   const role = current.user.role;
   const nav = role === 'admin' ? adminNav : role === 'receptionist' ? receptionNav : doctorNav;
@@ -84,10 +86,10 @@ export function ClinicShell({ children }: { children: React.ReactNode }) {
           <span>Sahayak</span>
         </a>
         <div className="clinic-identity">
-          <b>Clinic workspace</b>
+          <b>{x('Clinic workspace')}</b>
           <span>
             {current.user.name} ·{' '}
-            {role === 'admin' ? 'Admin' : role === 'receptionist' ? 'Receptionist' : 'Doctor'}
+            {x(role === 'admin' ? 'Admin' : role === 'receptionist' ? 'Receptionist' : 'Doctor')}
           </span>
         </div>
         <nav className="clinic-nav">
@@ -98,14 +100,14 @@ export function ClinicShell({ children }: { children: React.ReactNode }) {
               className={active === item.group ? 'active' : ''}
               aria-current={active === item.group ? 'page' : undefined}
             >
-              {item.label}
+              {x(item.label)}
             </a>
           ))}
         </nav>
         <nav className="clinic-secondary-nav" aria-label="Clinic administration">
-          {role === 'doctor' && <a href="/doctor/settings">My profile</a>}
+          {role === 'doctor' && <a href="/doctor/settings">{x('My profile')}</a>}
           {role === 'admin' && <a href="/admin/setup">Setup checklist</a>}
-          {role !== 'admin' && <a href="/safety">Safety &amp; privacy</a>}
+          {role !== 'admin' && <a href="/safety">{x('Safety & privacy')}</a>}
           <button
             type="button"
             onClick={() => {
@@ -113,7 +115,7 @@ export function ClinicShell({ children }: { children: React.ReactNode }) {
               location.href = '/login';
             }}
           >
-            Sign out
+            {x('Sign out')}
           </button>
         </nav>
       </aside>
@@ -132,12 +134,22 @@ export function ClinicShell({ children }: { children: React.ReactNode }) {
             <span aria-hidden="true">⌕</span>
             {role === 'admin'
               ? 'Open clinic setup checklist'
-              : role === 'receptionist'
-                ? 'Open reception workspace'
-                : 'Find a patient by name or phone'}
+              : x(
+                  role === 'receptionist'
+                    ? 'Open reception workspace'
+                    : 'Find a patient by name or phone',
+                )}
           </a>
-          <a className="clinic-help" href={role === 'admin' ? '/admin/setup' : '/safety'}>
-            Help
+          <button
+            type="button"
+            className="clinic-lang ghost small"
+            onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')}
+            aria-label={lang === 'hi' ? 'Switch to English' : 'हिन्दी में बदलें'}
+          >
+            {lang === 'hi' ? 'English' : 'हिन्दी'}
+          </button>
+          <a className="clinic-help" href="/help">
+            {x('Help')}
           </a>
           <span className="clinic-avatar" aria-label={current.user.name}>
             {initials}
@@ -156,7 +168,7 @@ export function ClinicShell({ children }: { children: React.ReactNode }) {
               className={active === item.group ? 'active' : ''}
               aria-current={active === item.group ? 'page' : undefined}
             >
-              {item.label}
+              {x(item.label)}
             </a>
           ))}
         </nav>

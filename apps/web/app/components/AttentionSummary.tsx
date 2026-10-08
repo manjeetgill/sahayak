@@ -1,7 +1,9 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { staff } from '../../lib/api';
+import { useStaffLang } from '../../lib/staffText';
 export function AttentionSummary() {
+  const { x } = useStaffLang();
   const [brief, setBrief] = useState<any>(null);
   const [data, setData] = useState<any>(null),
     [error, setError] = useState('');
@@ -19,11 +21,39 @@ export function AttentionSummary() {
     const timer = setInterval(() => void load(), 30000);
     return () => clearInterval(timer);
   }, [load]);
+  // Nothing to do: one calm line, with the detail one click away, so it does not push the patient down the page.
+  if (data && data.total === 0 && !error) {
+    return (
+      <section className="card attention-summary attention-clear">
+        <div className="panel-heading">
+          <p>
+            <b>{x('Nothing needs your attention.')}</b>{' '}
+            <span className="muted">No outstanding work. New items will appear here.</span>
+          </p>
+          <a href="/doctor/inbox">View all 0</a>
+        </div>
+        {brief && (
+          <details className="attention-detail">
+            <summary>Care to follow through</summary>
+            <p>
+              {brief.followups} follow-up steps due within 24 hours or overdue · {brief.no_reply}{' '}
+              overdue replies · {brief.messages} staff conversations needing a reply
+            </p>
+            <p>
+              {brief.investigations} outstanding report tasks · {brief.referrals} referrals ·{' '}
+              {brief.insurance} insurance cases · {brief.outside_range} results outside supplied
+              ranges awaiting review
+            </p>
+          </details>
+        )}
+      </section>
+    );
+  }
   return (
     <section className="card attention-summary">
       <div className="panel-heading">
         <div>
-          <h2>Needs your attention</h2>
+          <h2>{x('Needs your attention')}</h2>
           <p className="muted">Ordered by urgency and due time</p>
         </div>
         <a href="/doctor/inbox">View all{data ? ` ${data.total}` : ''}</a>

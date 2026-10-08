@@ -346,11 +346,17 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
               {!draft && (
                 <>
                   <p className="muted">
-                    Say or type what you found and decided, using headings if you like ("Complaint:
-                    ... Diagnosis: ... Plan: ..."). The assistant only arranges your words under
-                    headings. The draft is stored for review. Verify every section against your
-                    source before signing; unsigned drafts are not final clinical notes.
+                    Say or type what you found and decided. Headings help ("Complaint: … Diagnosis:
+                    … Plan: …"). The assistant only arranges your words; you review and sign.
                   </p>
+                  <details className="muted note-safety-detail">
+                    <summary>How your note is handled</summary>
+                    <p>
+                      The assistant only arranges your words under headings and never adds anything.
+                      The draft is stored for review. Verify every section against your source
+                      before signing; unsigned drafts are not final clinical notes.
+                    </p>
+                  </details>
                   <textarea
                     aria-label="Dictation"
                     rows={5}
@@ -362,7 +368,7 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
                     placeholder="Complaint: fever for 3 days. Diagnosis: viral fever. Plan: rest, fluids. Follow up: 1 week"
                   />
                   <p className="row">
-                    <button className="ghost" type="button" onClick={dictate}>
+                    <button className={text.trim() ? 'ghost' : ''} type="button" onClick={dictate}>
                       {listening ? '■ Stop' : '🎤 Dictate'}
                     </button>
                     <select
@@ -374,7 +380,11 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
                       <option value="en-IN">English</option>
                       <option value="hi-IN">हिन्दी</option>
                     </select>
-                    <button disabled={!text.trim() || listening} onClick={arrange}>
+                    <button
+                      className={text.trim() ? '' : 'ghost'}
+                      disabled={!text.trim() || listening}
+                      onClick={arrange}
+                    >
                       Arrange note
                     </button>
                   </p>
@@ -606,9 +616,16 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
           </div>
         </div>
         <aside className="patient-tools workspace-stack">
-          <section className="card">
-            <PatientCheckins patientId={params.id} />
-          </section>
+          {activeSection === 'visit' ? (
+            <details className="card checkin-responses-collapsed">
+              <summary>Earlier check-in responses</summary>
+              <PatientCheckins patientId={params.id} />
+            </details>
+          ) : (
+            <section className="card">
+              <PatientCheckins patientId={params.id} />
+            </section>
+          )}
           <section className="card">
             <h2>{activeSection === 'visit' ? 'Finish this visit' : 'Visit checklist'}</h2>
             {rec.visits.find(

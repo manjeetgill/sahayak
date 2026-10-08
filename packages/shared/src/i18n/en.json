@@ -181,5 +181,6 @@
   "msg.voice_reception": "This call assistant can book a new appointment and explain clinic timings. For existing appointments, personal records or account changes, please contact reception. No live transfer is available.",
   "msg.choice_ai_reception": "Voice chat (web link)",
   "msg.voice_link": "Start a voice conversation with the AI receptionist using the private link below. Your booking will continue from here. The link works once and expires in 15 minutes. Keep it private. This opens an internet call in your browser; it does not ring your phone.",
-  "msg.voice_resume": "Let us continue your appointment booking. What would you like to do?"
+  "msg.voice_resume": "Let us continue your appointment booking. What would you like to do?",
+  "checkin.continue": "Continue"
 }
