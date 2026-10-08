@@ -49,6 +49,7 @@ test('the Visit tab holds the note AND prescriptions and certificates, and dicta
   await checkIn(request, 'Visit Patient', '9822211102');
   await login(page, 'anil@demo.sahayak.in');
   await page.getByRole('button', { name: /Next patient/ }).click();
+  await expect(page.getByTestId('patient-card')).toContainText('Visit Patient');
   const started = page.waitForResponse((r) => /\/queue\/.+\/start/.test(r.url()));
   await page.getByRole('button', { name: 'Patient is here' }).click();
   const resp = await started;
@@ -111,6 +112,7 @@ test('visit shortcuts: templates, blanks check, favourite medicines, and the not
 
   await page.goto('/doctor');
   await page.getByRole('button', { name: /Next patient/ }).click();
+  await expect(page.getByTestId('patient-card')).toContainText('Shortcut Patient');
   const started = page.waitForResponse((r) => /\/queue\/.+\/start/.test(r.url()));
   await page.getByRole('button', { name: 'Patient is here' }).click();
   const resp = await started;
