@@ -6,15 +6,26 @@ const API = `http://127.0.0.1:${process.env.E2E_API_PORT ?? '4100'}`;
 async function checkIn(request: any, name: string, phone: string) {
   const info = await (await request.get(`${API}/public/dr-sharma`)).json();
   const r = await request.post(`${API}/public/dr-sharma/checkin`, {
-    data: { name, phone, doctorId: info.doctors[0].id, language: 'en', consent: { visit_data: true } },
+    data: {
+      name,
+      phone,
+      doctorId: info.doctors[0].id,
+      language: 'en',
+      consent: { visit_data: true },
+    },
   });
   expect(r.ok()).toBeTruthy();
 }
 
-test('doctor Today: the patient in the room comes first, with one main action', async ({ page, request }) => {
+test('doctor Today: the patient in the room comes first, with one main action', async ({
+  page,
+  request,
+}) => {
   await checkIn(request, 'Ux Patient', '9822211101');
   await login(page, 'anil@demo.sahayak.in');
-  await expect(page.getByRole('heading', { level: 1 })).toContainText(/Good (morning|afternoon|evening), Dr\. Anil/);
+  await expect(page.getByRole('heading', { level: 1 })).toContainText(
+    /Good (morning|afternoon|evening), Dr\. Anil/,
+  );
   await page.getByRole('button', { name: /Next patient/ }).click();
   const card = page.getByTestId('patient-card');
   await expect(card).toContainText('Ux Patient');
@@ -31,11 +42,17 @@ test('doctor Today: the patient in the room comes first, with one main action', 
   await expect(card.getByRole('button', { name: 'Skip' })).toBeVisible();
 });
 
-test('the Visit tab holds the note AND prescriptions and certificates, and dictation is the main button', async ({ page, request }) => {
+test('the Visit tab holds the note AND prescriptions and certificates, and dictation is the main button', async ({
+  page,
+  request,
+}) => {
   await checkIn(request, 'Visit Patient', '9822211102');
   await login(page, 'anil@demo.sahayak.in');
   await page.getByRole('button', { name: /Next patient/ }).click();
+  const started = page.waitForResponse((r) => /\/queue\/.+\/start/.test(r.url()));
   await page.getByRole('button', { name: 'Patient is here' }).click();
+  const resp = await started;
+  expect(resp.status(), await resp.text()).toBe(200);
   await page.getByRole('link', { name: /Open record and write note/ }).click();
   await expect(page.getByTestId('note-composer')).toBeVisible();
   await expect(page.getByRole('button', { name: 'New prescription' })).toBeVisible();
@@ -49,7 +66,9 @@ test('Hindi toggle on the everyday screens, and a real Help page', async ({ page
   await login(page, 'anil@demo.sahayak.in');
   await page.getByRole('button', { name: 'हिन्दी में बदलें' }).click();
   await expect(page.getByRole('link', { name: 'आज' }).first()).toBeVisible();
-  await expect(page.getByRole('heading', { level: 1 })).toContainText(/सुप्रभात|नमस्कार|शुभ संध्या/);
+  await expect(page.getByRole('heading', { level: 1 })).toContainText(
+    /सुप्रभात|नमस्कार|शुभ संध्या/,
+  );
   await page.getByRole('button', { name: 'Switch to English' }).click();
   await expect(page.getByRole('link', { name: 'Today' }).first()).toBeVisible();
   await page.getByRole('link', { name: 'Help' }).click();
@@ -73,4 +92,53 @@ test('a doctor never sees a greyed-out "Admin access needed" button', async ({ p
 test('patient check-in step 1 has a labelled button', async ({ page }) => {
   await page.goto('/c/dr-sharma/checkin');
   await expect(page.getByRole('button', { name: /Continue/ })).toBeVisible();
+});
+
+test('visit shortcuts: templates, blanks check, favourite medicines, and the note draft survives a reload', async ({
+  page,
+  request,
+}) => {
+  await checkIn(request, 'Shortcut Patient', '9822211103');
+  await login(page, 'anil@demo.sahayak.in');
+  await page.goto('/doctor/shortcuts');
+  await page.getByRole('button', { name: 'Add three starter templates' }).click();
+  await expect(page.getByTestId('templates')).toContainText('Fever');
+  await page.getByLabel('Medicine line').fill('tab paracetamol 500 mg twice a day for 3 days');
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(page.getByTestId('medicines')).toContainText(
+    'tab paracetamol 500 mg twice a day for 3 days',
+  );
+
+  await page.goto('/doctor');
+  await page.getByRole('button', { name: /Next patient/ }).click();
+  const started = page.waitForResponse((r) => /\/queue\/.+\/start/.test(r.url()));
+  await page.getByRole('button', { name: 'Patient is here' }).click();
+  const resp = await started;
+  expect(resp.status(), await resp.text()).toBe(200);
+  await page.getByRole('link', { name: /Open record and write note/ }).click();
+  await page.getByRole('button', { name: 'Fever', exact: true }).click();
+  await expect(page.getByLabel('Dictation', { exact: true })).toHaveValue(
+    /Complaint: fever for ___ days/,
+  );
+  // blanks must be filled before the assistant arranges anything
+  await page.getByRole('button', { name: 'Arrange note' }).click();
+  await expect(page.locator('.error')).toContainText('Fill in or delete the blanks');
+  // what was typed survives a reload (weak connections, closed tabs)
+  await page
+    .getByLabel('Dictation', { exact: true })
+    .fill('Complaint: fever for 2 days. Plan: review if worse');
+  await page.reload();
+  await expect(page.getByLabel('Dictation', { exact: true })).toHaveValue(/fever for 2 days/);
+  await expect(page.getByText('Restored what you had typed before')).toBeVisible();
+
+  // favourite medicine is one tap in the prescription box
+  await page.getByRole('button', { name: 'New prescription' }).click();
+  await page
+    .getByRole('button', { name: '+ tab paracetamol 500 mg twice a day for 3 days' })
+    .click();
+  await expect(page.getByLabel(/Medicines, one per line/)).toHaveValue(
+    'tab paracetamol 500 mg twice a day for 3 days',
+  );
+  await page.getByRole('button', { name: 'Repeat last prescription' }).click();
+  await expect(page.locator('.error')).toContainText('no signed prescription to repeat');
 });

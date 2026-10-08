@@ -35,6 +35,7 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
     [pw, setPw] = useState(''),
     [ack, setAck] = useState(false);
   const [edit, setEdit] = useState<any>(null);
+  const [favs, setFavs] = useState<{ id: string; line: string }[]>([]);
 
   const load = useCallback(async () => {
     setDocs((await staff(`/staff/patients/${patientId}/issued`)).documents);
@@ -42,6 +43,11 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
   useEffect(() => {
     load().catch((e) => setErr(e.message));
   }, [load]);
+  useEffect(() => {
+    staff('/staff/shortcuts')
+      .then((r) => setFavs(r.medicines))
+      .catch(() => {});
+  }, []);
   const run = async (fn: () => Promise<unknown>, ok = '') => {
     setErr('');
     setMsg('');
@@ -54,6 +60,18 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
       setErr(e.message);
     }
   };
+
+  /** "Same as last time": copies the last signed prescription into a new DRAFT for review. */
+  const repeatLast = () =>
+    run(async () => {
+      const r = await staff(`/staff/patients/${patientId}/prescriptions/repeat`, {
+        language: f.language,
+      });
+      setMode('');
+      setMsg(
+        `Copied from ${r.copiedFrom}. Review every line before signing.${r.warnings?.length ? ' Check the warnings below.' : ''}`,
+      );
+    });
 
   const create = () =>
     run(async () => {
@@ -205,6 +223,30 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
                   'tab paracetamol 500 mg twice a day for 3 days\ntab cetirizine 10 mg at bedtime for 5 days\nadvice: rest and fluids\nfollow up after 5 days'
                 }
               />
+              <div className="row" style={{ flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                <button type="button" className="small ghost" onClick={repeatLast}>
+                  Repeat last prescription
+                </button>
+                {favs.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className="small ghost"
+                    title="Add this line"
+                    onClick={() =>
+                      setF((cur: any) => ({
+                        ...cur,
+                        text: cur.text.trim() ? `${cur.text}\n${m.line}` : m.line,
+                      }))
+                    }
+                  >
+                    + {m.line}
+                  </button>
+                ))}
+                <a href="/doctor/shortcuts" className="muted" style={{ fontSize: '.85rem' }}>
+                  {favs.length ? 'Manage favourites' : 'Save favourite medicines'}
+                </a>
+              </div>
             </>
           )}
           {mode !== 'prescription' && (

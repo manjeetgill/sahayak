@@ -66,6 +66,40 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
   const [tags, setTags] = useState('');
   const [busy, setBusy] = useState(false);
   const recog = useRef<any>(null);
+  const [shortcuts, setShortcuts] = useState<{
+    templates: { id: string; name: string; body: string }[];
+  } | null>(null);
+  const [restored, setRestored] = useState(false);
+  // Keep what the doctor has typed or dictated even if the page is closed or the connection drops.
+  const draftKey = `sahayak.draft.${params.id}`;
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(draftKey);
+      if (saved) {
+        setText(saved);
+        setRestored(true);
+      }
+    } catch {
+      /* storage blocked: no autosave */
+    }
+    setDraftLoaded(true);
+  }, [draftKey]);
+  useEffect(() => {
+    if (!draftLoaded) return;
+    try {
+      if (text.trim()) localStorage.setItem(draftKey, text);
+      else localStorage.removeItem(draftKey);
+    } catch {
+      /* storage blocked: no autosave */
+    }
+  }, [text, draftKey, draftLoaded]);
+  useEffect(() => {
+    if (s)
+      staff('/staff/shortcuts')
+        .then(setShortcuts)
+        .catch(() => {});
+  }, [s]);
 
   const load = useCallback(async () => {
     const r = await staff(`/staff/patients/${params.id}/record`);
@@ -138,6 +172,8 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
   };
   const arrange = () =>
     run(async () => {
+      if (text.includes('___'))
+        throw new Error('Fill in or delete the blanks (___) before arranging the note.');
       const out = await staff('/staff/notes/draft', {
         patientId: params.id,
         transcript: text,
@@ -357,6 +393,42 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
                       before signing; unsigned drafts are not final clinical notes.
                     </p>
                   </details>
+                  <div
+                    className="template-chips row"
+                    style={{ flexWrap: 'wrap', gap: 6, margin: '6px 0' }}
+                  >
+                    <span className="muted">Start from:</span>
+                    {shortcuts?.templates.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        className="small ghost"
+                        onClick={() =>
+                          setText((cur) => (cur.trim() ? `${cur}\n${t.body}` : t.body))
+                        }
+                      >
+                        {t.name}
+                      </button>
+                    ))}
+                    <a href="/doctor/shortcuts" className="muted" style={{ fontSize: '.85rem' }}>
+                      {shortcuts?.templates.length ? 'Manage' : 'Set up shortcuts'}
+                    </a>
+                  </div>
+                  {restored && (
+                    <p className="muted" role="status">
+                      Restored what you had typed before.{' '}
+                      <button
+                        type="button"
+                        className="small ghost"
+                        onClick={() => {
+                          setText('');
+                          setRestored(false);
+                        }}
+                      >
+                        Discard it
+                      </button>
+                    </p>
+                  )}
                   <textarea
                     aria-label="Dictation"
                     rows={5}
@@ -522,7 +594,10 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
             </div>
           </div>
 
-          <section id="patient-administration" hidden={activeSection !== 'admin'}>
+          <section
+            id="patient-administration"
+            hidden={activeSection !== 'admin' && activeSection !== 'visit'}
+          >
             <IssuedDocs patientId={params.id} />
           </section>
 

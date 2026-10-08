@@ -81,7 +81,9 @@ export default function Doctor() {
       <header className="doctor-page-heading">
         <div>
           <span className="page-eyebrow">{x("Today's clinic")}</span>
-          <h1>Good afternoon, Dr. {s.user.name.replace(/^Dr\.\s*/i, '').split(' ')[0]}</h1>
+          <h1>
+            {x(greeting())}, Dr. {s.user.name.replace(/^Dr\.\s*/i, '').split(' ')[0]}
+          </h1>
           <p className="muted">{x('Your next patient and outstanding work are together here.')}</p>
         </div>
         <button
@@ -336,6 +338,7 @@ export default function Doctor() {
                 <a href="/doctor/waitlist">Waiting list</a>
                 <a href="/doctor/templates">Reusable care plans</a>
                 <a href="/doctor/references">Medical reference</a>
+                <a href="/doctor/shortcuts">My visit shortcuts</a>
                 <a href="/doctor/settings">My professional details</a>
 
                 <a href="/safety">Safety report</a>
