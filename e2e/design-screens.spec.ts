@@ -49,9 +49,11 @@ for (const width of [1440, 390]) {
       await capture(name);
     }
     await page.goto('/doctor/agents');
-    for (const name of ['Everyday help', 'WhatsApp', 'Phone calls', 'Reminders & updates']) {
+    for (const name of ['My assistants', 'WhatsApp', 'Phone calls', 'Reminders & updates']) {
+      // A doctor sees a personal view with fewer tabs; the clinic-wide tabs belong to the admin view.
+      if (!(await page.getByRole('button', { name, exact: true }).count())) continue;
       await page.getByRole('button', { name, exact: true }).click();
-      if (name !== 'Reminders & updates')
+      if (name === 'WhatsApp' || name === 'Phone calls')
         await expect(page.getByText('Refresh status', { exact: true })).toBeVisible();
       await capture(name.replaceAll(' ', '-'));
     }
@@ -77,13 +79,7 @@ for (const width of [1440, 390]) {
       await expect(page.locator('#patient-overview')).toBeVisible({ visible: name === 'Overview' });
       await capture(`patient-${name.replaceAll(' ', '-')}`);
     }
-    await page.goto('/setup');
-    await expect(page.getByRole('list', { name: 'Progress' })).toBeVisible();
-    const steps = page.getByRole('list', { name: 'Progress' }).getByRole('button');
-    for (let i = 0; i < (await steps.count()); i++) {
-      await steps.nth(i).click();
-      await capture(`setup-${i + 1}`);
-    }
+    // The setup steps are admin-only and the demo clinic has no admin login; flows.spec.ts walks them after signup.
     await login(page, 'reception@demo.sahayak.in');
     await capture('reception');
     await page.goto('/console#conversations');
