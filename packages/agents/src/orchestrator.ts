@@ -19,7 +19,16 @@ import {
   wantsHuman,
   wantsQueueJump,
 } from './safety';
-import { call, ctxFor, say, sayText, setState, type AgentEnv, type Turn } from './turn';
+import {
+  assistantPaused,
+  call,
+  ctxFor,
+  say,
+  sayText,
+  setState,
+  type AgentEnv,
+  type Turn,
+} from './turn';
 
 export interface InboundResult {
   replies: string[];
@@ -61,6 +70,7 @@ export async function handleInbound(
     conversationId: rec.conversationId,
     patientId: rec.patientId,
     doctorId: rec.doctorId,
+    channel: input.channel ?? 'whatsapp',
     contact: input.from,
     lang: detectLang(input.text, rec.language),
     text: input.text,
@@ -179,9 +189,15 @@ export async function handleInbound(
       return result();
     }
 
+    if (await assistantPaused(turn)) {
+      rec.handledBy = 'human';
+      return result();
+    }
+
     // Standard clinic-owned booking menu runs after safety/privacy/human checks.
     if (await clinicMenu(turn)) {
-      if (turn.replies.some(reply => reply === t(turn.lang, 'msg.human_handoff'))) rec.handledBy = 'human';
+      if (turn.replies.some((reply) => reply === t(turn.lang, 'msg.human_handoff')))
+        rec.handledBy = 'human';
       return result();
     }
 

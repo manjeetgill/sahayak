@@ -1,3 +1,5 @@
+import { googleFromEnv } from './google-provider';
+import { startGoogleSync } from './google-sync';
 import { razorpayFromEnv } from './razorpay';
 import { callingBridgeFromEnv } from './calling-bridge';
 import { bridgeFromEnv, provisioningFromEnv } from './whatsapp-bridge';
@@ -25,7 +27,9 @@ const bus = new EventBus();
 const gate = new LlmGate(modelProviderFromEnv(), bus, () => [...activeClinics]);
 const platformChannels = process.env.LIVE_CHANNEL_OWNER === 'platform';
 const whatsapp = platformChannels ? undefined : (pluginFromEnv() ?? undefined);
+const google = googleFromEnv();
 const app = await buildApp({
+  google,
   razorpay: razorpayFromEnv(),
   liveChannelOwner: platformChannels ? 'platform' : 'local',
   whatsapp,
@@ -39,6 +43,12 @@ const app = await buildApp({
   gate,
   jwtSecret: process.env.JWT_SECRET ?? 'dev-only-secret',
 });
+if (google && process.env.JOBS_ENABLED !== 'false') {
+  const stop = startGoogleSync(pool, google, () =>
+    app.log.warn('Google updates could not run; retrying next cycle'),
+  );
+  app.addHook('onClose', async () => stop());
+}
 await app.listen({ port: Number(process.env.API_PORT ?? 4000), host: '0.0.0.0' });
 
 if (process.env.JOBS_ENABLED !== 'false' && process.env.ADMIN_DATABASE_URL) {

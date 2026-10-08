@@ -5,3 +5,5 @@ export * from './channel-generic';
 export * from './webhooks';
 export { parsePrescriptionText, type RxItem } from './prescription';
 export { renderDocumentPdf } from './pdf';
+
+export { doctorAssistantEnabled } from './tools/doctor-assistants';

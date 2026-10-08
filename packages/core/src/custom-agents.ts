@@ -464,11 +464,12 @@ export async function enqueueAgentEvents(
   if (!(EVENT_TRIGGERS as readonly string[]).includes(type)) return;
   const agents = (
     await db.query(
-      "SELECT id, spec FROM custom_agents WHERE status='active' AND spec->'trigger'->>'type'='event' AND spec->'trigger'->>'event'=$1",
+      "SELECT id, spec, doctor_id FROM custom_agents WHERE status='active' AND spec->'trigger'->>'type'='event' AND spec->'trigger'->>'event'=$1",
       [type],
     )
   ).rows;
   for (const a of agents) {
+    if (a.doctor_id && a.doctor_id !== data.doctorId) continue;
     const delay = Number(a.spec.trigger.delayHours ?? 0);
     await db.query(
       'INSERT INTO agent_runs (clinic_id,agent_id,run_at,patient_id,event_data) VALUES ($1,$2, now() + make_interval(hours => $3), $4, $5)',

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { session, useSession, roleHome } from '../../lib/api';
 
 const doctorNav = [
+  { label: 'My assistants', href: '/doctor/agents', group: 'assistants' },
   { label: 'Today', href: '/doctor', group: 'today' },
   { label: 'Patients', href: '/doctor#patient-search', group: 'patients' },
   { label: 'Care', href: '/doctor/care', group: 'care' },

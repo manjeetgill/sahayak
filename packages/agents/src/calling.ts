@@ -1,7 +1,7 @@
 import { callTool } from '@sahayak/core';
 import { withClinic } from '@sahayak/db';
 import { t } from '@sahayak/shared';
-import { call, say, type AgentEnv, type Turn } from './turn';
+import { assistantPaused, call, say, type AgentEnv, type Turn } from './turn';
 import { checkRedFlag, isMedicalQuestion, wantsHuman, isUpset } from './safety';
 import { classifyIntent } from './intent';
 import { clinicMenu } from './agents/clinic-menu';
@@ -88,6 +88,8 @@ export async function handleCallTurn(
   } else if (c.handledBy === 'human') {
     turn.replies.push(t(turn.lang, 'msg.voice_reception'));
     action = 'handoff';
+  } else if (await assistantPaused(turn)) {
+    action = 'handoff';
   } else if (wantsHuman(i.text) || isUpset(i.text)) await reception();
   else if (isMedicalQuestion(i.text)) {
     await call(turn, 'system', 'flag_to_receptionist', {
@@ -124,7 +126,11 @@ export async function handleCallTurn(
         turn.text = 'Hi';
         await clinicMenu(turn);
       }
-      if (turn.replies.includes(t(turn.lang, 'msg.human_handoff'))) action = 'handoff';
+      if (
+        turn.replies.includes(t(turn.lang, 'msg.human_handoff')) ||
+        turn.replies.includes(t(turn.lang, 'msg.voice_reception'))
+      )
+        action = 'handoff';
     }
   }
   return {

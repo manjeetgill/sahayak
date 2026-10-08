@@ -1670,3 +1670,77 @@ summary:focus-visible {
 .admin-card:hover { border-color: var(--primary, #17685b); }
 .admin-card span { font-weight: 700; }
 .table-scroll { overflow-x: auto; }
+
+/* Doctor assistants: large task choices with a clear next action. */
+.assistant-choice-grid, .assistant-template-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin: 20px 0;
+}
+.assistant-choice-card {
+  padding: 24px;
+  border: 1px solid var(--border, #dbe5df);
+  border-radius: 18px;
+  background: var(--surface, #fff);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.assistant-choice-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.assistant-choice-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: #edf5f0; color: #245948; font-size: 26px; }
+.assistant-state { padding: 6px 10px; border-radius: 20px; background: #f3f1eb; color: #625534; font-size: 13px; font-weight: 600; }
+.assistant-state.is-on { background: #e6f4e9; color: #22613d; }
+.assistant-choice-card h2 { margin: 4px 0 0; font-size: 23px; line-height: 1.25; }
+.assistant-choice-card p { margin: 0; line-height: 1.6; }
+.assistant-choice-help { font-size: 14px; color: #53645c; }
+.assistant-choice-actions { margin-top: auto; padding-top: 12px; display: grid; gap: 10px; }
+.assistant-choice-actions button { width: 100%; min-height: 46px; white-space: normal; }
+.assistant-inbox-link { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 24px; border: 1px solid #cbded3; border-radius: 16px; background: #edf5f0; color: #245948; text-decoration: none; }
+.assistant-inbox-link b { display: block; font-size: 19px; margin-bottom: 5px; }
+.assistant-inbox-link > span:last-child { font-size: 26px; }
+.assistant-explainer { margin: 22px 0; color: #53645c; line-height: 1.6; }
+.assistant-explainer summary { cursor: pointer; min-height: 44px; padding: 10px 0; font-weight: 600; }
+.assistant-saved { padding: 12px 18px; background: #e6f4e9; border-radius: 10px; color: #22613d; }
+.assistant-template, .assistant-template:hover { display: flex; flex-direction: column; gap: 10px; padding: 22px; text-align: left; white-space: normal; background: #f6f9f7; color: #264d3e; border: 1px solid #cbded3; border-radius: 14px; line-height: 1.5; }
+.assistant-template:hover { background: #eaf3ee; border-color: #668a78; }
+.assistant-template b { font-size: 18px; }
+.assistant-template span { font-size: 14px; font-weight: 400; }
+.assistant-template .assistant-template-action { margin-top: auto; padding-top: 8px; font-weight: 600; }
+.assistant-choice-actions button:focus-visible, .assistant-template:focus-visible, .assistant-inbox-link:focus-visible { outline: 3px solid #37765a; outline-offset: 3px; }
+@media (max-width: 1000px) {
+  .assistant-choice-grid, .assistant-template-grid { grid-template-columns: 1fr; }
+  .assistant-choice-card { padding: 20px; }
+}
+
+.task-status-explanation {
+  padding: 16px 18px;
+  margin: 16px 0;
+  background: #edf5f0;
+  border: 1px solid #d2e3d9;
+  border-radius: 12px;
+  color: #294e3e;
+  line-height: 1.55;
+}
+.task-status-explanation p { margin: 6px 0 0; }
+.task-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.task-setting-status { display: inline-block; padding: 4px 9px; border-radius: 20px; color: #25613e; background: #eaf4ec; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.task-setting-status.is-paused { color: #625534; background: #f3f1eb; }
+.task-help { margin-top: 8px; }
+.task-help summary { cursor: pointer; color: var(--brand); font-weight: 600; padding: 10px 0; min-height: 44px; }
+.task-help summary:focus-visible { outline: 3px solid #37765a; outline-offset: 3px; border-radius: 4px; }
+.task-help dl { margin: 4px 0 8px; padding: 14px 16px; background: #f7f9f8; border-radius: 10px; line-height: 1.6; }
+.task-help dt { font-weight: 600; color: #304c40; margin-top: 12px; }
+.task-help dt:first-child { margin-top: 0; }
+.task-help dd { margin: 3px 0 0; color: #53645c; }
+.everyday-tasks > .row { align-items: flex-start; }
+.everyday-tasks > .row > button { min-height: 44px; flex-shrink: 0; }
+
+/* Simple, direct clinic software connections. */
+.direct-connections-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-top:20px;}
+.direct-connection-card {min-width:0;}
+.direct-connection-card h3 {font-size:1.25rem;margin:.5rem 0;}
+.direct-connection-card .check {align-items:flex-start;margin-top:12px;}
+.direct-connection-card details {margin-top:12px;}
+.direct-connection-card button {min-height:44px;}
+@media (max-width:800px) {.direct-connections-grid {grid-template-columns:1fr;}}

@@ -4,7 +4,7 @@ import { classifyIntent, parseChoice, type Intent } from '../intent';
 import { violatesMedicalPolicy } from '../safety';
 import { runToolLoop } from '../toolloop';
 import { parseSlotPreference, todayIn, type SlotPreference } from './slotpref';
-import { call, formatTimings, say, sayText, setState, type Turn } from '../turn';
+import { assistantPaused, call, formatTimings, say, sayText, setState, type Turn } from '../turn';
 
 const AGENT = 'front_desk';
 type Info = {
@@ -67,6 +67,7 @@ export async function askOrOffer(
   rescheduleId?: string,
   pref?: SlotPreference,
 ) {
+  if (await assistantPaused(turn, doctor.id)) return;
   if (pref) return offerForPreference(turn, agent, doctor, pref, rescheduleId);
   await setState(turn, agent, {
     flow: 'ask_pref',
@@ -97,6 +98,7 @@ export async function offerForPreference(
   pref: SlotPreference,
   rescheduleId?: string,
 ) {
+  if (await assistantPaused(turn, doctor.id)) return;
   const info = await getInfo(turn);
   const want = pref.asap ? {} : { date: pref.date, from: pref.from, to: pref.to };
   const search = async (extra: Record<string, unknown>) =>

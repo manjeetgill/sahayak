@@ -1,3 +1,4 @@
+import { doctorAssistantTools } from './doctor-assistants';
 import { settleQrPayment } from './online-payments';
 import { qrArrivalTools } from './qr-arrivals';
 import { automaticFeedbackTools } from './automatic-feedback';
@@ -52,6 +53,7 @@ export function registerAllTools() {
     ...recordTools,
     ...issuedTools,
     ...customAgentTools,
+    ...doctorAssistantTools,
     ...careTools,
     ...inboxTools,
     ...workbenchTools,

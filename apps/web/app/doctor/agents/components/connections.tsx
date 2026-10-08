@@ -27,6 +27,78 @@ const descriptions: Record<string, string> = {
   leads: 'Record enquiries that your reception team can follow up.',
   records: 'Keep uploaded reports available for the doctor to review.',
 };
+const taskHelp: Record<string, { when: string; example: string; control: string; needs: string }> =
+  {
+    checkin: {
+      when: 'A patient completes the clinic’s check-in flow.',
+      example: 'Their arrival is recorded and they receive a token for the selected doctor.',
+      control:
+        'Reception handles corrections. In the payment-based QR flow, payment must be confirmed before the patient joins the queue.',
+      needs:
+        'Patient details and consent. Any message sent to their phone also needs a working messaging connection.',
+    },
+    queue: {
+      when: 'A patient asks about their turn or staff update the queue.',
+      example:
+        'The patient can check their token and estimated wait while the team sees queue progress.',
+      control:
+        'The doctor or receptionist calls the next patient. The assistant does not decide who should receive priority care.',
+      needs:
+        'An up-to-date queue. Phone messages need a working connection; the clinic queue screen works separately.',
+    },
+    intake: {
+      when: 'The clinic starts intake for a checked-in patient.',
+      example:
+        'It asks why the patient is visiting and collects answers to your saved intake questions.',
+      control:
+        'The doctor reviews the patient’s answers and summary. The assistant does not diagnose or prescribe.',
+      needs:
+        'Saved intake questions and a patient conversation. Sending questions on WhatsApp needs a working connection.',
+    },
+    front_desk: {
+      when: 'A patient asks a routine clinic question or wants help booking.',
+      example:
+        'It can share opening hours, location and saved answers, and help find an appointment.',
+      control:
+        'Your team keeps clinic details correct and handles questions that need a person. Medical questions need clinical review.',
+      needs:
+        'Current clinic details and appointment availability. Real WhatsApp or phone conversations need that service connected.',
+    },
+    schedule: {
+      when: 'A doctor or staff member records a delay.',
+      example:
+        'For a 30-minute delay, it prepares affected appointment changes and patient notifications.',
+      control:
+        'Staff review and approve the proposed changes. Patients can respond to keep the new time or ask for another slot.',
+      needs:
+        'Booked appointments, the delay entered by staff, and a working messaging connection for notifications.',
+    },
+    followup: {
+      when: 'A saved follow-up or eligible reminder becomes due.',
+      example: 'A patient who agreed to reminders receives a prompt about a follow-up visit.',
+      control:
+        'The doctor sets the care plan. Staff review patient concerns; the assistant does not change treatment.',
+      needs:
+        'A follow-up plan or reminder schedule, patient consent, and a working messaging connection. Feedback invitation delivery has separate setup.',
+    },
+    leads: {
+      when: 'A new patient contacts the clinic.',
+      example:
+        'It collects their name and reason for contacting the clinic, then helps with the next booking step.',
+      control:
+        'Reception follows up on enquiries that need a person. An enquiry alone is not a confirmed appointment.',
+      needs:
+        'Patient-provided details and an incoming conversation. Real messages need a working connection.',
+    },
+    records: {
+      when: 'A patient uploads a supported report or document.',
+      example: 'The uploaded file is saved with the patient’s records for the doctor to review.',
+      control:
+        'The doctor checks the original document and any extracted information. Uploading a report does not mean it has been medically reviewed.',
+      needs:
+        'A supported file and the patient record. Receiving it through WhatsApp also needs a connected service.',
+    },
+  };
 type Connections = {
   liveChannelOwner?: 'platform' | 'local';
   slug?: string;
@@ -77,7 +149,7 @@ export function Connections({
     try {
       await staff('/staff/settings', { agents: { [name]: enabled } }, 'PUT');
       await load();
-      setMessage(`${labels[name]} ${enabled ? 'activated' : 'paused'}.`);
+      setMessage(`${labels[name]} ${enabled ? '— task enabled' : '— task paused'}.`);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -111,8 +183,8 @@ export function Connections({
           {connections && (
             <>
               <p className="muted">
-                Check whether patients can reach your clinic. You can try a practice conversation
-                before live service is ready.
+                These connections carry messages and calls to real patients. “Task enabled” on the
+                left does not confirm that a message was delivered or a phone call worked.
               </p>
               {(
                 [
@@ -127,7 +199,7 @@ export function Connections({
                     <p>
                       {connections.liveChannelOwner === 'platform'
                         ? configured
-                          ? 'Connected through agent platform · replies enabled'
+                          ? 'Connection configured · test a real conversation'
                           : 'Not connected yet · practice only'
                         : configured
                           ? 'Setup entered · a real conversation still needs testing'
@@ -191,25 +263,54 @@ export function Connections({
         <div className="card everyday-tasks">
           <h2>What would you like help with?</h2>
           <p className="muted">
-            Choose the routine tasks your clinic needs. These choices apply wherever the assistant
-            is used. Emergency alerts always stay on.
+            These are the jobs your clinic assistant can help with. They are shared clinic settings;
+            each doctor’s personal access is managed above. Emergency checks always stay on.
           </p>
+          <div className="task-status-explanation">
+            <b>Task enabled means permission to help.</b>
+            <p>
+              It does not mean the task is running now. Each task needs its starting event and
+              setup. WhatsApp messages and phone calls also need a working connection. Use “How this
+              works” below to see what the assistant does and what your team still handles.
+            </p>
+          </div>
           {agents &&
             AGENT_NAMES.map((name) => (
               <div className="row between" key={name} style={{ margin: '8px 0' }}>
                 <div style={{ flex: 1 }}>
-                  <b>{labels[name]}</b> · {agents[name] !== false ? 'On' : 'Paused'}
+                  <div className="task-title-row">
+                    <b>{labels[name]}</b>
+                    <span
+                      className={`task-setting-status ${agents[name] === false ? 'is-paused' : ''}`}
+                    >
+                      {agents[name] !== false ? 'Task enabled' : 'Task paused'}
+                    </span>
+                  </div>
                   <p className="muted" style={{ margin: '4px 0' }}>
                     {descriptions[name]}
                   </p>
+                  <details className="task-help">
+                    <summary aria-label={`How this works: ${labels[name]}`}>How this works</summary>
+                    <dl>
+                      <dt>When it starts</dt>
+                      <dd>{taskHelp[name].when}</dd>
+                      <dt>What it does</dt>
+                      <dd>{taskHelp[name].example}</dd>
+                      <dt>Your team’s role</dt>
+                      <dd>{taskHelp[name].control}</dd>
+                      <dt>What it needs</dt>
+                      <dd>{taskHelp[name].needs}</dd>
+                    </dl>
+                  </details>
                 </div>
                 {canManage && (
                   <button
                     className="small ghost"
                     disabled={busy}
+                    aria-label={`${agents[name] !== false ? 'Pause' : 'Enable'} task: ${labels[name]}`}
                     onClick={() => void toggle(name, agents[name] === false)}
                   >
-                    {agents[name] !== false ? 'Pause' : 'Turn on'}
+                    {agents[name] !== false ? 'Pause task' : 'Enable task'}
                   </button>
                 )}
               </div>
@@ -225,10 +326,7 @@ export function Connections({
         <summary>Connection details for your setup team</summary>
         <p>
           Live channel owner:{' '}
-          {connections?.liveChannelOwner === 'platform'
-            ? 'AI-Agent-Platform (connection pending)'
-            : 'Sahayak'}
-          .
+          {connections?.liveChannelOwner === 'platform' ? 'AI-Agent-Platform' : 'Sahayak'}.
         </p>
         <p>
           Draft service:{' '}

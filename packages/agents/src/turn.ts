@@ -1,3 +1,5 @@
+import { withClinic } from '@sahayak/db';
+import { doctorAssistantEnabled } from '@sahayak/core';
 import { callTool, type Actor, type ToolContext, type ToolRuntime } from '@sahayak/core';
 import { t, type Lang, type MessageKey } from '@sahayak/shared';
 import type { LlmGate } from './llm';
@@ -69,4 +71,21 @@ export function formatTimings(timings: Record<string, string>): string {
   return groups
     .map((g) => `${g.from === g.to ? label(g.from) : `${label(g.from)}-${label(g.to)}`} ${g.v}`)
     .join('; ');
+}
+
+/** Check only the selected doctor's preference; never stop a shared clinic number. */
+export async function assistantPaused(
+  turn: Turn,
+  doctorId = turn.doctorId ?? turn.state.doctorId,
+): Promise<boolean> {
+  const enabled = await withClinic(turn.env.rt.pool, turn.clinicId, (db) =>
+    doctorAssistantEnabled(db, doctorId, turn.channel === 'voice' ? 'phone' : 'whatsapp'),
+  );
+  if (enabled) return false;
+  await call(turn, 'system', 'handoff_to_human', {
+    reason: 'other',
+    summary: 'The selected doctor’s assistant is paused. Reception assistance is needed.',
+  });
+  await say(turn, 'system', turn.channel === 'voice' ? 'msg.voice_reception' : 'msg.human_handoff');
+  return true;
 }

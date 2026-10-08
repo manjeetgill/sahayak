@@ -1,3 +1,4 @@
+import { assistantOwner, ownedAgent, doctorAssistantEnabled } from './doctor-assistants';
 import { z } from 'zod';
 import { t, type Lang } from '@sahayak/shared';
 import {
@@ -11,13 +12,55 @@ import { defineTool, ToolError, type ToolRun } from './registry';
 import { deliver, ensureConversation, getSettings, storeMessage } from './common';
 import { runMetric, formatMetric, parseRange } from './ask';
 
-const ADMIN = ['staff:admin'];
-const STAFF = ['staff:admin', 'staff:doctor', 'staff:receptionist'];
+const ADMIN = ['staff:admin', 'staff:doctor'];
+const STAFF = ['staff:admin', 'staff:doctor'];
 const UUID = z.string().uuid();
 const MAX_ACTIVE = 5;
 const PER_PATIENT_DAYS = 7; // never more than one custom-agent message per patient per week
 const MAX_PER_RUN = 200;
 
+function scopeExplanation(spec: AgentSpec, owner?: string | null) {
+  const lines = explainSpec(spec);
+  if (!owner) return lines;
+  return [
+    'Only your patients and your own activity are included.',
+    ...lines.map((line) =>
+      line.replace(
+        '(shown on the console, and on WhatsApp if they added their number)',
+        '(on your WhatsApp if your staff profile has a number)',
+      ),
+    ),
+  ];
+}
+function scopeSpec(spec: AgentSpec, owner?: string | null) {
+  if (!owner) return;
+  if (spec.action.type === 'notify_staff' && spec.action.to !== 'doctor')
+    throw new ToolError(
+      'doctor_scope',
+      'Your assistants can notify you only. Ask Admin to set up shared reception alerts.',
+    );
+  if (
+    spec.action.type === 'summary' &&
+    spec.action.metrics.some(
+      (m) =>
+        ![
+          'seen',
+          'no_shows',
+          'appointments',
+          'cancellations',
+          'wait',
+          'consult',
+          'busiest',
+          'upcoming',
+          'ratings',
+        ].includes(m),
+    )
+  )
+    throw new ToolError(
+      'doctor_scope',
+      'Choose a summary of your visits, appointments, waiting times or ratings.',
+    );
+}
 const userId = (a: any) => (a.kind === 'staff' ? a.userId : null);
 function mustBeValid(raw: unknown): AgentSpec {
   const v = validateSpec(raw);
@@ -33,7 +76,7 @@ function mustBeValid(raw: unknown): AgentSpec {
 async function audienceQuery(
   r: ToolRun,
   spec: AgentSpec,
-  opts: { patientId?: string | null; limit: number },
+  opts: { patientId?: string | null; limit: number; doctorId?: string | null },
 ) {
   const a = spec.audience;
   return (
@@ -41,12 +84,14 @@ async function audienceQuery(
       `SELECT p.id, p.name, p.phone, p.language FROM patients p
         WHERE p.name <> 'Erased patient' AND p.clinical_hold_until IS NULL
           AND ($1::uuid IS NULL OR p.id = $1)
+          AND ($7::uuid IS NULL OR EXISTS(SELECT 1 FROM queue_entries q WHERE q.patient_id=p.id AND q.doctor_id=$7)
+            OR EXISTS(SELECT 1 FROM appointments x WHERE x.patient_id=p.id AND x.doctor_id=$7))
           AND EXISTS (SELECT 1 FROM consents c WHERE c.patient_id=p.id AND c.purpose='whatsapp_messaging' AND c.withdrawn_at IS NULL)
           AND EXISTS (SELECT 1 FROM consents c WHERE c.patient_id=p.id AND c.purpose='reminders_followups' AND c.withdrawn_at IS NULL)
           AND ($2::text[] IS NULL OR p.tags && $2::text[])
-          AND ($3::int IS NULL OR COALESCE((SELECT max(queue_date) FROM queue_entries q WHERE q.patient_id=p.id AND q.status='done'), p.created_at::date) < now()::date - $3::int)
-          AND ($4::int IS NULL OR EXISTS (SELECT 1 FROM queue_entries q WHERE q.patient_id=p.id AND q.status='done' AND q.queue_date >= now()::date - $4::int))
-          AND ($5::boolean IS NULL OR EXISTS (SELECT 1 FROM appointments x WHERE x.patient_id=p.id AND x.status='booked' AND x.starts_at > now()) = $5)
+          AND ($3::int IS NULL OR COALESCE((SELECT max(queue_date) FROM queue_entries q WHERE q.patient_id=p.id AND q.status='done' AND ($7::uuid IS NULL OR q.doctor_id=$7)), p.created_at::date) < now()::date - $3::int)
+          AND ($4::int IS NULL OR EXISTS (SELECT 1 FROM queue_entries q WHERE q.patient_id=p.id AND q.status='done' AND ($7::uuid IS NULL OR q.doctor_id=$7) AND q.queue_date >= now()::date - $4::int))
+          AND ($5::boolean IS NULL OR EXISTS (SELECT 1 FROM appointments x WHERE x.patient_id=p.id AND x.status='booked' AND ($7::uuid IS NULL OR x.doctor_id=$7) AND x.starts_at > now()) = $5)
           AND NOT EXISTS (SELECT 1 FROM custom_agent_sends s WHERE s.patient_id=p.id AND s.sent_at > now() - make_interval(days => ${PER_PATIENT_DAYS}))
         ORDER BY p.created_at LIMIT $6`,
       [
@@ -56,6 +101,7 @@ async function audienceQuery(
         a.lastVisitWithinDays ?? null,
         a.hasUpcomingAppointment ?? null,
         opts.limit,
+        opts.doctorId ?? null,
       ],
     )
   ).rows as { id: string; name: string; phone: string; language: Lang }[];
@@ -105,18 +151,22 @@ async function notifyStaff(
   to: 'doctor' | 'receptionist' | 'both',
   text: string,
   lang: Lang,
+  doctorId: string | null = null,
 ) {
   const { db, ctx } = r;
   const roles = to === 'both' ? ['doctor', 'receptionist'] : [to];
-  const f = await db.query(
-    "INSERT INTO flags (clinic_id,kind,severity,summary) VALUES ($1,'system','normal',$2) RETURNING id",
-    [ctx.clinicId, text.slice(0, 480)],
-  );
-  r.emit({ type: 'flag_raised', flagId: f.rows[0].id, severity: 'normal' });
+  if (!doctorId) {
+    const f = await db.query(
+      "INSERT INTO flags (clinic_id,kind,severity,summary) VALUES ($1,'system','normal',$2) RETURNING id",
+      [ctx.clinicId, text.slice(0, 480)],
+    );
+    r.emit({ type: 'flag_raised', flagId: f.rows[0].id, severity: 'normal' });
+  }
   const staff = (
-    await db.query('SELECT phone FROM staff_users WHERE phone IS NOT NULL AND role = ANY($1)', [
-      roles,
-    ])
+    await db.query(
+      'SELECT phone FROM staff_users WHERE phone IS NOT NULL AND role = ANY($1) AND ($2::uuid IS NULL OR doctor_id=$2)',
+      [roles, doctorId],
+    )
   ).rows;
   for (const u of staff) {
     const conv = await ensureConversation(db, ctx.clinicId, u.phone, null, lang);
@@ -128,7 +178,7 @@ async function notifyStaff(
 
 async function execute(
   r: ToolRun,
-  agent: { id: string; name: string; spec: AgentSpec },
+  agent: { id: string; name: string; spec: AgentSpec; doctor_id?: string | null },
   run: { patient_id: string | null },
   tz: string,
   clinicName: string,
@@ -140,6 +190,7 @@ async function execute(
     const people = await audienceQuery(r, agent.spec, {
       patientId: run.patient_id,
       limit: run.patient_id ? 1 : MAX_PER_RUN,
+      doctorId: agent.doctor_id,
     });
     for (const p of people) await sendToPatient(r, agent, p, a.text, clinicName);
     return { sent: people.length };
@@ -151,14 +202,15 @@ async function execute(
         ((await db.query('SELECT name FROM patients WHERE id=$1', [run.patient_id])).rows[0]
           ?.name as string) ?? 'A patient';
     const text = render(a.text.en, { name: who, clinic: clinicName, count: '1', names: who });
-    return { notified: await notifyStaff(r, a.to, text, lang) };
+    return { notified: await notifyStaff(r, a.to, text, lang, agent.doctor_id) };
   }
   // summary: today's numbers for each doctor who gave a phone number
   const today = (await db.query("SELECT to_char(now() AT TIME ZONE $1,'YYYY-MM-DD') d", [tz]))
     .rows[0].d as string;
   const docs = (
     await db.query(
-      "SELECT doctor_id, phone FROM staff_users WHERE role='doctor' AND phone IS NOT NULL",
+      "SELECT doctor_id, phone FROM staff_users WHERE role='doctor' AND phone IS NOT NULL AND ($1::uuid IS NULL OR doctor_id=$1)",
+      [agent.doctor_id ?? null],
     )
   ).rows;
   for (const d of docs) {
@@ -187,7 +239,8 @@ export const interpretRequest = defineTool({
   module: 'core',
   input: z.object({ text: z.string().trim().min(5).max(500) }),
   allow: ADMIN,
-  async run(_r, { text }) {
+  async run(r, { text }) {
+    await assistantOwner(r.db, r.ctx);
     const i = interpretAgentRequest(text);
     if (!i.understood) return { understood: false, help: i.help, notes: i.notes };
     const v = validateSpec(i.spec);
@@ -210,13 +263,19 @@ export const previewCustomAgent = defineTool({
   input: z.object({ spec: z.any() }),
   allow: ADMIN,
   async run(r, { spec: raw }) {
+    const owner = await assistantOwner(r.db, r.ctx);
     const v = validateSpec(raw);
     if (!v.ok) return { valid: false, problems: v.problems };
     const spec = v.spec;
+    scopeSpec(spec, owner);
     const s = await getSettings(r.db, r.ctx.clinicId);
-    const out: Record<string, unknown> = { valid: true, explain: explainSpec(spec), problems: [] };
+    const out: Record<string, unknown> = {
+      valid: true,
+      explain: scopeExplanation(spec, owner),
+      problems: [],
+    };
     if (spec.action.type === 'message_patients') {
-      const people = await audienceQuery(r, spec, { limit: MAX_PER_RUN });
+      const people = await audienceQuery(r, spec, { limit: MAX_PER_RUN, doctorId: owner });
       out.audience = {
         count: people.length,
         sample: people.slice(0, 5).map((p) => p.name.split(' ')[0]),
@@ -243,12 +302,26 @@ export const createCustomAgent = defineTool({
   allow: ADMIN,
   auditInput: (i) => ({ name: i.name }),
   async run({ db, ctx }, i) {
+    const owner = await assistantOwner(db, ctx);
     if ((i.platformDraftId === undefined) !== (i.platformVersion === undefined))
-      throw new ToolError('invalid_source', 'Platform draft id and version must be provided together');
+      throw new ToolError(
+        'invalid_source',
+        'Platform draft id and version must be provided together',
+      );
     const spec = mustBeValid(i.spec);
+    scopeSpec(spec, owner);
     const r = await db.query(
-      'INSERT INTO custom_agents (clinic_id,name,description,spec,created_by,platform_draft_id,platform_version) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
-      [ctx.clinicId, i.name, i.description, JSON.stringify(spec), userId(ctx.actor), i.platformDraftId ?? null, i.platformVersion ?? null],
+      'INSERT INTO custom_agents (clinic_id,name,description,spec,created_by,platform_draft_id,platform_version,doctor_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id',
+      [
+        ctx.clinicId,
+        i.name,
+        i.description,
+        JSON.stringify(spec),
+        userId(ctx.actor),
+        i.platformDraftId ?? null,
+        i.platformVersion ?? null,
+        owner,
+      ],
     );
     return { agentId: r.rows[0].id as string };
   },
@@ -266,8 +339,10 @@ export const updateCustomAgent = defineTool({
   }),
   allow: ADMIN,
   auditInput: (i) => ({ agentId: i.agentId }),
-  async run({ db }, i) {
+  async run({ db, ctx }, i) {
+    const a = await ownedAgent(db, ctx, i.agentId);
     const spec = i.spec !== undefined ? mustBeValid(i.spec) : null;
+    if (spec) scopeSpec(spec, a.doctor_id);
     const u = await db.query(
       "UPDATE custom_agents SET name=COALESCE($2,name), spec=COALESCE($3,spec), platform_draft_id=CASE WHEN $3::jsonb IS NOT NULL THEN NULL ELSE platform_draft_id END, platform_version=CASE WHEN $3::jsonb IS NOT NULL THEN NULL ELSE platform_version END, status='draft', next_run_at=NULL, activated_at=NULL, updated_at=now() WHERE id=$1 RETURNING id",
       [i.agentId, i.name ?? null, spec ? JSON.stringify(spec) : null],
@@ -289,10 +364,12 @@ export const activateCustomAgent = defineTool({
   allow: ADMIN,
   auditInput: (i) => ({ agentId: i.agentId }),
   async run({ db, ctx }, { agentId }) {
-    const a = (await db.query('SELECT * FROM custom_agents WHERE id=$1 FOR UPDATE', [agentId]))
-      .rows[0];
+    const a = await ownedAgent(db, ctx, agentId, true);
     if (!a) throw new ToolError('not_found', 'Agent not found', 404);
     const spec = mustBeValid(a.spec);
+    scopeSpec(spec, a.doctor_id);
+    if (a.doctor_id && !(await doctorAssistantEnabled(db, a.doctor_id, 'reminders')))
+      throw new ToolError('assistant_access', 'Doctor reminders are not enabled.', 403);
     const active = (
       await db.query("SELECT count(*)::int n FROM custom_agents WHERE status='active' AND id<>$1", [
         agentId,
@@ -316,12 +393,13 @@ export const activateCustomAgent = defineTool({
 export const pauseCustomAgent = defineTool({
   name: 'pause_custom_agent',
   description:
-    'Stop an agent right away. Pending runs are cancelled. Anyone on staff can pause; only a doctor can resume.',
+    'Stop an assistant and cancel its pending runs. Admin or the permitted owning doctor can pause it.',
   module: 'core',
   input: z.object({ agentId: UUID }),
-  allow: STAFF,
+  allow: [...STAFF, 'staff:receptionist'],
   auditInput: (i) => ({ agentId: i.agentId }),
-  async run({ db }, { agentId }) {
+  async run({ db, ctx }, { agentId }) {
+    await ownedAgent(db, ctx, agentId);
     const u = await db.query(
       "UPDATE custom_agents SET status='paused', next_run_at=NULL, updated_at=now() WHERE id=$1 AND status='active' RETURNING id",
       [agentId],
@@ -343,11 +421,13 @@ export const resumeCustomAgent = defineTool({
   allow: ADMIN,
   auditInput: (i) => ({ agentId: i.agentId }),
   async run({ db, ctx }, { agentId }) {
-    const a = (
-      await db.query("SELECT spec FROM custom_agents WHERE id=$1 AND status='paused'", [agentId])
-    ).rows[0];
-    if (!a) throw new ToolError('not_found', 'No paused agent with that id', 404);
+    const a = await ownedAgent(db, ctx, agentId, true);
+    if (a.status !== 'paused')
+      throw new ToolError('not_found', 'No paused assistant with that id', 404);
     const spec = mustBeValid(a.spec);
+    scopeSpec(spec, a.doctor_id);
+    if (a.doctor_id && !(await doctorAssistantEnabled(db, a.doctor_id, 'reminders')))
+      throw new ToolError('assistant_access', 'Doctor reminders are not enabled.', 403);
     if (
       ((await db.query("SELECT count(*)::int n FROM custom_agents WHERE status='active'")).rows[0]
         .n as number) >= MAX_ACTIVE
@@ -373,7 +453,8 @@ export const deleteCustomAgent = defineTool({
   input: z.object({ agentId: UUID }),
   allow: ADMIN,
   auditInput: (i) => ({ agentId: i.agentId }),
-  async run({ db }, { agentId }) {
+  async run({ db, ctx }, { agentId }) {
+    await ownedAgent(db, ctx, agentId);
     const d = await db.query('DELETE FROM custom_agents WHERE id=$1 RETURNING id', [agentId]);
     if (!d.rowCount) throw new ToolError('not_found', 'Agent not found', 404);
     return { ok: true };
@@ -387,10 +468,12 @@ export const listCustomAgents = defineTool({
   scope: 'read',
   input: z.object({}),
   allow: STAFF,
-  async run({ db }) {
+  async run({ db, ctx }) {
+    const owner = await assistantOwner(db, ctx);
     const agents = (
       await db.query(
-        'SELECT id, name, description, spec, status, created_at, activated_at, next_run_at, last_run_at, run_count, platform_draft_id, platform_version FROM custom_agents ORDER BY created_at DESC',
+        'SELECT id, name, description, spec, status, created_at, activated_at, next_run_at, last_run_at, run_count, platform_draft_id, platform_version, doctor_id FROM custom_agents WHERE ($1::uuid IS NULL OR doctor_id=$1) ORDER BY created_at DESC',
+        [owner],
       )
     ).rows;
     const out = [];
@@ -402,7 +485,15 @@ export const listCustomAgents = defineTool({
           [a.id],
         )
       ).rows;
-      out.push({ ...a, explain: v.ok ? explainSpec(v.spec) : [], runs });
+      const doctorName = a.doctor_id
+        ? (await db.query('SELECT name FROM doctors WHERE id=$1', [a.doctor_id])).rows[0]?.name
+        : null;
+      out.push({
+        ...a,
+        doctorName,
+        explain: v.ok ? scopeExplanation(v.spec, a.doctor_id) : [],
+        runs,
+      });
     }
     return { agents: out };
   },
@@ -434,7 +525,7 @@ export const runCustomAgents = defineTool({
     }
     const runs = (
       await db.query(
-        `SELECT r.id, r.patient_id, a.id AS agent_id, a.name, a.spec, a.status FROM agent_runs r JOIN custom_agents a ON a.id=r.agent_id
+        `SELECT r.id, r.patient_id, a.id AS agent_id, a.name, a.spec, a.status, a.doctor_id FROM agent_runs r JOIN custom_agents a ON a.id=r.agent_id
         WHERE r.status='pending' AND r.run_at <= now() ORDER BY r.run_at LIMIT 100 FOR UPDATE OF r SKIP LOCKED`,
       )
     ).rows;
@@ -443,7 +534,10 @@ export const runCustomAgents = defineTool({
       deferred = 0,
       skipped = 0;
     for (const run of runs) {
-      if (run.status !== 'active') {
+      if (
+        run.status !== 'active' ||
+        (run.doctor_id && !(await doctorAssistantEnabled(db, run.doctor_id, 'reminders')))
+      ) {
         await db.query(
           'UPDATE agent_runs SET status=\'skipped\', result=\'{"reason":"agent not active"}\' WHERE id=$1',
           [run.id],
@@ -472,7 +566,7 @@ export const runCustomAgents = defineTool({
       try {
         const result = await execute(
           r,
-          { id: run.agent_id, name: run.name, spec: spec.spec },
+          { id: run.agent_id, name: run.name, spec: spec.spec, doctor_id: run.doctor_id },
           run,
           tz,
           s.clinic_name,

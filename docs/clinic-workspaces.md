@@ -96,3 +96,13 @@ Cancelled/expired arrivals, inactive doctors, changed visit ownership and refund
 Reference contracts: [Razorpay Standard Checkout](https://razorpay.com/docs/payments/payment-gateway/web-integration/standard/integration-steps/), [webhook verification](https://razorpay.com/docs/webhooks/validate-test/), [Orders API](https://razorpay.com/docs/api/orders/create/).
 
 Validation in this repository uses mocked Razorpay responses plus real local database transactions. Real test-mode checkout and real money delivery remain unverified until the owner supplies keys and completes the account/webhook setup.
+
+### Doctor-controlled assistants
+
+Admin → Assistants → Everyday help now has separate permissions for each active doctor: WhatsApp, phone, and personal reminders. Granting access starts the personal assistant paused; the doctor opts in under Doctor → My assistants. Revoking access disables the doctor's preference, pauses their active personal reminders, and cancels pending runs. Regranting does not restart them automatically.
+
+Doctors can draft, preview, edit, activate, pause, resume, delete, and review runs for their own reminders. Ownership comes from their signed-in doctor profile, never a submitted doctor ID. Audiences and visit/appointment triggers are scoped to that doctor; personal summaries and staff notifications go only to that doctor. Clinic-wide metrics and reception notifications remain Admin tasks. Existing consent, quiet hours, message limits, medical-content restrictions, and the clinic active-task cap still apply.
+
+WhatsApp and phone preferences govern Sahayak conversation handling once a doctor is linked or selected. A paused assistant hands the conversation to reception; safety and privacy checks still run. Unassigned clinic enquiries continue on the shared number. Phone provider settings, live test-call controls, credentials, and shared channel activation remain Admin-only. This does not add live phone service or change AI-Agent-Platform.
+
+Migration 034 preserves existing clinic-managed service where no individual rule exists. Admin can explicitly disable it for a doctor or grant personal control. Existing clinic-wide reminder tasks and patient check-in campaigns are separate from personal reminders and retain their existing settings. Run database migrations before deploying the API update.

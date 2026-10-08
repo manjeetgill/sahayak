@@ -1,3 +1,5 @@
+import { installGoogleConnections } from './google-connections';
+import type { GoogleOptions } from './google-provider';
 import { installOutboundCalls } from './outbound-calls';
 import { installOnlinePayments } from './online-payments';
 import type { RazorpayOptions } from './razorpay';
@@ -62,6 +64,7 @@ import {
 } from '@sahayak/shared';
 
 export interface AppDeps {
+  google?: GoogleOptions;
   razorpay?: RazorpayOptions;
   liveChannelOwner?: 'platform' | 'local';
   /** Real WhatsApp channel + inbound adapter (omit for the mock simulator). */
@@ -200,6 +203,7 @@ export async function buildApp(deps: AppDeps) {
 
   await installPatientFeedback(app, deps, async (req, roles) => staffCtx(await claims(req, roles)));
   await installOutboundCalls(app, deps, async (req, roles) => staffCtx(await claims(req, roles)));
+  await installGoogleConnections(app, deps, async (req, roles) => staffCtx(await claims(req, roles)));
   await installOnlinePayments(app, deps, async (req, roles) => staffCtx(await claims(req, roles)));
 
   app.get('/health', async () => ({ ok: true }));
@@ -1353,47 +1357,72 @@ export async function buildApp(deps: AppDeps) {
       phone: await callingStatus(deps.callingBridge, deps.whatsappPlatform, c.clinicId),
     };
   });
-  app.get('/staff/agents', async (req) => {
+  app.get('/staff/agents/my-status', async (req) => {
+    const c = await claims(req, ['doctor']);
+    let whatsapp = !!deps.whatsapp;
+    try {
+      whatsapp ||=
+        (await currentWhatsApp(c.clinicId, await waRead(c.clinicId)))?.preparation === 'ACTIVE';
+    } catch {
+      /* Show unavailable. */
+    }
+    const phone = await callingStatus(deps.callingBridge, deps.whatsappPlatform, c.clinicId);
+    return { whatsapp, phone: phone.configured };
+  });
+  app.get('/staff/agents/access', async (req) => {
+    const c = await claims(req, ['admin', 'doctor']);
+    return callTool(rt, staffCtx(c), 'list_doctor_assistant_access', {});
+  });
+  app.put('/staff/agents/access', async (req) => {
     const c = await claims(req, ['admin']);
+    return callTool(rt, staffCtx(c), 'set_doctor_assistant_access', req.body);
+  });
+  app.put('/staff/agents/preferences', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'set_my_assistant_preference', req.body);
+  });
+  app.get('/staff/agents', async (req) => {
+    const c = await claims(req, ['admin', 'doctor']);
     return callTool(rt, staffCtx(c), 'list_custom_agents', {});
   });
   app.post('/staff/agents/interpret', async (req) => {
-    const c = await claims(req, ['admin']);
+    const c = await claims(req, ['admin', 'doctor']);
     const { text } = z.object({ text: z.string().trim().min(5).max(500) }).parse(req.body);
-    if (deps.agentPlatform) return draftFromPlatform(deps.agentPlatform, c.clinicId, text);
+    if (deps.agentPlatform && c.role === 'admin')
+      return draftFromPlatform(deps.agentPlatform, c.clinicId, text);
     const out = await callTool(rt, staffCtx(c), 'interpret_agent_request', { text });
     if (out.understood) return out;
     return (await llmInterpret(gate, text)) ?? out;
   });
   app.post('/staff/agents/preview', async (req) => {
-    const c = await claims(req, ['admin']);
+    const c = await claims(req, ['admin', 'doctor']);
     return callTool(rt, staffCtx(c), 'preview_custom_agent', { spec: (req.body as any)?.spec });
   });
   app.post('/staff/agents', async (req) => {
-    const c = await claims(req, ['admin']);
+    const c = await claims(req, ['admin', 'doctor']);
     return callTool(rt, staffCtx(c), 'create_custom_agent', req.body);
   });
   app.patch('/staff/agents/:id', async (req) => {
-    const c = await claims(req, ['admin']);
+    const c = await claims(req, ['admin', 'doctor']);
     return callTool(rt, staffCtx(c), 'update_custom_agent', {
       ...(req.body as object),
       agentId: idParam(req),
     });
   });
   app.post('/staff/agents/:id/activate', async (req) => {
-    const c = await claims(req, ['admin']);
+    const c = await claims(req, ['admin', 'doctor']);
     return callTool(rt, staffCtx(c), 'activate_custom_agent', { agentId: idParam(req) });
   });
   app.post('/staff/agents/:id/pause', async (req) => {
-    const c = await claims(req, ['admin']);
+    const c = await claims(req, ['admin', 'doctor']);
     return callTool(rt, staffCtx(c), 'pause_custom_agent', { agentId: idParam(req) });
   });
   app.post('/staff/agents/:id/resume', async (req) => {
-    const c = await claims(req, ['admin']);
+    const c = await claims(req, ['admin', 'doctor']);
     return callTool(rt, staffCtx(c), 'resume_custom_agent', { agentId: idParam(req) });
   });
   app.delete('/staff/agents/:id', async (req) => {
-    const c = await claims(req, ['admin']);
+    const c = await claims(req, ['admin', 'doctor']);
     return callTool(rt, staffCtx(c), 'delete_custom_agent', { agentId: idParam(req) });
   });
 

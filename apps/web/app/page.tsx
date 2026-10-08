@@ -26,6 +26,10 @@ export default function Home() {
         <div>
           <Link href="/login">Doctor and reception sign-in</Link>
         </div>
+        <div>
+          <Link href="/admin">Admin sign-in</Link>
+          <p className="muted">Set up your clinic, manage your team, and choose assistant access.</p>
+        </div>
       </div>
     </div>
   );
