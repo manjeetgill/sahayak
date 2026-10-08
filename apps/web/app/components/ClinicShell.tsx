@@ -107,6 +107,7 @@ export function ClinicShell({ children }: { children: React.ReactNode }) {
         <nav className="clinic-secondary-nav" aria-label="Clinic administration">
           {role === 'doctor' && <a href="/doctor/settings">{x('My profile')}</a>}
           {role === 'admin' && <a href="/admin/setup">Setup checklist</a>}
+          {role === 'receptionist' && <a href="/console/import">{x('Import patients')}</a>}
           {role !== 'admin' && <a href="/safety">{x('Safety & privacy')}</a>}
           <button
             type="button"

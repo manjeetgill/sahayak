@@ -20,6 +20,7 @@ const HI: Record<string, string> = {
   'Patient check-ins': 'मरीज़ चेक-इन',
   'Privacy requests': 'गोपनीयता अनुरोध',
   'My profile': 'मेरी प्रोफ़ाइल',
+  'Import patients': 'मरीज़ों की सूची जोड़ें',
   'Safety & privacy': 'सुरक्षा और गोपनीयता',
   'Sign out': 'साइन आउट',
   Help: 'सहायता',

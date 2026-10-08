@@ -1,0 +1,169 @@
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import pg from 'pg';
+import { addPatient, createTestClinic, dropTestClinic, hashPassword, makePool } from '@sahayak/db';
+import { EventBus, registerAllTools } from '@sahayak/core';
+import { LlmGate } from '@sahayak/agents';
+import { buildApp } from '../src/app';
+
+const admin = new pg.Client({ connectionString: process.env.ADMIN_DATABASE_URL });
+const pool = makePool();
+let A: Awaited<ReturnType<typeof createTestClinic>>;
+let app: Awaited<ReturnType<typeof buildApp>>;
+const tok: Record<string, string> = {};
+const PW = 'pw-test-1234';
+const call = (who: string, method: string, url: string, payload?: object) =>
+  app.inject({
+    method: method as any,
+    url,
+    headers: { authorization: `Bearer ${tok[who]}` },
+    payload,
+  });
+
+beforeAll(async () => {
+  await admin.connect();
+  registerAllTools();
+  A = await createTestClinic(admin, 'impA');
+  const pw = await hashPassword(PW);
+  for (const [tag, role, doc] of [
+    ['admA', 'admin', null],
+    ['recA', 'receptionist', null],
+    ['docA', 'doctor', A.doctorIds[0]],
+  ] as const)
+    await admin.query(
+      'INSERT INTO staff_users (clinic_id,email,password_hash,name,role,doctor_id) VALUES ($1,$2,$3,$4,$5,$6)',
+      [A.clinicId, `${tag}-${A.slug}@t.in`.toLowerCase(), pw, tag, role, doc],
+    );
+  app = await buildApp({ pool, bus: new EventBus(''), gate: new LlmGate(null), jwtSecret: 't' });
+  for (const k of ['admA', 'recA', 'docA'])
+    tok[k] = (
+      await app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: { email: `${k}-${A.slug}@t.in`.toLowerCase(), password: PW },
+      })
+    ).json().token;
+  await addPatient(admin, A.clinicId, 'Already Here', '+919877700001');
+});
+afterAll(async () => {
+  await dropTestClinic(admin, A.clinicId);
+  await admin.end();
+  await pool.end();
+  await app.close();
+});
+
+const rows = [
+  { name: 'Asha Rao', phone: '98777 00002', age: '40', language: 'Hindi' },
+  { name: 'Bimal Das', phone: '9877700003', yearOfBirth: '1980' },
+  { name: 'Again', phone: '+919877700002' },
+  { name: 'Already Here', phone: '9877700001' },
+  { name: '', phone: '9877700004' },
+  { name: 'Bad Phone', phone: '123' },
+];
+
+describe('patient import', () => {
+  it('doctors and admins cannot import; reception can', async () => {
+    expect((await call('docA', 'POST', '/staff/patient-import/preview', { rows })).statusCode).toBe(
+      403,
+    );
+    expect((await call('recA', 'POST', '/staff/patient-import/preview', { rows })).statusCode).toBe(
+      200,
+    );
+  });
+  it('preview sorts new, duplicate and invalid rows and saves nothing', async () => {
+    const p = (await call('recA', 'POST', '/staff/patient-import/preview', { rows })).json();
+    expect(p.counts).toEqual({
+      total: 6,
+      new: 2,
+      duplicateExisting: 1,
+      duplicateInFile: 1,
+      invalid: 2,
+    });
+    expect(
+      (await admin.query('SELECT count(*)::int n FROM patients WHERE clinic_id=$1', [A.clinicId]))
+        .rows[0].n,
+    ).toBe(1);
+  });
+  it('commit adds patients with no consents; the audit log has no names or numbers', async () => {
+    const c = (await call('recA', 'POST', '/staff/patient-import/commit', { rows })).json();
+    expect(c.imported).toBe(2);
+    const r = await admin.query(
+      `SELECT p.name,p.language,p.year_of_birth,(SELECT count(*)::int FROM consents c WHERE c.patient_id=p.id) cons
+         FROM patients p WHERE import_batch=$1 ORDER BY name`,
+      [c.batchId],
+    );
+    expect(r.rows.map((x) => [x.name, x.language, x.cons])).toEqual([
+      ['Asha Rao', 'hi', 0],
+      ['Bimal Das', 'en', 0],
+    ]);
+    expect(r.rows[1].year_of_birth).toBe(1980);
+    const a = await admin.query('SELECT input,output FROM agent_actions WHERE clinic_id=$1', [
+      A.clinicId,
+    ]);
+    expect(JSON.stringify(a.rows)).not.toMatch(/Asha|9877700002|Bimal/);
+  });
+  it('an imported patient must consent at first check-in, and is then recognised', async () => {
+    const look = (
+      await app.inject({
+        method: 'POST',
+        url: `/public/${A.slug}/lookup`,
+        payload: { phone: '9877700002' },
+      })
+    ).json();
+    expect(look.returning).toBe(false);
+    const body = { phone: '9877700002', doctorId: A.doctorIds[0], language: 'hi', consent: {} };
+    const no = await app.inject({
+      method: 'POST',
+      url: `/public/${A.slug}/checkin`,
+      payload: body,
+    });
+    expect(no.statusCode).toBeGreaterThanOrEqual(400);
+    const ok = await app.inject({
+      method: 'POST',
+      url: `/public/${A.slug}/checkin`,
+      payload: { ...body, name: 'Asha', consent: { visit_data: true } },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(
+      (
+        await admin.query(
+          "SELECT count(*)::int n FROM patients WHERE clinic_id=$1 AND phone='+919877700002'",
+          [A.clinicId],
+        )
+      ).rows[0].n,
+    ).toBe(1);
+    const look2 = (
+      await app.inject({
+        method: 'POST',
+        url: `/public/${A.slug}/lookup`,
+        payload: { phone: '9877700002' },
+      })
+    ).json();
+    expect(look2.returning).toBe(true);
+  });
+  it('undo removes only unused imported patients, reception only', async () => {
+    const c = (
+      await call('recA', 'POST', '/staff/patient-import/commit', {
+        rows: [
+          { name: 'Cara', phone: '9877700010' },
+          { name: 'Dev', phone: '9877700011' },
+        ],
+      })
+    ).json();
+    await app.inject({
+      method: 'POST',
+      url: `/public/${A.slug}/checkin`,
+      payload: {
+        phone: '9877700011',
+        doctorId: A.doctorIds[0],
+        language: 'en',
+        name: 'Dev',
+        consent: { visit_data: true },
+      },
+    });
+    expect((await call('docA', 'POST', `/staff/patient-import/${c.batchId}/undo`)).statusCode).toBe(
+      403,
+    );
+    const u = (await call('recA', 'POST', `/staff/patient-import/${c.batchId}/undo`)).json();
+    expect(u).toEqual({ removed: 1, kept: 1 });
+  });
+});

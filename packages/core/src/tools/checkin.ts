@@ -58,7 +58,12 @@ export const lookupPatientByPhone = defineTool({
     'system',
   ],
   async run({ db }, { phone }) {
-    const p = await db.query('SELECT id, language FROM patients WHERE phone=$1', [phone]);
+    // An imported patient who has not yet consented is answered as "not returning", so the page asks for consent.
+    const p = await db.query(
+      `SELECT id, language FROM patients WHERE phone=$1 AND NOT (imported_at IS NOT NULL AND NOT EXISTS
+         (SELECT 1 FROM consents c WHERE c.patient_id=patients.id AND c.purpose='visit_data' AND c.withdrawn_at IS NULL))`,
+      [phone],
+    );
     return p.rowCount
       ? {
           returning: true,
@@ -76,15 +81,24 @@ export async function registerCheckinPatient(r: ToolRun, input: z.infer<typeof C
   await db.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
     `${ctx.clinicId}:patient:${input.phone}`,
   ]);
-  const found = await db.query('SELECT id, name, language FROM patients WHERE phone=$1', [
-    input.phone,
-  ]);
+  const found = await db.query(
+    `SELECT id, name, language,
+            (imported_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM consents c WHERE c.patient_id=patients.id AND c.purpose='visit_data' AND c.withdrawn_at IS NULL)) AS needs_consent
+       FROM patients WHERE phone=$1`,
+    [input.phone],
+  );
   let patientId: string,
     name: string,
     language = input.language,
     returning = false;
   if (found.rowCount) {
-    returning = true;
+    // An imported patient has given no consent yet: treat them like a new person for consent, keep their record.
+    if (found.rows[0].needs_consent && !input.consent.visit_data)
+      throw new ToolError(
+        'consent_required',
+        'Consent to store visit data is required to check in',
+      );
+    returning = !found.rows[0].needs_consent;
     patientId = found.rows[0].id;
     name = found.rows[0].name;
     language = found.rows[0].language;

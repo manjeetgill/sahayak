@@ -860,6 +860,19 @@ export async function buildApp(deps: AppDeps) {
       patientId: idParam(req),
     });
   });
+  // ---- bring your own patient list ----
+  app.post('/staff/patient-import/preview', async (req) => {
+    const c = await claims(req, ['receptionist']);
+    return callTool(rt, staffCtx(c), 'preview_patient_import', req.body);
+  });
+  app.post('/staff/patient-import/commit', async (req) => {
+    const c = await claims(req, ['receptionist']);
+    return callTool(rt, staffCtx(c), 'commit_patient_import', req.body);
+  });
+  app.post('/staff/patient-import/:id/undo', async (req) => {
+    const c = await claims(req, ['receptionist']);
+    return callTool(rt, staffCtx(c), 'undo_patient_import', { batchId: idParam(req) });
+  });
   // ---- doctor shortcuts: visit templates, favourite medicines, "same as last time" ----
   app.get('/staff/shortcuts', async (req) => {
     const c = await claims(req, ['doctor']);
