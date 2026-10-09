@@ -1,9 +1,16 @@
 'use client';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { useStaffLang } from '../lib/staffText';
 
 export default function Home() {
   const { lang, setLang, x } = useStaffLang();
+  const [localDemo, setLocalDemo] = useState(false);
+  useEffect(() => {
+    const host = location.hostname;
+    setLocalDemo(host === 'localhost' || host === '127.0.0.1' || host === '[::1]' ||
+      /^192\.168\.|^10\.|^172\.(1[6-9]|2\d|3[01])\./.test(host));
+  }, []);
   const slug = 'dr-sharma';
   return (
     <div className="wrap home-page">
@@ -15,6 +22,10 @@ export default function Home() {
       </section>
       <p className="muted">{x("Example clinic: Dr. Sharma's Clinic.")}</p>
       <div className="card list home-links">
+        {localDemo && <div>
+          <Link href="/demo">{x('Interactive demo: solo doctor and small hospital')}</Link>
+          <p className="muted">{x('Walk through fictional patient journeys on this local installation.')}</p>
+        </div>}
         <div>
           <Link href={`/c/${slug}`}>{x('Public clinic page')}</Link>
         </div>

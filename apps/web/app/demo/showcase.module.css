@@ -1,0 +1,26 @@
+.page { max-width: 1100px; padding-bottom: 3rem; }
+.hero { margin: 1.5rem 0; padding: clamp(1.5rem, 4vw, 3rem); border-radius: 24px; color: #fff; background: linear-gradient(125deg, #0b513e, #217e68 65%, #5aa38c); }
+.hero h1 { max-width: 780px; font-size: clamp(2rem, 4vw, 3.3rem); }
+.hero p:last-child { max-width: 700px; line-height: 1.6; }
+.eyebrow { font-size: .78rem; font-weight: 800; letter-spacing: .14em; opacity: .85; }
+.switcher { display: flex; gap: .75rem; margin: 1.5rem 0; flex-wrap: wrap; }
+.switcher button { padding: .85rem 1.25rem; }
+.selected { background: #176b55; }
+.unselected { background: #fff; color: #176b55; border: 1px solid #cbded3; }
+.notice { display: grid; gap: .4rem; background: #fff5df; border: 1px solid #eed79e; padding: 1.1rem 1.3rem; border-radius: 16px; }
+.logins { display: grid; grid-template-columns: 1fr auto; gap: 1rem; align-items: center; margin: 1.5rem 0 2rem; padding: 1.5rem; background: #fff; border-radius: 20px; border: 1px solid #dbe5df; }
+.logins p { margin: .35rem 0; }
+.primaryLink { display: inline-block; padding: .75rem 1rem; border-radius: 10px; background: #176b55; color: #fff; text-decoration: none; font-weight: 700; }
+.roleGrid { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .7rem; }
+.role { display: grid; gap: .3rem; padding: .8rem 1rem; background: #f3f8f5; border-radius: 12px; }
+.role code { overflow-wrap: anywhere; font-size: .76rem; }
+.sectionTitle { margin: 2rem 0 1rem; }
+.steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; list-style: none; padding: 0; counter-reset: none; }
+.steps li { padding: 1.3rem; background: #fff; border-radius: 18px; border: 1px solid #dbe5df; box-shadow: 0 8px 26px rgba(28, 57, 44, .04); }
+.steps li p { line-height: 1.55; color: #56665c; }
+.steps li a { display: inline-block; margin: .3rem .8rem .3rem 0; font-weight: 650; }
+.stepHead { display: flex; align-items: center; gap: .75rem; }
+.stepHead span { flex: none; display: grid; place-items: center; width: 2.3rem; height: 2.3rem; border-radius: 50%; background: #e1f1e9; color: #0b513e; font-weight: 800; }
+.stepHead h3 { margin: 0; }
+.footer { padding: 1rem 1.2rem; background: #e2eee7; border-radius: 12px; }
+@media (max-width: 700px) { .steps { grid-template-columns: 1fr; } .logins { grid-template-columns: 1fr; } }

@@ -8,7 +8,9 @@ type Turn = { who: 'caller' | 'agent'; text: string };
 /** Phone-call simulator: type what the caller says; the agent's reply is what would be spoken. */
 export default function Call({ params }: { params: { slug: string } }) {
   const { lang, setLang, x } = useStaffLang();
-  const [phone, setPhone] = useState('9876501003');
+  const [phone, setPhone] = useState(
+    params.slug.startsWith('showcase-') ? '+910000000098' : '9876501003',
+  );
   const [text, setText] = useState('');
   const [log, setLog] = useState<Turn[]>([]);
   const [transfer, setTransfer] = useState(false);

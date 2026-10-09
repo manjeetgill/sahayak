@@ -8,7 +8,9 @@ type Msg = { direction: 'in' | 'out'; sender: string; body: string; created_at: 
 /** A phone-shaped chat that stands in for WhatsApp, so the demo needs no vendor account. */
 export default function Sim({ params }: { params: { slug: string } }) {
   const { lang, setLang, x } = useStaffLang();
-  const [phone, setPhone] = useState('9876501000');
+  const [phone, setPhone] = useState(
+    params.slug.startsWith('showcase-') ? '+910000000099' : '9876501000',
+  );
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState('');
   const end = useRef<HTMLDivElement>(null);
@@ -90,7 +92,9 @@ export default function Sim({ params }: { params: { slug: string } }) {
         </form>
       </div>
       <p className="muted">
-        {x('Try asking about clinic hours, booking an appointment, or describe an urgent concern in Hindi. Example patient numbers: 9876501000–9876501024.')}
+        {params.slug.startsWith('showcase-')
+          ? x('Try asking about clinic hours or booking an appointment. To show a human handoff, ask to speak with reception. Use only made-up patient details.')
+          : x('Try asking about clinic hours, booking an appointment, or describe an urgent concern in Hindi. Example patient numbers: 9876501000–9876501024.')}
       </p>
     </div>
   );
