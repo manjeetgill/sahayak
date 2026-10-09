@@ -9,6 +9,7 @@ export type StaffLang = 'en' | 'hi';
  * clinical notes, and external service responses are kept as recorded. A missing key stays English.
  */
 const HI: Record<string, string> = {
+  'Automatic patient messages are paused. Your saved invitations will wait until sending is switched on.': 'मरीज़ों के अपने-आप भेजे जाने वाले संदेश रुके हैं। भेजना चालू होने तक सहेजे निमंत्रण इंतज़ार करेंगे।',
   'While the patient waits': 'मरीज़ के इंतज़ार के दौरान',
   'Ask one question on the patient’s private queue page': 'मरीज़ के निजी कतार पेज पर एक सवाल पूछें',
   'The patient can tell you one thing they want to discuss. Their answer appears in your queue and pre-visit brief. This works even without WhatsApp.':

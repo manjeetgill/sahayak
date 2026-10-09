@@ -37,6 +37,17 @@ The supported flow is:
 
 Set `CHECKIN_PUBLIC_WEB_URL` to the deployed web app's HTTPS origin before using links on real phones. The browser demo works on localhost without this. A public frontend must also have a working HTTPS API configuration; Sahayak does not expose the Mac automatically.
 
+The feedback form now calls its own web origin. Next.js forwards only the four
+feedback form actions (`open`, `response`, `resolution`, `stop`) to
+`INTERNAL_API_URL` (default `http://127.0.0.1:4000`). A deployment proxy must serve
+the feedback page, its static assets, and these public form routes. Staff routes
+do not need to be exposed for this.
+
+Set `PATIENT_MESSAGES_JOBS_ENABLED=true` to run feedback and evening delivery
+workers independently from `JOBS_ENABLED`. This starts the workers; each clinic
+still needs an enabled delivery setting, a reviewed provider-approved template,
+and eligible patient consent. The admin delivery screens report worker status.
+
 New invitations require current consent and 08:00–20:59 clinic local time. One reminder is eligible two days after **confirmed delivery**, only when specifically opted in and no response has arrived. Provider acceptance/queueing is not labelled delivery. A changed template is blocked until reviewed again. Failures before platform preparation can be checked again safely; uncertain preparation/approval is held for reconciliation rather than blindly retried. Pausing or opting out prevents new dispatches; the platform has no cancellation API for a message already handed off, which may still arrive.
 
 Currently, callback and resolution links can be prepared for clinic staff to share. Automated free-form clinical replies, automated calls and automatic resolution-message delivery are not part of this implementation.

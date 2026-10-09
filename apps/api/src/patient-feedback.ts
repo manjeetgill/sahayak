@@ -5,6 +5,7 @@ import { callTool, ToolError, type ToolContext } from '@sahayak/core';
 import { withClinic } from '@sahayak/db';
 import { checkRedFlag, analysePatientFeedback } from '@sahayak/agents';
 import { whatsappPlatform } from './whatsapp-platform';
+import { patientMessageJobsEnabled } from '@sahayak/shared';
 
 const idSchema = z.object({ id: z.string().uuid() });
 const setupSchema = z.object({
@@ -175,9 +176,10 @@ export async function installPatientFeedback(
       };
     }
   }
-  app.get('/staff/feedback/messaging', async (req) =>
-    messagingSetup(await staffContext(req, ['admin'])),
-  );
+  app.get('/staff/feedback/messaging', async (req) => ({
+    ...(await messagingSetup(await staffContext(req, ['admin']))),
+    jobsEnabled: patientMessageJobsEnabled(process.env),
+  }));
   app.put('/staff/feedback/messaging', async (req) => {
     const ctx = await staffContext(req, ['admin']);
     const b = z
@@ -439,7 +441,7 @@ export async function installPatientFeedback(
   };
   let timer: NodeJS.Timeout | undefined;
   app.addHook('onReady', async () => {
-    if (process.env.JOBS_ENABLED !== 'false' && process.env.NODE_ENV !== 'test')
+    if (patientMessageJobsEnabled(process.env) && process.env.NODE_ENV !== 'test')
       timer = setInterval(() => void sweep(), 60000);
   });
   app.addHook('onClose', async () => {

@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { api } from '../../../../lib/api';
+import { feedbackApi as api } from '../../../../lib/api';
 import { useStaffLang } from '../../../../lib/staffText';
 export default function Feedback({ params }: { params: { slug: string } }) {
   const { lang: deviceLang } = useStaffLang();

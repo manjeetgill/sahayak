@@ -37,6 +37,30 @@ const api = async (method: any, url: string, body?: unknown, headers = auth) =>
 const publicApi = (kind: string, body: unknown, slug = clinic.slug) =>
   api('POST', `/public/${slug}/feedback/${kind}`, body, {});
 const token = (path: string) => path.split('#')[1];
+it('reports patient-message jobs independently from other background jobs', async () => {
+  const saved = process.env.PATIENT_MESSAGES_JOBS_ENABLED;
+  const global = process.env.JOBS_ENABLED;
+  try {
+    process.env.JOBS_ENABLED = 'false';
+    process.env.PATIENT_MESSAGES_JOBS_ENABLED = 'true';
+    for (const path of ['/staff/feedback/messaging', '/staff/evening/messaging']) {
+      expect((await api('GET', path, undefined, setupAuth)).json().jobsEnabled).toBe(true);
+    }
+    process.env.PATIENT_MESSAGES_JOBS_ENABLED = 'false';
+    expect(
+      (await api('GET', '/staff/feedback/messaging', undefined, setupAuth)).json().jobsEnabled,
+    ).toBe(false);
+    delete process.env.PATIENT_MESSAGES_JOBS_ENABLED;
+    expect(
+      (await api('GET', '/staff/evening/messaging', undefined, setupAuth)).json().jobsEnabled,
+    ).toBe(false);
+  } finally {
+    if (saved === undefined) delete process.env.PATIENT_MESSAGES_JOBS_ENABLED;
+    else process.env.PATIENT_MESSAGES_JOBS_ENABLED = saved;
+    if (global === undefined) delete process.env.JOBS_ENABLED;
+    else process.env.JOBS_ENABLED = global;
+  }
+});
 beforeAll(async () => {
   await admin.connect();
   registerAllTools();

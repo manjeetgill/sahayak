@@ -4,6 +4,7 @@ import { ToolError, type ToolContext } from '@sahayak/core';
 import { withClinic } from '@sahayak/db';
 import type { AppDeps } from './app';
 import { whatsappPlatform } from './whatsapp-platform';
+import { patientMessageJobsEnabled } from '@sahayak/shared';
 
 const setupSchema = z.object({
   webhook_verified: z.boolean(),
@@ -73,7 +74,7 @@ export async function installEveningDelivery(
   }
   app.get('/staff/evening/messaging', async (req) => {
     const ctx = await staffContext(req, ['admin']);
-    return { ...(await setup(ctx.clinicId)), jobsEnabled: process.env.JOBS_ENABLED !== 'false' };
+    return { ...(await setup(ctx.clinicId)), jobsEnabled: patientMessageJobsEnabled(process.env) };
   });
   app.put('/staff/evening/messaging', async (req) => {
     const ctx = await staffContext(req, ['admin']);
@@ -386,7 +387,7 @@ export async function installEveningDelivery(
   };
   let timer: NodeJS.Timeout | undefined;
   app.addHook('onReady', async () => {
-    if (process.env.JOBS_ENABLED !== 'false' && process.env.NODE_ENV !== 'test')
+    if (patientMessageJobsEnabled(process.env) && process.env.NODE_ENV !== 'test')
       timer = setInterval(() => void sweep(), 60000);
   });
   app.addHook('onClose', async () => {

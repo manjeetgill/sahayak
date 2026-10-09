@@ -56,10 +56,10 @@ export class ApiError extends Error {
 
 export async function api<T = any>(
   path: string,
-  opts: { method?: string; body?: unknown; auth?: boolean } = {},
+  opts: { method?: string; body?: unknown; auth?: boolean; sameOrigin?: boolean } = {},
 ): Promise<T> {
   const s = opts.auth ? session.get() : null;
-  const res = await fetch(`${API}${path}`, {
+  const res = await fetch(`${opts.sameOrigin ? '' : API}${path}`, {
     method: opts.method ?? (opts.body !== undefined ? 'POST' : 'GET'),
     headers: {
       'content-type': 'application/json',
@@ -79,6 +79,10 @@ export async function api<T = any>(
 }
 export const staff = <T = any>(path: string, body?: unknown, method?: 'PUT' | 'DELETE' | 'PATCH') =>
   api<T>(path, { auth: true, body, method: method ?? (body !== undefined ? 'POST' : 'GET') });
+
+/** Public feedback pages use the web host's narrow proxy, including on HTTPS phones. */
+export const feedbackApi = <T = any>(path: string, opts: { body: unknown }) =>
+  api<T>(path, { ...opts, sameOrigin: true });
 
 /** Live updates over WebSocket with automatic reconnect. `path` is e.g. /ws/public/slug or /ws?token=... */
 export function useLive(path: string | null, onEvent: (e: LiveEvent) => void) {

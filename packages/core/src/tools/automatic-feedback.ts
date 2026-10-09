@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { defineTool, ToolError, type ToolRun } from './registry';
+import { patientMessageJobsEnabled } from '@sahayak/shared';
 
 type ReadRun = Pick<ToolRun, 'db' | 'ctx'>;
 const defaults = {
@@ -57,7 +58,7 @@ export const automaticFeedbackTools = [
           .rows[0]?.enabled,
         eveningDeliveryReady:
           !!(await r.db.query('SELECT enabled FROM patient_evening_settings')).rows[0]?.enabled &&
-          process.env.JOBS_ENABLED !== 'false',
+          patientMessageJobsEnabled(process.env),
       };
     },
   }),

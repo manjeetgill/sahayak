@@ -42,8 +42,17 @@ export function FeedbackMessaging() {
             </b>
           </p>
           <p>{x(data.message)}</p>
+          {!data.jobsEnabled && (
+            <p className="banner warn">
+              {x(
+                'Automatic patient messages are paused. Your saved invitations will wait until sending is switched on.',
+              )}
+            </p>
+          )}
           <p>
-            {x('Messages go out between 8am and 9pm in the clinic’s time zone. A check-in may have one reminder, two days after confirmed delivery, if explicitly selected and no response has arrived. Patients can reply STOP.')}
+            {x(
+              'Messages go out between 8am and 9pm in the clinic’s time zone. A check-in may have one reminder, two days after confirmed delivery, if explicitly selected and no response has arrived. Patients can reply STOP.',
+            )}
           </p>
           {data.templates.length > 0 && (
             <>
@@ -71,7 +80,9 @@ export function FeedbackMessaging() {
                   checked={reviewed}
                   onChange={(e) => setReviewed(e.target.checked)}
                 />
-                {x('I reviewed this invitation, which asks patients to reply FEEDBACK, and approve it for scheduled, opted-in patients.')}
+                {x(
+                  'I reviewed this invitation, which asks patients to reply FEEDBACK, and approve it for scheduled, opted-in patients.',
+                )}
               </label>
             </>
           )}
@@ -86,13 +97,16 @@ export function FeedbackMessaging() {
                 </strong>
               </p>
               <p>
-                {evidence.summary.attempts} {x('invitations prepared')} · {evidence.summary.delivered}{' '}
-                {x('delivered')} · {evidence.summary.read} {x('read')} ·{' '}
-                {evidence.summary.responses_after_delivery} {x('patient responses after delivery')} ·{' '}
-                {evidence.summary.needs_review} {x('needing review')}
+                {evidence.summary.attempts} {x('invitations prepared')} ·{' '}
+                {evidence.summary.delivered} {x('delivered')} · {evidence.summary.read} {x('read')}{' '}
+                · {evidence.summary.responses_after_delivery}{' '}
+                {x('patient responses after delivery')} · {evidence.summary.needs_review}{' '}
+                {x('needing review')}
               </p>
               <p>
-                {x('Queued or accepted means the provider received the request. Only a delivery receipt counts as delivered. A completed live test also needs the patient to open the form and submit a response.')}
+                {x(
+                  'Queued or accepted means the provider received the request. Only a delivery receipt counts as delivered. A completed live test also needs the patient to open the form and submit a response.',
+                )}
               </p>
               {evidence.receipts.slice(0, 10).map((r: any) => (
                 <p key={r.id}>
