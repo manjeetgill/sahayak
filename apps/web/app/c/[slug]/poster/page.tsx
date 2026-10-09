@@ -48,6 +48,8 @@ export default function Poster({ params }: { params: { slug: string } }) {
           <p className="error">
             This address only works on this computer. Ask your admin to save a phone-accessible
             address under Patient check-in QR before printing.
+            <br />
+            यह पता केवल इस कंप्यूटर पर चलता है। पोस्टर छापने से पहले एडमिन से मरीज़ चेक-इन QR में फ़ोन से खुलने वाला पता सहेजने को कहें।
           </p>
         )}
         {payment && (
@@ -55,7 +57,7 @@ export default function Poster({ params }: { params: { slug: string } }) {
             Scan → enter your details → {online ? 'pay online or at reception' : 'pay at reception'}{' '}
             → receive your queue token.
             <br />
-            स्कैन करें → जानकारी दें → रिसेप्शन पर भुगतान करें → टोकन पाएं।
+            स्कैन करें → जानकारी दें → {online ? 'ऑनलाइन या रिसेप्शन पर भुगतान करें' : 'रिसेप्शन पर भुगतान करें'} → टोकन पाएं।
           </p>
         )}
         <p style={{ fontSize: '1.1rem', marginTop: '1.2rem' }}>
@@ -68,7 +70,7 @@ export default function Poster({ params }: { params: { slug: string } }) {
             onClick={() => window.print()}
             style={{ fontSize: '1.1rem' }}
           >
-            Print this poster
+            Print this poster / पोस्टर छापें
           </button>
         </p>
       </div>

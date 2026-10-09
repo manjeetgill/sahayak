@@ -4,6 +4,7 @@ import { LocalCareTools } from './LocalCareTools';
 import { useCallback, useEffect, useState } from 'react';
 import { staff } from '../../lib/api';
 import { displayLabel } from '../../lib/labels';
+import { useStaffLang } from '../../lib/staffText';
 const fields: Record<string, string[]> = {
   medication: ['name', 'ingredient', 'dose', 'frequency', 'reason'],
   allergy: ['substance', 'reaction'],
@@ -54,6 +55,7 @@ export function ClinicalWorkspace({
   onDocument: (id: string) => void;
   onSaved?: () => void;
 }) {
+  const { x, lang: uiLang } = useStaffLang();
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(''),
     [message, setMessage] = useState(''),
@@ -139,17 +141,17 @@ export function ClinicalWorkspace({
     return (
       <section
         id="care-workspace"
-        hidden={!['care', 'records', 'admin'].includes(activeArea)}
+        hidden={!['all', 'care', 'records', 'admin'].includes(activeArea)}
         className="card clinical-workspace"
       >
         <h2>
-          {activeArea === 'records'
+          {x(activeArea === 'records'
             ? 'Timeline and source search'
             : activeArea === 'admin'
               ? 'Charges and paperwork'
-              : 'Ongoing care'}
+              : 'Ongoing care')}
         </h2>
-        {error ? <p role="alert">{error}</p> : <p>Loading patient history…</p>}
+        {error ? <p role="alert">{error}</p> : <p>{x("Loading patient history…")}</p>}
       </section>
     );
   const entries = data.entries.filter((e: any) => e.status !== 'entered_in_error');
@@ -162,30 +164,25 @@ export function ClinicalWorkspace({
   return (
     <section
       id="care-workspace"
-      hidden={!['care', 'records', 'admin'].includes(activeArea)}
+      hidden={!['all', 'care', 'records', 'admin'].includes(activeArea)}
       className="card clinical-workspace"
       style={{ marginTop: 20 }}
     >
       <h2>
-        {activeArea === 'records'
+        {x(activeArea === 'records'
           ? 'Timeline and source search'
           : activeArea === 'admin'
             ? 'Charges and paperwork'
-            : 'Ongoing care'}
+            : 'Ongoing care')}
       </h2>
-      <p>
-        Doctor-recorded facts, approved instructions and follow-up work. Original reports and notes
-        remain the source.
-      </p>
+      <p>{x("Doctor-recorded facts, approved instructions and follow-up work. Original reports and notes remain the source.")}</p>
       {error && (
         <p role="alert" className="error">
           {error}
         </p>
       )}
       {message && <p role="status">{message}</p>}
-      <button onClick={() => void run(load)} disabled={busy}>
-        Refresh care record
-      </button>
+      <button onClick={() => void run(load)} disabled={busy}>{x("Refresh care record")}</button>
       <LocalCareTools
         activeArea={activeArea}
         patientId={patientId}
@@ -196,28 +193,31 @@ export function ClinicalWorkspace({
           onSaved?.();
         }}
       />
-      <h3>At a glance</h3>
+      <h3>{x("At a glance")}</h3>
       <p>
         {
           entries.filter(
             (e: any) => e.kind === 'medication' && e.status === 'active' && e.verified_at,
           ).length
         }{' '}
-        verified active medicines ·{' '}
+        {x('verified active medicines')} ·{' '}
         {
           entries.filter((e: any) => e.kind === 'allergy' && e.status === 'active' && e.verified_at)
             .length
         }{' '}
-        recorded allergies · {labs.length} verified test results
+        {x('recorded allergies')} · {labs.length} {x('verified test results')}
       </p>
-      <p>No recorded allergies does not confirm that the patient has no allergies.</p>
-      <details hidden={activeArea !== 'records'}>
-        <summary>Add patient information</summary>
+      <p>{x("No recorded allergies does not confirm that the patient has no allergies.")}</p>
+      <details
+        open={activeArea === 'all'}
+        hidden={activeArea !== 'all' && activeArea !== 'records'}
+      >
+        <summary>{x("Add patient information")}</summary>
         <fieldset disabled={busy}>
           <label>
-            Type of information
+            {x('Type of information')}
             <select
-              aria-label="Type of information"
+              aria-label={x('Type of information')}
               value={kind}
               onChange={(e) => {
                 setKind(e.target.value);
@@ -227,20 +227,20 @@ export function ClinicalWorkspace({
             >
               {Object.entries(labels).map(([k, l]) => (
                 <option key={k} value={k}>
-                  {l}
+                  {x(l)}
                 </option>
               ))}
             </select>
           </label>
           <label>
-            Date of event
+            {x('Date of event')}
             <input type="date" value={occurred} onChange={(e) => setOccurred(e.target.value)} />
           </label>
           {fields[kind].map((f) => (
             <label key={f}>
-              {names[f]}
+              {x(names[f])}
               <input
-                aria-label={names[f]}
+                aria-label={x(names[f])}
                 type={['value', 'low', 'high'].includes(f) ? 'number' : 'text'}
                 step="any"
                 value={values[f] ?? ''}
@@ -249,9 +249,9 @@ export function ClinicalWorkspace({
             </label>
           ))}
           <label>
-            Original report {kind === 'lab' ? '(required)' : '(optional)'}
+            {x('Original report')} {x(kind === 'lab' ? '(required)' : '(optional)')}
             <select value={documentId} onChange={(e) => setDocument(e.target.value)}>
-              <option value="">Choose uploaded report</option>
+              <option value="">{x("Choose uploaded report")}</option>
               {documents.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.filename}
@@ -265,23 +265,26 @@ export function ClinicalWorkspace({
               checked={verified}
               onChange={(e) => setVerified(e.target.checked)}
             />
-            I checked this information against the source.
+            {x('I checked this information against the source.')}
           </label>
-          <button onClick={saveEntry}>Save patient information</button>
+          <button onClick={saveEntry}>{x("Save patient information")}</button>
         </fieldset>
       </details>
-      <details hidden={activeArea !== 'records'}>
-        <summary>Patient history and recorded changes</summary>
+      <details
+        open={activeArea === 'all'}
+        hidden={activeArea !== 'all' && activeArea !== 'records'}
+      >
+        <summary>{x("Patient history and recorded changes")}</summary>
         <label>
-          Find in recorded history
+          {x('Find in recorded history')}
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Medicine, test or diagnosis"
+            placeholder={x('Medicine, test or diagnosis')}
           />
         </label>
         {selected.length === 0 && (
-          <p>No matching structured records. Check earlier notes and uploaded reports below.</p>
+          <p>{x("No matching structured records. Check earlier notes and uploaded reports below.")}</p>
         )}
         {selected.map((e: any) => (
           <article
@@ -290,30 +293,28 @@ export function ClinicalWorkspace({
             style={{ borderTop: '1px solid var(--line)', padding: 12 }}
           >
             <b>
-              {labels[e.kind]} · {String(e.occurred_on).slice(0, 10)}
+              {x(labels[e.kind])} · {String(e.occurred_on).slice(0, 10)}
             </b>{' '}
-            · {displayLabel(e.status)} · {e.verified_at ? 'Doctor verified' : 'Needs verification'}
+            · {x(displayLabel(e.status))} · {x(e.verified_at ? 'Doctor verified' : 'Needs verification')}
             <dl>
               {Object.entries(e.data)
                 .filter(([k]) => k !== 'kind')
                 .map(([k, v]) => (
                   <div key={k}>
-                    <dt>{names[k] ?? displayLabel(k)}</dt>
+                    <dt>{x(names[k] ?? displayLabel(k))}</dt>
                     <dd>{String(v)}</dd>
                   </div>
                 ))}
             </dl>
             <p>
-              Recorded by {e.recorder}.{' '}
+              {x('Recorded by')} {e.recorder}.{' '}
               {e.document_id && (
-                <button onClick={() => onDocument(e.document_id)}>Open original report</button>
+                <button onClick={() => onDocument(e.document_id)}>{x("Open original report")}</button>
               )}
             </p>
             <div className="row">
               {!e.verified_at && e.status === 'active' && (
-                <button disabled={busy} onClick={() => entryStatus(e.id, undefined, true)}>
-                  Confirm source checked
-                </button>
+                <button disabled={busy} onClick={() => entryStatus(e.id, undefined, true)}>{x("Confirm source checked")}</button>
               )}
               {e.status === 'active' && e.kind !== 'lab' && (
                 <button
@@ -327,7 +328,7 @@ export function ClinicalWorkspace({
                     )
                   }
                 >
-                  {e.kind === 'medication' ? 'Record medicine stopped' : 'Mark completed'}
+                  {x(e.kind === 'medication' ? 'Record medicine stopped' : 'Mark completed')}
                 </button>
               )}
               {e.status !== 'entered_in_error' && (
@@ -336,22 +337,20 @@ export function ClinicalWorkspace({
                   onClick={() => {
                     if (
                       confirm(
-                        'Mark this entry as entered in error? Its history will remain visible.',
+                        x('Mark this entry as entered in error? Its history will remain visible.'),
                       )
                     )
                       void entryStatus(e.id, 'entered_in_error');
                   }}
-                >
-                  Mark entry incorrect
-                </button>
+                >{x("Mark entry incorrect")}</button>
               )}
             </div>
           </article>
         ))}
-        <h4>Earlier visits and original records</h4>
+        <h4>{x("Earlier visits and original records")}</h4>
         {data.history.map((h: any) => (
           <p key={h.kind + h.id}>
-            {new Date(h.at).toLocaleDateString()} ·{' '}
+            {new Date(h.at).toLocaleDateString(uiLang === 'hi' ? 'hi-IN' : 'en-IN')} ·{' '}
             {h.kind === 'document' ? (
               <button onClick={() => onDocument(h.id)}>{h.title}</button>
             ) : (
@@ -360,18 +359,17 @@ export function ClinicalWorkspace({
           </p>
         ))}
       </details>
-      <details hidden={activeArea !== 'records'}>
-        <summary>Copy results from a report table</summary>
-        <p>
-          Paste rows separated by tabs: test name, numeric result, unit, optional lower limit, upper
-          limit, sample/method. These are saved as unverified and must be checked against the
-          uploaded report. Scanned images and free-form report interpretation are not supported.
-        </p>
+      <details
+        open={activeArea === 'all'}
+        hidden={activeArea !== 'all' && activeArea !== 'records'}
+      >
+        <summary>{x("Copy results from a report table")}</summary>
+        <p>{x("Paste rows separated by tabs: test name, numeric result, unit, optional lower limit, upper limit, sample/method. These are saved as unverified and must be checked against the uploaded report. Scanned images and free-form report interpretation are not supported.")}</p>
         <fieldset disabled={busy}>
           <label>
-            Uploaded source report
+            {x('Uploaded source report')}
             <select value={documentId} onChange={(e) => setDocument(e.target.value)}>
-              <option value="">Choose report</option>
+              <option value="">{x("Choose report")}</option>
               {documents.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.filename}
@@ -380,11 +378,11 @@ export function ClinicalWorkspace({
             </select>
           </label>
           <label>
-            Report date
+            {x('Report date')}
             <input type="date" value={occurred} onChange={(e) => setOccurred(e.target.value)} />
           </label>
           <label>
-            Tab-separated result rows
+            {x('Tab-separated result rows')}
             <textarea rows={6} value={reportText} onChange={(e) => setReportText(e.target.value)} />
           </label>
           <button
@@ -400,25 +398,23 @@ export function ClinicalWorkspace({
                 setReportText('');
               })
             }
-          >
-            Import for doctor verification
-          </button>
+          >{x("Import for doctor verification")}</button>
         </fieldset>
       </details>
-      <details hidden={activeArea !== 'records'}>
-        <summary>Test results over time</summary>
-        <p>
-          Only verified numeric results appear here. Reference limits come from the report, not from
-          Sahayak. A value within those limits does not establish clinical normality.
-        </p>
-        {labs.length === 0 && <p>No verified numeric results recorded.</p>}
+      <details
+        open={activeArea === 'all'}
+        hidden={activeArea !== 'all' && activeArea !== 'records'}
+      >
+        <summary>{x("Test results over time")}</summary>
+        <p>{x("Only verified numeric results appear here. Reference limits come from the report, not from Sahayak. A value within those limits does not establish clinical normality.")}</p>
+        {labs.length === 0 && <p>{x("No verified numeric results recorded.")}</p>}
         <table style={{ width: '100%' }}>
           <thead>
             <tr>
-              <th>Test / date</th>
-              <th>Result</th>
-              <th>Report range</th>
-              <th>Previous matching result</th>
+              <th>{x("Test / date")}</th>
+              <th>{x("Result")}</th>
+              <th>{x("Report range")}</th>
+              <th>{x("Previous matching result")}</th>
             </tr>
           </thead>
           <tbody>
@@ -453,15 +449,15 @@ export function ClinicalWorkspace({
                   </td>
                   <td>
                     {d.value} {d.unit}
-                    {outside ? ' · Outside report range' : ''}
+                    {outside ? ` · ${x('Outside report range')}` : ''}
                   </td>
                   <td>
-                    {d.low ?? 'Not supplied'} – {d.high ?? 'Not supplied'}
+                    {d.low ?? x('Not supplied')} – {d.high ?? x('Not supplied')}
                   </td>
                   <td>
                     {previous
                       ? `${previous.data.value} ${d.unit} (${String(previous.occurred_on).slice(0, 10)})`
-                      : 'No earlier result with matching unit and sample/method'}
+                      : x('No earlier result with matching unit and sample/method')}
                   </td>
                 </tr>
               );
@@ -469,15 +465,18 @@ export function ClinicalWorkspace({
           </tbody>
         </table>
       </details>
-      <details hidden={activeArea !== 'records'}>
-        <summary>Medicine record checks</summary>
-        <p>{data.safety.limitations}</p>
+      <details
+        open={activeArea === 'all'}
+        hidden={activeArea !== 'all' && activeArea !== 'records'}
+      >
+        <summary>{x("Medicine record checks")}</summary>
+        <p>{x(data.safety.limitations)}</p>
         {!data.safety.warnings.length && (
-          <p>No exact duplicate or exact allergy-name matches found in the verified records.</p>
+          <p>{x("No exact duplicate or exact allergy-name matches found in the verified records.")}</p>
         )}
         {data.safety.warnings.map((w: any, n: number) => (
           <p key={n} className="banner warn">
-            {w.message}{' '}
+            {x(w.message)}{' '}
             {w.sourceIds.map((id: string) => (
               <a
                 key={id}
@@ -489,42 +488,38 @@ export function ClinicalWorkspace({
                     ?.setAttribute('open', '')
                 }
               >
-                Review record{' '}
+                {x('Review record')}{' '}
               </a>
             ))}
           </p>
         ))}
       </details>
-      <details hidden={activeArea !== 'care'}>
-        <summary>Instructions to give the patient</summary>
-        <p>
-          Prepare a copy from a signed note, edit it, then approve it. Hindi changes headings only;
-          review or translate the doctor’s text yourself. No medical advice is added and nothing is
-          sent automatically.
-        </p>
+      <details open={activeArea === 'all'} hidden={activeArea !== 'all' && activeArea !== 'care'}>
+        <summary>{x("Instructions to give the patient")}</summary>
+        <p>{x("Prepare a copy from a signed note, edit it, then approve it. Hindi changes headings only; review or translate the doctor’s text yourself. No medical advice is added and nothing is sent automatically.")}</p>
         <fieldset disabled={busy}>
           <label>
-            Signed source note
+            {x('Signed source note')}
             <select
-              aria-label="Signed source note"
+              aria-label={x('Signed source note')}
               value={noteId}
               onChange={(e) => setNote(e.target.value)}
             >
-              <option value="">Choose signed note</option>
+              <option value="">{x("Choose signed note")}</option>
               {notes
                 .filter((n) => n.status === 'signed')
                 .map((n) => (
                   <option key={n.id} value={n.id}>
-                    {new Date(n.signed_at).toLocaleString()}
+                    {new Date(n.signed_at).toLocaleString(uiLang === 'hi' ? 'hi-IN' : 'en-IN')}
                   </option>
                 ))}
             </select>
           </label>
           <label>
-            Instruction headings
+            {x('Instruction headings')}
             <select value={language} onChange={(e) => setLanguage(e.target.value)}>
-              <option value="en">English</option>
-              <option value="hi">हिन्दी (review body language)</option>
+              <option value="en">{x("English")}</option>
+              <option value="hi">{x("हिन्दी (review body language)")}</option>
             </select>
           </label>
           <button
@@ -534,35 +529,30 @@ export function ClinicalWorkspace({
                 staff('/staff/workbench/instruction-draft', { patientId, noteId, language }),
               )
             }
-          >
-            Prepare instructions from note
-          </button>
+          >{x("Prepare instructions from note")}</button>
         </fieldset>
         {data.instructions.map((i: any) => (
           <article key={i.id} className="card">
             <b>
-              {displayLabel(i.status)} ·{' '}
+              {x(displayLabel(i.status))} ·{' '}
               {i.translated_from
-                ? `Translation draft language: ${i.language}`
+                ? `${x('Translation draft language:')} ${x(i.language === 'hi' ? 'Hindi' : i.language === 'en' ? 'English' : i.language)}`
                 : i.language === 'hi'
-                  ? 'Hindi headings'
-                  : 'English headings'}
+                  ? x('Hindi headings')
+                  : x('English headings')}
             </b>{' '}
-            · <a href={`#note-${i.note_id}`}>Original signed note</a>
+            · <a href={`#note-${i.note_id}`}>{x("Original signed note")}</a>
             {i.translation_source && (
-              <details>
-                <summary>Original approved wording for translation review</summary>
+              <details open={activeArea === 'all'}>
+                <summary>{x("Original approved wording for translation review")}</summary>
                 <p style={{ whiteSpace: 'pre-wrap' }}>{i.translation_source}</p>
-                <p>
-                  Check meaning, negations, medicine names, doses and units. Numeric checks do not
-                  prove translation accuracy.
-                </p>
+                <p>{x("Check meaning, negations, medicine names, doses and units. Numeric checks do not prove translation accuracy.")}</p>
               </details>
             )}
             {i.status === 'draft' ? (
               <>
                 <label>
-                  Instructions draft
+                  {x('Instructions draft')}
                   <textarea
                     rows={8}
                     value={bodies[i.id] ?? i.body}
@@ -580,15 +570,13 @@ export function ClinicalWorkspace({
                       }),
                     )
                   }
-                >
-                  Save draft
-                </button>{' '}
+                >{x("Save draft")}</button>{' '}
                 <button
                   disabled={busy}
                   onClick={() => {
                     if (
                       confirm(
-                        'I checked these instructions and their language against the signed note. Approve for this patient?',
+                        x('I checked these instructions and their language against the signed note. Approve for this patient?'),
                       )
                     )
                       void run(() =>
@@ -599,18 +587,16 @@ export function ClinicalWorkspace({
                         }),
                       );
                   }}
-                >
-                  Approve instructions
-                </button>
+                >{x("Approve instructions")}</button>
               </>
             ) : (
               <>
                 <p style={{ whiteSpace: 'pre-wrap' }}>{i.body}</p>
-                <button onClick={() => download(i)}>Download approved instructions</button>
+                <button onClick={() => download(i)}>{x("Download approved instructions")}</button>
                 <label>
-                  Translate approved instructions into
+                  {x('Translate approved instructions into')}
                   <select
-                    aria-label="Translate approved instructions into"
+                    aria-label={x('Translate approved instructions into')}
                     defaultValue=""
                     onChange={(e) => {
                       const target = e.target.value;
@@ -618,7 +604,7 @@ export function ClinicalWorkspace({
                       if (
                         target &&
                         confirm(
-                          'Send these approved instructions to the configured AI service for a translation draft? Review every medicine name, dose, warning and meaning before approving.',
+                          x('Send these approved instructions to the configured AI service for a translation draft? Review every medicine name, dose, warning and meaning before approving.'),
                         )
                       )
                         void run(() =>
@@ -630,7 +616,7 @@ export function ClinicalWorkspace({
                         );
                     }}
                   >
-                    <option value="">Choose language</option>
+                    <option value="">{x("Choose language")}</option>
                     {Object.entries({
                       en: 'English',
                       hi: 'Hindi',
@@ -643,7 +629,7 @@ export function ClinicalWorkspace({
                       gu: 'Gujarati',
                     }).map(([code, label]) => (
                       <option key={code} value={code}>
-                        {label}
+                        {x(label)}
                       </option>
                     ))}
                   </select>
@@ -653,26 +639,22 @@ export function ClinicalWorkspace({
           </article>
         ))}
       </details>
-      <details hidden={activeArea !== 'care'}>
-        <summary>Plan the next steps</summary>
-        <p>
-          Prepare a sequence for this patient, then approve it. Due steps appear in your inbox.
-          Contact is recorded manually until live messaging is connected. After contact, a reply is
-          due within 48 hours; overdue replies return to the inbox.
-        </p>
+      <details open={activeArea === 'all'} hidden={activeArea !== 'all' && activeArea !== 'care'}>
+        <summary>{x("Plan the next steps")}</summary>
+        <p>{x("Prepare a sequence for this patient, then approve it. Due steps appear in your inbox. Contact is recorded manually until live messaging is connected. After contact, a reply is due within 48 hours; overdue replies return to the inbox.")}</p>
         <fieldset disabled={busy}>
           <label>
-            Plan name
+            {x('Plan name')}
             <input value={planTitle} onChange={(e) => setPlanTitle(e.target.value)} />
           </label>
           <label>
-            Responsible doctor
+            {x('Responsible doctor')}
             <select
-              aria-label="Responsible doctor"
+              aria-label={x('Responsible doctor')}
               value={owner}
               onChange={(e) => setOwner(e.target.value)}
             >
-              <option value="">Choose doctor</option>
+              <option value="">{x("Choose doctor")}</option>
               {data.staff.map((u: any) => (
                 <option key={u.id} value={u.id}>
                   {u.name}
@@ -681,7 +663,7 @@ export function ClinicalWorkspace({
             </select>
           </label>
           <p>
-            Start with a ready-made task:{' '}
+            {x('Start with a ready-made task:')}{' '}
             {['Check a requested report', 'Check referral completion', 'Check after a visit'].map(
               (title) => (
                 <button
@@ -689,20 +671,20 @@ export function ClinicalWorkspace({
                   key={title}
                   className="ghost small"
                   onClick={() => {
-                    setPlanTitle(title);
-                    setSteps([{ title, message: '', dueAt: '' }]);
+                    setPlanTitle(x(title));
+                    setSteps([{ title: x(title), message: '', dueAt: '' }]);
                   }}
                 >
-                  {title}
+                  {x(title)}
                 </button>
               ),
             )}
           </p>
           {steps.map((step, n) => (
             <fieldset key={n}>
-              <legend>Step {n + 1}</legend>
+              <legend>{x('Step')} {n + 1}</legend>
               <label>
-                Task
+                {x('Task')}
                 <input
                   value={step.title}
                   onChange={(e) =>
@@ -711,7 +693,7 @@ export function ClinicalWorkspace({
                 />
               </label>
               <label>
-                Approved wording for the patient
+                {x('Approved wording for the patient')}
                 <textarea
                   value={step.message}
                   onChange={(e) =>
@@ -720,7 +702,7 @@ export function ClinicalWorkspace({
                 />
               </label>
               <label>
-                When (your device time)
+                {x('When (your device time)')}
                 <input
                   type="datetime-local"
                   value={step.dueAt}
@@ -730,18 +712,14 @@ export function ClinicalWorkspace({
                 />
               </label>
               {steps.length > 1 && (
-                <button onClick={() => setSteps(steps.filter((_, j) => j !== n))}>
-                  Remove step
-                </button>
+                <button onClick={() => setSteps(steps.filter((_, j) => j !== n))}>{x("Remove step")}</button>
               )}
             </fieldset>
           ))}
           <button
             disabled={steps.length >= 12}
             onClick={() => setSteps([...steps, { title: '', message: '', dueAt: '' }])}
-          >
-            Add another step
-          </button>{' '}
+          >{x("Add another step")}</button>{' '}
           <button
             disabled={!owner || !planTitle || steps.some((s) => !s.title || !s.message || !s.dueAt)}
             onClick={() =>
@@ -756,64 +734,56 @@ export function ClinicalWorkspace({
                 setSteps([{ title: '', message: '', dueAt: '' }]);
               })
             }
-          >
-            Save plan for review
-          </button>
+          >{x("Save plan for review")}</button>
         </fieldset>
         {data.plans.map((p: any) => (
           <article className="card" key={p.id}>
             <h4>
-              {p.title} · {displayLabel(p.status)}
+              {p.title} · {x(displayLabel(p.status))}
             </h4>
-            <p>Responsible: {p.assignee}</p>
+            <p>{x('Responsible:')} {p.assignee}</p>
             {['draft', 'paused'].includes(p.status) && (
               <button
                 disabled={busy}
                 onClick={() => {
                   if (
                     confirm(
-                      'I reviewed the wording and dates of every step. Activate this local follow-up plan?',
+                      x('I reviewed the wording and dates of every step. Activate this local follow-up plan?'),
                     )
                   )
                     if (data.steps.some((s: any) => s.plan_id === p.id && stepEdits[s.id]))
-                      setError('Save edited steps before approving the plan.');
+                      setError(x('Save edited steps before approving the plan.'));
                     else void planStatus(p.id, 'active');
                 }}
               >
-                {p.status === 'draft' ? 'Approve plan' : 'Resume plan'}
+                {x(p.status === 'draft' ? 'Approve plan' : 'Resume plan')}
               </button>
             )}
             {p.status === 'active' && (
-              <button disabled={busy} onClick={() => planStatus(p.id, 'paused')}>
-                Pause plan
-              </button>
+              <button disabled={busy} onClick={() => planStatus(p.id, 'paused')}>{x("Pause plan")}</button>
             )}
             {!['completed', 'cancelled'].includes(p.status) && (
               <>
                 <button
                   disabled={busy}
                   onClick={() => {
-                    if (confirm('Cancel remaining steps in this plan?'))
+                    if (confirm(x('Cancel remaining steps in this plan?')))
                       void planStatus(p.id, 'cancelled');
                   }}
-                >
-                  Cancel plan
-                </button>
-                <button disabled={busy} onClick={() => planStatus(p.id, 'completed')}>
-                  Close completed plan
-                </button>
+                >{x("Cancel plan")}</button>
+                <button disabled={busy} onClick={() => planStatus(p.id, 'completed')}>{x("Close completed plan")}</button>
               </>
             )}
             {data.steps
               .filter((s: any) => s.plan_id === p.id)
               .map((s: any) => (
                 <div key={s.id} style={{ borderTop: '1px solid var(--line)', padding: 8 }}>
-                  <b>{s.title}</b> · {displayLabel(s.status)} · due{' '}
-                  {new Date(s.due_at).toLocaleString()}
+                  <b>{s.title}</b> · {x(displayLabel(s.status))} · {x('due')}{' '}
+                  {new Date(s.due_at).toLocaleString(uiLang === 'hi' ? 'hi-IN' : 'en-IN')}
                   {p.status === 'draft' ? (
                     <fieldset disabled={busy}>
                       <label>
-                        Patient step wording
+                        {x('Patient step wording')}
                         <textarea
                           value={stepEdits[s.id]?.message ?? s.message}
                           onChange={(e) =>
@@ -825,7 +795,7 @@ export function ClinicalWorkspace({
                         />
                       </label>
                       <label>
-                        Patient step date
+                        {x('Patient step date')}
                         <input
                           type="datetime-local"
                           value={
@@ -863,26 +833,24 @@ export function ClinicalWorkspace({
                             });
                           })
                         }
-                      >
-                        Save patient step
-                      </button>
+                      >{x("Save patient step")}</button>
                     </fieldset>
                   ) : (
                     <p style={{ whiteSpace: 'pre-wrap' }}>{s.message}</p>
                   )}
-                  {s.response && <p>Recorded reply / review: {s.response}</p>}
+                  {s.response && <p>{x('Recorded reply / review:')} {s.response}</p>}
                   {s.response_due_at && (
                     <p>
-                      Reply due: {new Date(s.response_due_at).toLocaleString()}
+                      {x('Reply due:')} {new Date(s.response_due_at).toLocaleString(uiLang === 'hi' ? 'hi-IN' : 'en-IN')}
                       {s.status === 'contacted' && Date.parse(s.response_due_at) < Date.now()
-                        ? ' · No reply recorded by deadline'
+                        ? ` · ${x('No reply recorded by deadline')}`
                         : ''}
                     </p>
                   )}
                   {p.status === 'active' && !['completed', 'cancelled'].includes(s.status) && (
                     <>
                       <label>
-                        Patient reply or doctor’s review
+                        {x('Patient reply or doctor’s review')}
                         <textarea
                           value={replies[s.id] ?? ''}
                           onChange={(e) => setReplies({ ...replies, [s.id]: e.target.value })}
@@ -891,36 +859,30 @@ export function ClinicalWorkspace({
                       {['pending', 'no_response'].includes(s.status) && (
                         <button disabled={busy} onClick={() => stepStatus(s.id, 'contacted')}>
                           {s.status === 'no_response'
-                            ? 'I contacted the patient again'
-                            : 'I contacted the patient'}
+                            ? x('I contacted the patient again')
+                            : x('I contacted the patient')}
                         </button>
                       )}{' '}
                       {s.status === 'contacted' &&
                         s.response_due_at &&
                         Date.parse(s.response_due_at) < Date.now() && (
-                          <button disabled={busy} onClick={() => stepStatus(s.id, 'no_response')}>
-                            Record no reply
-                          </button>
+                          <button disabled={busy} onClick={() => stepStatus(s.id, 'no_response')}>{x("Record no reply")}</button>
                         )}
-                      <button disabled={busy} onClick={() => stepStatus(s.id, 'needs_review')}>
-                        Needs doctor review
-                      </button>{' '}
+                      <button disabled={busy} onClick={() => stepStatus(s.id, 'needs_review')}>{x("Needs doctor review")}</button>{' '}
                       <button
                         disabled={busy || !replies[s.id]?.trim()}
                         onClick={() => stepStatus(s.id, 'completed')}
-                      >
-                        Record review and finish step
-                      </button>
+                      >{x("Record review and finish step")}</button>
                     </>
                   )}
-                  <details>
-                    <summary>Step history</summary>
+                  <details open={activeArea === 'all'}>
+                    <summary>{x("Step history")}</summary>
                     {data.stepHistory
                       .filter((h: any) => h.step_id === s.id)
                       .map((h: any) => (
                         <p key={h.id}>
-                          {new Date(h.created_at).toLocaleString()} · {displayLabel(h.status)} ·{' '}
-                          {h.response || 'No reply recorded'}
+                          {new Date(h.created_at).toLocaleString(uiLang === 'hi' ? 'hi-IN' : 'en-IN')} · {x(h.source === 'patient_web' ? 'Patient reply' : displayLabel(h.status))} ·{' '}
+                          {h.response || x('No reply recorded')}
                         </p>
                       ))}
                   </details>
@@ -929,19 +891,16 @@ export function ClinicalWorkspace({
           </article>
         ))}
       </details>
-      <details hidden={activeArea !== 'admin'}>
-        <summary>Clinic charges and payments</summary>
-        <p>
-          Record charges and payments already received. This does not collect money or connect to a
-          bank.
-        </p>
+      <details open={activeArea === 'all'} hidden={activeArea !== 'all' && activeArea !== 'admin'}>
+        <summary>{x("Clinic charges and payments")}</summary>
+        <p>{x("Record charges and payments already received. This does not collect money or connect to a bank.")}</p>
         <fieldset disabled={busy}>
           <label>
-            Charge description
+            {x('Charge description')}
             <input value={chargeText} onChange={(e) => setChargeText(e.target.value)} />
           </label>
           <label>
-            Charge amount (INR)
+            {x('Charge amount (INR)')}
             <input
               type="number"
               step="0.01"
@@ -962,20 +921,18 @@ export function ClinicalWorkspace({
                 setChargeAmount('');
               })
             }
-          >
-            Record charge
-          </button>
+          >{x("Record charge")}</button>
         </fieldset>
         {data.charges.map((c: any) => {
           const payment = payments[c.id];
           return (
             <article key={c.id} className="card">
               <b>{c.description}</b>{' '}
-              {c.is_test && <strong>Test only — excluded from real collections</strong>} ·{' '}
-              {c.status === 'cancelled' ? 'Cancelled' : 'Recorded charge'}
+              {c.is_test && <strong>{x("Test only — excluded from real collections")}</strong>} ·{' '}
+              {x(c.status === 'cancelled' ? 'Cancelled' : 'Recorded charge')}
               <p>
-                Charge ₹{(c.amount_paise / 100).toFixed(2)} · Recorded paid ₹
-                {(c.paid / 100).toFixed(2)} · Outstanding ₹
+                {x('Charge')} ₹{(c.amount_paise / 100).toFixed(2)} · {x('Recorded paid')} ₹
+                {(c.paid / 100).toFixed(2)} · {x('Outstanding')} ₹
                 {(c.status === 'cancelled' ? 0 : (c.amount_paise - c.paid) / 100).toFixed(2)}
               </p>
               {c.status === 'open' && c.paid === 0 && (
@@ -984,7 +941,7 @@ export function ClinicalWorkspace({
                   onClick={() => {
                     if (
                       confirm(
-                        'Cancel this mistaken or no longer needed charge? Its history will remain.',
+                        x('Cancel this mistaken or no longer needed charge? Its history will remain.'),
                       )
                     )
                       void run(() =>
@@ -994,24 +951,22 @@ export function ClinicalWorkspace({
                         }),
                       );
                   }}
-                >
-                  Cancel charge
-                </button>
+                >{x("Cancel charge")}</button>
               )}
               {(data.payments ?? [])
                 .filter((p: any) => p.charge_id === c.id)
                 .map((p: any) => (
                   <p key={p.id}>
-                    ₹{(p.amount_paise / 100).toFixed(2)} · {displayLabel(p.method)} ·{' '}
-                    {new Date(p.created_at).toLocaleString()} ·{' '}
-                    {p.voided_at ? 'Corrected entry — excluded from totals' : 'Recorded payment'}{' '}
+                    ₹{(p.amount_paise / 100).toFixed(2)} · {x(displayLabel(p.method))} ·{' '}
+                    {new Date(p.created_at).toLocaleString(uiLang === 'hi' ? 'hi-IN' : 'en-IN')} ·{' '}
+                    {x(p.voided_at ? 'Corrected entry — excluded from totals' : 'Recorded payment')}{' '}
                     {!p.voided_at && (
                       <button
                         disabled={busy}
                         onClick={() => {
                           if (
                             confirm(
-                              'Mark this payment entry as a mistake? This changes recorded totals only. It does not refund money. Enter the correct payment separately.',
+                              x('Mark this payment entry as a mistake? This changes recorded totals only. It does not refund money. Enter the correct payment separately.'),
                             )
                           )
                             void run(() =>
@@ -1022,16 +977,14 @@ export function ClinicalWorkspace({
                               }),
                             );
                         }}
-                      >
-                        Correct mistaken entry
-                      </button>
+                      >{x("Correct mistaken entry")}</button>
                     )}
                   </p>
                 ))}
               {c.status === 'open' && c.paid < c.amount_paise && (
                 <fieldset disabled={busy}>
                   <label>
-                    Payment received (INR)
+                    {x('Payment received (INR)')}
                     <input
                       type="number"
                       min="0.01"
@@ -1050,7 +1003,7 @@ export function ClinicalWorkspace({
                     />
                   </label>
                   <label>
-                    Payment method
+                    {x('Payment method')}
                     <select
                       value={payment?.method ?? 'cash'}
                       onChange={(e) =>
@@ -1066,7 +1019,7 @@ export function ClinicalWorkspace({
                     >
                       {['cash', 'card', 'upi', 'bank', 'other'].map((m) => (
                         <option key={m} value={m}>
-                          {displayLabel(m)}
+                          {x(displayLabel(m))}
                         </option>
                       ))}
                     </select>
@@ -1077,7 +1030,7 @@ export function ClinicalWorkspace({
                       if (
                         payment &&
                         confirm(
-                          'Record money already received by the clinic? No money will be collected by Sahayak.',
+                          x('Record money already received by the clinic? No money will be collected by Sahayak.'),
                         )
                       )
                         void run(async () => {
@@ -1093,9 +1046,7 @@ export function ClinicalWorkspace({
                           });
                         });
                     }}
-                  >
-                    Record payment received
-                  </button>
+                  >{x("Record payment received")}</button>
                 </fieldset>
               )}
             </article>

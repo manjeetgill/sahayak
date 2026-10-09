@@ -159,7 +159,15 @@ export const handoffToHuman = defineTool({
   allow: [...AGENTS, 'system'],
   async run({ db, ctx, emit }, i) {
     if (!ctx.conversationId) throw new ToolError('no_conversation', 'No active conversation');
-    await db.query("UPDATE conversations SET handled_by='human' WHERE id=$1", [ctx.conversationId]);
+    const owner = (await db.query(
+      `SELECT u.id FROM clinic_settings s JOIN staff_users u ON u.clinic_id=s.clinic_id
+       WHERE s.clinic_id=$1 AND s.workspace_mode='solo' AND u.solo_owner LIMIT 1`,
+      [ctx.clinicId],
+    )).rows[0]?.id ?? null;
+    await db.query(
+      "UPDATE conversations SET handled_by='human',human_user_id=COALESCE($2,human_user_id) WHERE id=$1",
+      [ctx.conversationId, owner],
+    );
     const f = await db.query(
       "INSERT INTO flags (clinic_id,conversation_id,patient_id,kind,severity,summary) VALUES ($1,$2,$3,$4,'normal',$5) RETURNING id",
       [
@@ -184,7 +192,7 @@ export const handoffToHuman = defineTool({
       },
       { patientId: ctx.patientId, extra: { summary: i.summary } },
     );
-    return { flagId: f.rows[0].id as string };
+    return { flagId: f.rows[0].id as string, assignedTo: owner };
   },
 });
 

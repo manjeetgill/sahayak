@@ -1,8 +1,10 @@
 'use client';
+import { useStaffLang } from '../../lib/staffText';
 import { useState } from 'react';
 import { api, session } from '../../lib/api';
 
 export default function Login() {
+  const { lang, setLang, x: ui } = useStaffLang();
   const [email, setEmail] = useState(''),
     [password, setPassword] = useState(''),
     [err, setErr] = useState('');
@@ -20,16 +22,17 @@ export default function Login() {
   };
   return (
     <div className="wrap auth-page">
+      <button className="ghost" type="button" onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')}>{lang === 'hi' ? 'English' : 'हिन्दी'}</button>
       <a className="auth-brand" href="/">
         <span className="clinic-brand-mark" aria-hidden="true">
           ✚
         </span>{' '}
-        Sahayak
+        {ui("Sahayak")}
       </a>
-      <h1>Staff sign-in</h1>
-      <p>Sign in to your Admin, Doctor, or Receptionist workspace.</p>
+      <h1>{ui("Staff sign-in")}</h1>
+      <p>{ui("Sign in to your Admin, Doctor, or Receptionist workspace.")}</p>
       <form className="card" onSubmit={submit}>
-        <label htmlFor="email">Email</label>
+        <label htmlFor="email">{ui("Email")}</label>
         <input
           id="email"
           type="email"
@@ -38,7 +41,7 @@ export default function Login() {
           autoComplete="username"
           required
         />
-        <label htmlFor="pw">Password</label>
+        <label htmlFor="pw">{ui("Password")}</label>
         <input
           id="pw"
           type="password"
@@ -53,13 +56,13 @@ export default function Login() {
           </div>
         )}
         <p>
-          <button type="submit">Sign in</button>
+          <button type="submit">{ui("Sign in")}</button>
         </p>
         <p className="muted">
-          New clinic? <a href="/signup">Set up your clinic</a>
+          {ui("New clinic?")} <a href="/signup">{ui("Set up your clinic")}</a>
         </p>
         <p className="muted">
-          Demo: reception@demo.sahayak.in / anil@demo.sahayak.in, password demo1234
+          {ui("Demo: reception@demo.sahayak.in / anil@demo.sahayak.in, password demo1234")}
         </p>
       </form>
     </div>

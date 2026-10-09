@@ -1,11 +1,13 @@
 'use client';
 import { useState } from 'react';
 import { api } from '../../../../lib/api';
+import { useStaffLang } from '../../../../lib/staffText';
 
 type Turn = { who: 'caller' | 'agent'; text: string };
 
 /** Phone-call simulator: type what the caller says; the agent's reply is what would be spoken. */
 export default function Call({ params }: { params: { slug: string } }) {
+  const { lang, setLang, x } = useStaffLang();
   const [phone, setPhone] = useState('9876501003');
   const [text, setText] = useState('');
   const [log, setLog] = useState<Turn[]>([]);
@@ -22,8 +24,9 @@ export default function Call({ params }: { params: { slug: string } }) {
   };
   return (
     <div className="wrap practice-call-page">
-      <h1>Try a phone conversation</h1>
-      <label htmlFor="ph">Caller number</label>
+      <button className="ghost" type="button" onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')}>{lang === 'hi' ? 'English' : 'हिन्दी'}</button>
+      <h1>{x('Try a phone conversation')}</h1>
+      <label htmlFor="ph">{x('Caller number')}</label>
       <input id="ph" value={phone} onChange={(e) => setPhone(e.target.value)} />
       <div
         className="card call-transcript"
@@ -39,22 +42,21 @@ export default function Call({ params }: { params: { slug: string } }) {
         ))}
         {transfer && (
           <p className="banner warn">
-            The assistant has asked the reception team to help. No real call is transferred.
+            {x('The assistant has asked the reception team to help. No real call is transferred.')}
           </p>
         )}
       </div>
       <form className="row" onSubmit={speak}>
         <input
-          aria-label="Caller says"
+          aria-label={x('Caller says')}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="What the caller says"
+          placeholder={x('What the caller says')}
         />
-        <button type="submit">Send</button>
+        <button type="submit">{x('Send')}</button>
       </form>
       <p className="muted">
-        This is a practice conversation. Type what a patient might say to see the reply. No real
-        phone call is made.
+        {x('This is a practice conversation. Type what a patient might say to see the reply. No real phone call is made.')}
       </p>
     </div>
   );

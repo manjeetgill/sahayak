@@ -1669,6 +1669,22 @@ summary:focus-visible {
 .admin-card { display: block; color: inherit; text-decoration: none; min-height: 170px; }
 .admin-card:hover { border-color: var(--primary, #17685b); }
 .admin-card span { font-weight: 700; }
+.clinic-mode-choice { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.clinic-mode-choice h2, .clinic-mode-choice p { margin: 0 0 .35rem; }
+.clinic-mode-options { display: flex; flex-wrap: wrap; gap: .5rem; }
+.clinic-mode-options button { text-align: left; min-width: 185px; }
+.clinic-mode-options small { display: block; font-size: .76rem; font-weight: 400; margin-top: .25rem; }
+.solo-doctor-desk { margin: 0 0 1.1rem; }
+.solo-desk-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: .8rem; }
+.solo-desk-heading h2, .solo-desk-heading p { margin: .2rem 0; }
+.solo-desk-links { display: flex; flex-wrap: wrap; gap: .45rem; }
+.solo-desk-grid { display: grid; grid-template-columns: minmax(250px, .75fr) minmax(320px, 1.25fr); gap: 1rem; align-items: start; }
+.solo-desk-grid form { display: grid; gap: .55rem; }
+.solo-desk-grid .assistant-choice-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+@media (max-width: 1000px) {
+  .clinic-mode-choice, .solo-desk-heading { align-items: stretch; flex-direction: column; }
+  .solo-desk-grid { grid-template-columns: 1fr; }
+}
 .table-scroll { overflow-x: auto; }
 
 /* Doctor assistants: large task choices with a clear next action. */
@@ -1760,3 +1776,42 @@ summary:focus-visible {
 .assistant-locked { margin: 0; padding: .55rem .8rem; border-radius: 10px; background: #f1f5f4; color: var(--muted, #667085); font-size: .9rem; }
 
 .offline-banner{position:sticky;top:0;z-index:50;margin:0;border-radius:0;text-align:center}
+
+.feature-directory-links {flex-wrap:wrap;gap:16px;margin:24px 0;}
+.feature-directory-section {scroll-margin-top:90px;margin-top:32px;}
+.feature-directory-section h3 {margin:0;font-size:1.1rem;}
+.admin-review-notice {margin:20px 24px; border-left:4px solid var(--brand, #176b55);}
+.clinic-nav {overflow-y:auto;min-height:0;}
+
+/* Solo clinics keep daily work and occasional settings in five compact sections. */
+.solo-nav { display: flex; flex-direction: column; flex: 0 1 auto; gap: 4px; }
+.solo-nav > a, .solo-nav-toggle { min-height: 46px; }
+.solo-nav-toggle {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 10px 12px; border: 0; border-radius: 11px;
+  background: transparent; color: var(--muted); font: inherit; font-weight: 650; text-align: left;
+}
+.solo-nav-toggle:hover, .solo-nav-toggle.active { color: var(--brand2); background: var(--soft); }
+.solo-nav-chevron { font-size: 22px; line-height: 1; transition: transform .15s ease; }
+.solo-nav-toggle[aria-expanded="true"] .solo-nav-chevron { transform: rotate(90deg); }
+.solo-nav-children { margin: 4px 0 8px 12px; padding-left: 9px; border-left: 2px solid var(--line); }
+.solo-nav-children[hidden] { display: none; }
+.solo-nav-children a { min-height: 42px; padding: 8px 10px; font-size: 13px; font-weight: 500; }
+.solo-nav a:focus-visible, .solo-nav-toggle:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.solo-menu-dialog {
+  width: min(440px, calc(100vw - 24px)); max-height: 82dvh; padding: 18px;
+  border: 1px solid var(--line); border-radius: 18px; color: var(--ink); background: var(--card);
+  box-shadow: 0 18px 60px #0003; overflow-y: auto;
+}
+.solo-menu-dialog::backdrop { background: #102e2866; }
+.solo-menu-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.solo-menu-heading h2 { margin: 0; }
+.solo-menu-dialog .solo-nav { overflow: visible; }
+.solo-menu-signout { margin-top: 16px; width: 100%; }
+@media (max-width: 760px) {
+  .clinic-mobile-nav > button {
+    min-height: 46px; padding: 6px; border: 0; border-radius: 9px;
+    color: var(--brand2); background: var(--soft); font-size: .73rem; font-weight: 650;
+  }
+  .clinic-mobile-nav > button.active { color: #fff; background: var(--brand); }
+}

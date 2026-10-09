@@ -1,4 +1,5 @@
 'use client';
+import { useStaffLang } from '../../../lib/staffText';
 import { useState } from 'react';
 import { staff, useSession } from '../../../lib/api';
 
@@ -59,6 +60,7 @@ function parseCsv(text: string): Row[] {
 }
 
 export default function ImportPatients() {
+  const { x: ui } = useStaffLang();
   const s = useSession('receptionist');
   const [rows, setRows] = useState<Row[]>([]);
   const [preview, setPreview] = useState<any>(null);
@@ -92,15 +94,14 @@ export default function ImportPatients() {
     <div>
       <header className="doctor-page-heading">
         <div>
-          <h1>Bring your patient list</h1>
+          <h1>{ui("Bring your patient list")}</h1>
           <p className="muted">
-            Upload a CSV with name and phone (optional: year of birth or age, language). Imported
-            patients are <b>not messaged</b>. They give consent when they first check in.
+            {ui("Upload a CSV with name and phone (optional: year of birth or age, language). Imported patients are")} <b>{ui("not messaged")}</b>{ui(". They give consent when they first check in.")}
           </p>
         </div>
       </header>
       <section className="card">
-        <label htmlFor="csv">Patient list (.csv)</label>
+        <label htmlFor="csv">{ui("Patient list (.csv)")}</label>
         <input
           id="csv"
           type="file"
@@ -116,15 +117,14 @@ export default function ImportPatients() {
         {preview && !done && (
           <div data-testid="import-preview" style={{ marginTop: '1rem' }}>
             <p>
-              <b>{preview.counts.new}</b> new · {preview.counts.duplicateExisting} already in your
-              clinic · {preview.counts.duplicateInFile} repeated in the file ·{' '}
-              {preview.counts.invalid} need fixing
+              <b>{preview.counts.new}</b> {ui("new ·")} {preview.counts.duplicateExisting} {ui("already in your clinic ·")} {preview.counts.duplicateInFile} {ui("repeated in the file ·")}{' '}
+              {preview.counts.invalid} {ui("need fixing")}
             </p>
             {preview.problems.length > 0 && (
               <ul className="muted">
                 {preview.problems.map((p: any) => (
                   <li key={p.line}>
-                    Row {p.line}:{' '}
+                    {ui("Row")} {p.line}:{' '}
                     {p.status === 'invalid'
                       ? p.reason
                       : p.status === 'duplicate_existing'
@@ -140,13 +140,13 @@ export default function ImportPatients() {
                 run(async () => setDone(await staff('/staff/patient-import/commit', { rows })))
               }
             >
-              Import {preview.counts.new} patients
+              {ui("Import")} {preview.counts.new} {ui("patients")}
             </button>
           </div>
         )}
         {done && (
           <div data-testid="import-done" style={{ marginTop: '1rem' }}>
-            <p>Imported {done.imported} patients. Nobody was messaged.</p>
+            <p>{ui("Imported")} {done.imported} {ui("patients. Nobody was messaged.")}</p>
             <button
               className="ghost"
               disabled={busy}
@@ -161,7 +161,7 @@ export default function ImportPatients() {
                 })
               }
             >
-              Undo this import
+              {ui("Undo this import")}
             </button>
           </div>
         )}

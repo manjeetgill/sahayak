@@ -3,6 +3,7 @@ import { newRequestId } from '../../lib/request-id';
 import { useEffect, useState } from 'react';
 import { staff, API, session } from '../../lib/api';
 import { displayLabel } from '../../lib/labels';
+import { useStaffLang } from '../../lib/staffText';
 export function LocalCareTools({
   patientId,
   data,
@@ -16,6 +17,7 @@ export function LocalCareTools({
   documents: any[];
   onSaved: () => Promise<void>;
 }) {
+  const { x: ui } = useStaffLang();
   const [templates, setTemplates] = useState<any[]>([]),
     [template, setTemplate] = useState(''),
     [start, setStart] = useState(''),
@@ -79,7 +81,7 @@ export function LocalCareTools({
   };
   return (
     <section>
-      <h3>Plan and review care</h3>
+      <h3>{ui("Plan and review care")}</h3>
       {error && (
         <p role="alert" className="error">
           {error}
@@ -87,31 +89,31 @@ export function LocalCareTools({
       )}
       {message && <p role="status">{message}</p>}
       <details hidden={activeArea !== 'care'}>
-        <summary>Use a reusable clinic plan</summary>
-        <a href="/doctor/templates">Manage reusable plans</a>
+        <summary>{ui("Use a reusable clinic plan")}</summary>
+        <a href="/doctor/templates">{ui("Manage reusable plans")}</a>
         <fieldset disabled={busy}>
           <label>
-            Approved clinic plan
+            {ui("Approved clinic plan")}
             <select
-              aria-label="Approved clinic plan"
+              aria-label={ui("Approved clinic plan")}
               value={template}
               onChange={(e) => {
                 setTemplate(e.target.value);
                 setRequest(newRequestId());
               }}
             >
-              <option value="">Choose plan and version</option>
+              <option value="">{ui("Choose plan and version")}</option>
               {templates
                 .filter((t) => t.approved_at && !t.archived_at)
                 .map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.title} · version {t.version}
+                    {t.title} {ui("· version")} {t.version}
                   </option>
                 ))}
             </select>
           </label>
           <label>
-            Plan starts (your device time)
+            {ui("Plan starts (your device time)")}
             <input
               type="datetime-local"
               value={start}
@@ -122,16 +124,16 @@ export function LocalCareTools({
             />
           </label>
           <label>
-            Plan owner
+            {ui("Plan owner")}
             <select
-              aria-label="Plan owner"
+              aria-label={ui("Plan owner")}
               value={owner}
               onChange={(e) => {
                 setOwner(e.target.value);
                 setRequest(newRequestId());
               }}
             >
-              <option value="">Choose doctor</option>
+              <option value="">{ui("Choose doctor")}</option>
               {data.staff.map((d: any) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
@@ -139,10 +141,7 @@ export function LocalCareTools({
               ))}
             </select>
           </label>
-          <p>
-            Relative days are 24-hour intervals from this time. Check all dates and wording for this
-            patient before approving.
-          </p>
+          <p>{ui("Relative days are 24-hour intervals from this time. Check all dates and wording for this patient before approving.")}</p>
           <button
             disabled={!template || !start || !owner}
             onClick={() =>
@@ -158,29 +157,21 @@ export function LocalCareTools({
                 setRequest(newRequestId());
               })
             }
-          >
-            Create patient plan for review
-          </button>
+          >{ui("Create patient plan for review")}</button>
         </fieldset>
       </details>
       <details hidden={activeArea !== 'records'}>
-        <summary>Find facts and browse the full record</summary>
-        <p>
-          Try “show medicines”, “why was medicine changed”, “allergies”, “test results outside
-          range”, or a recorded name. Answers show original excerpts, not generated clinical advice.
-          Leave blank for the dated record.
-        </p>
+        <summary>{ui("Find facts and browse the full record")}</summary>
+        <p>{ui("Try “show medicines”, “why was medicine changed”, “allergies”, “test results outside range”, or a recorded name. Answers show original excerpts, not generated clinical advice. Leave blank for the dated record.")}</p>
         <label>
-          Question or recorded words
+          {ui("Question or recorded words")}
           <input value={question} onChange={(e) => setQuestion(e.target.value)} />
         </label>
-        <button disabled={busy} onClick={() => search()}>
-          Find recorded facts
-        </button>
+        <button disabled={busy} onClick={() => search()}>{ui("Find recorded facts")}</button>
         {records && (
           <>
             <p>
-              {records.total} matching records. {records.message}
+              {records.total} {ui("matching records.")} {records.message}
             </p>
             {records.records.map((r: any) => (
               <article className="card" key={r.source + r.id}>
@@ -202,9 +193,7 @@ export function LocalCareTools({
                         setTimeout(() => URL.revokeObjectURL(url), 60000);
                       })
                     }
-                  >
-                    Open original document
-                  </button>
+                  >{ui("Open original document")}</button>
                 ) : (
                   <a
                     href={`#${r.source}-${r.id}`}
@@ -214,34 +203,25 @@ export function LocalCareTools({
                         ?.closest('details')
                         ?.setAttribute('open', '')
                     }
-                  >
-                    Open original record
-                  </a>
+                  >{ui("Open original record")}</a>
                 )}
               </article>
             ))}
-            <button disabled={busy || records.page === 0} onClick={() => search(records.page - 1)}>
-              Earlier page
-            </button>
+            <button disabled={busy || records.page === 0} onClick={() => search(records.page - 1)}>{ui("Earlier page")}</button>
             <button
               disabled={busy || (records.page + 1) * 25 >= records.total}
               onClick={() => search(records.page + 1)}
-            >
-              Next record page
-            </button>
+            >{ui("Next record page")}</button>
           </>
         )}
       </details>
       <details hidden={activeArea !== 'records'}>
-        <summary>Read a report beside its extracted text</summary>
-        <p>
-          PDF text extraction runs locally. It does not interpret results or verify values.
-          Scanned/image-only reports need manual entry; there is no invented confidence score.
-        </p>
+        <summary>{ui("Read a report beside its extracted text")}</summary>
+        <p>{ui("PDF text extraction runs locally. It does not interpret results or verify values. Scanned/image-only reports need manual entry; there is no invented confidence score.")}</p>
         <label>
-          Source report
+          {ui("Source report")}
           <select
-            aria-label="Source report"
+            aria-label={ui("Source report")}
             value={documentId}
             onChange={(e) => {
               setDocument(e.target.value);
@@ -249,7 +229,7 @@ export function LocalCareTools({
               setPreview('');
             }}
           >
-            <option value="">Choose uploaded report</option>
+            <option value="">{ui("Choose uploaded report")}</option>
             {documents.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.filename}
@@ -257,9 +237,7 @@ export function LocalCareTools({
             ))}
           </select>
         </label>
-        <button disabled={busy || !documentId} onClick={() => run(openSource)}>
-          Show original beside text
-        </button>{' '}
+        <button disabled={busy || !documentId} onClick={() => run(openSource)}>{ui("Show original beside text")}</button>{' '}
         <button
           disabled={busy || !documentId}
           onClick={() =>
@@ -269,9 +247,7 @@ export function LocalCareTools({
               setPages(r.pages);
             })
           }
-        >
-          Extract PDF text locally
-        </button>
+        >{ui("Extract PDF text locally")}</button>
         <div
           style={{
             display: 'grid',
@@ -281,18 +257,18 @@ export function LocalCareTools({
         >
           {preview && (
             <iframe
-              title="Original source report"
+              title={ui("Original source report")}
               src={preview}
               style={{ width: '100%', height: 500, border: '1px solid #ccc' }}
             />
           )}
           <div>
             {pages.length > 0 && !pages.some((p) => p.text.trim()) && (
-              <p>No selectable text found. Read the original and record results manually.</p>
+              <p>{ui("No selectable text found. Read the original and record results manually.")}</p>
             )}
             {pages.map((p) => (
               <section key={p.page}>
-                <h4>Unverified text · page {p.page}</h4>
+                <h4>{ui("Unverified text · page")} {p.page}</h4>
                 <textarea
                   aria-label={`Extracted text page ${p.page}`}
                   value={p.text}
@@ -305,11 +281,8 @@ export function LocalCareTools({
         </div>
       </details>
       <details hidden={activeArea !== 'records'}>
-        <summary>Record review of test results</summary>
-        <p>
-          Values outside the report’s supplied range stay in the inbox until a doctor records
-          review. Being within a supplied range does not establish clinical normality.
-        </p>
+        <summary>{ui("Record review of test results")}</summary>
+        <p>{ui("Values outside the report’s supplied range stay in the inbox until a doctor records review. Being within a supplied range does not establish clinical normality.")}</p>
         {data.entries
           .filter((e: any) => e.kind === 'lab' && e.verified_at && e.status === 'active')
           .map((e: any) => (
@@ -318,15 +291,15 @@ export function LocalCareTools({
                 {e.data.name}: {e.data.value} {e.data.unit}
               </b>
               <p>
-                {e.occurred_on} · Report range {e.data.low ?? 'Not supplied'} –{' '}
+                {e.occurred_on} {ui("· Report range")} {e.data.low ?? 'Not supplied'} –{' '}
                 {e.data.high ?? 'Not supplied'}
               </p>
               {e.result_reviewed_at ? (
-                <p>Review recorded: {e.result_review_note}</p>
+                <p>{ui("Review recorded:")} {e.result_review_note}</p>
               ) : (
                 <>
                   <label>
-                    Doctor’s result review
+                    {ui("Doctor’s result review")}
                     <textarea
                       value={decisions[e.id] ?? ''}
                       onChange={(v) => setDecisions({ ...decisions, [e.id]: v.target.value })}
@@ -342,33 +315,28 @@ export function LocalCareTools({
                         }),
                       )
                     }
-                  >
-                    Save doctor review
-                  </button>
+                  >{ui("Save doctor review")}</button>
                 </>
               )}
             </article>
           ))}
       </details>
       <details id="insurance-work" hidden={activeArea !== 'admin'}>
-        <summary>Insurance and pre-authorization paperwork</summary>
-        <p>
-          Track work already performed. Recording an insurer decision does not decide eligibility or
-          send a submission.
-        </p>
+        <summary>{ui("Insurance and pre-authorization paperwork")}</summary>
+        <p>{ui("Track work already performed. Recording an insurer decision does not decide eligibility or send a submission.")}</p>
         <fieldset disabled={busy}>
           <label>
-            Paperwork title
+            {ui("Paperwork title")}
             <input value={title} onChange={(e) => setTitle(e.target.value)} />
           </label>
           <label>
-            Paperwork owner
+            {ui("Paperwork owner")}
             <select
-              aria-label="Paperwork owner"
+              aria-label={ui("Paperwork owner")}
               value={owner}
               onChange={(e) => setOwner(e.target.value)}
             >
-              <option value="">Choose doctor</option>
+              <option value="">{ui("Choose doctor")}</option>
               {data.staff.map((d: any) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
@@ -377,17 +345,17 @@ export function LocalCareTools({
             </select>
           </label>
           <label>
-            Paperwork due (your device time)
+            {ui("Paperwork due (your device time)")}
             <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} />
           </label>
           <label>
-            Supporting document
+            {ui("Supporting document")}
             <select
-              aria-label="Supporting document"
+              aria-label={ui("Supporting document")}
               value={documentId}
               onChange={(e) => setDocument(e.target.value)}
             >
-              <option value="">Optional uploaded record</option>
+              <option value="">{ui("Optional uploaded record")}</option>
               {documents.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.filename}
@@ -409,9 +377,7 @@ export function LocalCareTools({
                 setTitle('');
               })
             }
-          >
-            Add paperwork case
-          </button>
+          >{ui("Add paperwork case")}</button>
         </fieldset>
         {data.insurance.map((c: any) => (
           <article className="card" key={c.id}>
@@ -419,12 +385,12 @@ export function LocalCareTools({
               {c.title} · {displayLabel(c.status)}
             </h4>
             <p>
-              {c.assignee} · due {new Date(c.due_at).toLocaleString()}
+              {c.assignee} {ui("· due")} {new Date(c.due_at).toLocaleString()}
             </p>
             {next[c.status] && (
               <>
                 <label>
-                  Correspondence or action recorded
+                  {ui("Correspondence or action recorded")}
                   <textarea
                     value={notes[c.id] ?? ''}
                     onChange={(e) => setNotes({ ...notes, [c.id]: e.target.value })}
@@ -445,7 +411,7 @@ export function LocalCareTools({
                         );
                     }}
                   >
-                    Record {displayLabel(state)}
+                    {ui("Record")} {displayLabel(state)}
                   </button>
                 ))}
               </>

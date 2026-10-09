@@ -1,7 +1,9 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { staff } from '../../lib/api';
+import { useStaffLang } from '../../lib/staffText';
 export function OutboundCallTest() {
+  const { x: ui } = useStaffLang();
   const [data, setData] = useState<any>(null),
     [number, setNumber] = useState(''),
     [agree, setAgree] = useState(false),
@@ -35,17 +37,17 @@ export function OutboundCallTest() {
   }
   return (
     <section className="card">
-      <h3>Have the assistant call your phone</h3>
+      <h3>{ui("Have the assistant call your phone")}</h3>
       {error && (
         <p className="error" role="alert">
           {error}
         </p>
       )}
-      <p>{data?.message ?? 'Checking outbound calling support…'}</p>
+      <p>{ui(data?.message ?? 'Checking outbound calling support…')}</p>
       {data?.ready && (
         <>
           <label>
-            Approved test phone
+            {ui("Approved test phone")}
             <select
               value={number}
               onChange={(e) => {
@@ -54,7 +56,7 @@ export function OutboundCallTest() {
                 setAgree(false);
               }}
             >
-              <option value="">Choose your test number</option>
+              <option value="">{ui("Choose your test number")}</option>
               {data.numbers.map((n: string) => (
                 <option value={n} key={n}>
                   {n}
@@ -63,8 +65,7 @@ export function OutboundCallTest() {
             </select>
           </label>
           <label className="check">
-            <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />I
-            control this phone, want an AI test call now, and accept the provider’s call charges.
+            <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />{ui("I control this phone, want an AI test call now, and accept the provider’s call charges.")}
           </label>
           <button
             disabled={busy || !agree || !number}
@@ -80,32 +81,25 @@ export function OutboundCallTest() {
                 setAgree(false);
               })
             }
-          >
-            Call my test phone
-          </button>
+          >{ui("Call my test phone")}</button>
         </>
       )}
       <p>
-        <button className="ghost" disabled={busy} onClick={() => void run(load)}>
-          Refresh outgoing-call connection
-        </button>
+        <button className="ghost" disabled={busy} onClick={() => void run(load)}>{ui("Refresh outgoing-call connection")}</button>
       </p>
-      <p>
-        Calls require an authorized telephone provider. A submitted request does not prove that the
-        phone rang or that audio worked. Calls with uncertain status are not automatically retried.
-      </p>
+      <p>{ui("Calls require an authorized telephone provider. A submitted request does not prove that the phone rang or that audio worked. Calls with uncertain status are not automatically retried.")}</p>
       {data?.calls.map((c: any) => (
         <div className="card" key={c.id}>
           <p>
-            Phone ending {c.last_four} ·{' '}
+            {ui("Phone ending")} {c.last_four} ·{' '}
             <strong>
-              {c.status === 'submitting'
+              {ui(c.status === 'submitting'
                 ? 'Requesting call'
                 : c.status === 'accepted'
                   ? 'Requested'
                   : c.status === 'unknown'
                     ? 'Needs provider review'
-                    : c.status}
+                    : c.status)}
             </strong>{' '}
             · {new Date(c.created_at).toLocaleString()}
           </p>
@@ -116,9 +110,7 @@ export function OutboundCallTest() {
             onClick={() =>
               void run(() => staff(`/staff/agents/calling/outbound/${c.id}/refresh`, {}))
             }
-          >
-            Check this call
-          </button>
+          >{ui("Check this call")}</button>
         </div>
       ))}
     </section>

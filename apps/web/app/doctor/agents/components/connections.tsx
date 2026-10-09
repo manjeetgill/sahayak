@@ -1,4 +1,5 @@
 'use client';
+import { useStaffLang } from '../../../../lib/staffText';
 import { CallingSetup } from './calling-setup';
 import { WhatsAppSetup } from './whatsapp-setup';
 import { useCallback, useEffect, useState } from 'react';
@@ -121,6 +122,7 @@ export function Connections({
   canManage: boolean;
   view?: 'overview' | 'whatsapp' | 'phone';
 }) {
+  const { x: ui } = useStaffLang();
   const [connections, setConnections] = useState<Connections | null>(null);
   const [agents, setAgents] = useState<Record<string, boolean> | null>(null);
   const [error, setError] = useState('');
@@ -149,7 +151,7 @@ export function Connections({
     try {
       await staff('/staff/settings', { agents: { [name]: enabled } }, 'PUT');
       await load();
-      setMessage(`${labels[name]} ${enabled ? '— task enabled' : '— task paused'}.`);
+      setMessage(`${ui(labels[name])} ${ui(enabled ? '— task enabled' : '— task paused')}.`);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -159,16 +161,16 @@ export function Connections({
   return (
     <section
       className={`connections-workspace connections-${view}`}
-      aria-label="Patient contact options and clinic tasks"
+      aria-label={ui('Patient contact options and clinic tasks')}
     >
       <div className="connection-main">
         <div className="connection-status-panel">
           <h2>
             {view === 'overview'
-              ? 'Patient messages and calls'
+              ? ui('Patient messages and calls')
               : view === 'phone'
-                ? 'Phone calls'
-                : 'WhatsApp messages'}
+                ? ui('Phone calls')
+                : ui('WhatsApp messages')}
           </h2>
           {error && (
             <p className="error" role="alert">
@@ -177,14 +179,13 @@ export function Connections({
           )}
           {message && <p role="status">{message}</p>}
           <button className="ghost small" disabled={busy} onClick={() => void load()}>
-            Refresh status
+            {ui("Refresh status")}
           </button>
-          {!connections && !error && <p role="status">Loading connections…</p>}
+          {!connections && !error && <p role="status">{ui("Loading connections…")}</p>}
           {connections && (
             <>
               <p className="muted">
-                These connections carry messages and calls to real patients. “Task enabled” on the
-                left does not confirm that a message was delivered or a phone call worked.
+                {ui('These connections carry messages and calls to real patients. “Task enabled” on the left does not confirm that a message was delivered or a phone call worked.')}
               </p>
               {(
                 [
@@ -195,47 +196,45 @@ export function Connections({
                 .filter(([name]) => view === 'overview' || name.toLowerCase() === view)
                 .map(([name, configured, simulator, path]) => (
                   <div className="card" key={name} style={{ marginTop: 10 }}>
-                    <h3>{name}</h3>
+                    <h3>{ui(name)}</h3>
                     <p>
                       {connections.liveChannelOwner === 'platform'
                         ? configured
-                          ? 'Connection configured · test a real conversation'
-                          : 'Not connected yet · practice only'
+                          ? ui('Connection configured · test a real conversation')
+                          : ui('Not connected yet · practice only')
                         : configured
-                          ? 'Setup entered · a real conversation still needs testing'
-                          : 'Not connected yet · practice only'}
+                          ? ui('Setup entered · a real conversation still needs testing')
+                          : ui('Not connected yet · practice only')}
                     </p>
                     {name === 'Phone' && connections.phone.requestedNumber && (
                       <p>
-                        Intended calling number: <b>{connections.phone.requestedNumber}</b>
+                        {ui('Intended calling number:')} <b>{connections.phone.requestedNumber}</b>
                       </p>
                     )}
                     {name === 'Phone' && connections.phone.bookingAdapter && (
                       <p role="status">
                         {connections.phone.state === 'UNAVAILABLE'
-                          ? 'Agent service unavailable. Other clinic features remain available.'
+                          ? ui('Agent service unavailable. Other clinic features remain available.')
                           : connections.phone.state === 'AWAITING_VOICE_PROVIDER'
-                            ? 'Appointment flow ready. Voice number authorization is still required before a real phone test.'
+                            ? ui('Appointment flow ready. Voice number authorization is still required before a real phone test.')
                             : connections.phone.configured
-                              ? 'Calling enabled. Complete a real phone test before relying on it.'
-                              : 'Calling is paused.'}
+                              ? ui('Calling enabled. Complete a real phone test before relying on it.')
+                              : ui('Calling is paused.')}
                       </p>
                     )}
                     <p className="muted">
-                      Uses the clinic tasks you choose under Everyday help. Turning a task on does
-                      not connect live messages or calls.
+                      {ui('Uses the clinic tasks you choose under Everyday help. Turning a task on does not connect live messages or calls.')}
                     </p>
                     {simulator && connections.slug && (
                       <a href={`/c/${encodeURIComponent(connections.slug)}/${path}`}>
-                        Try a {name === 'Phone' ? 'phone' : 'WhatsApp'} conversation
+                        {ui('Try a')} {ui(name === 'Phone' ? 'phone' : 'WhatsApp')} {ui('conversation')}
                       </a>
                     )}
-                    {!simulator && <p className="muted">Practice conversations are unavailable.</p>}
+                    {!simulator && <p className="muted">{ui("Practice conversations are unavailable.")}</p>}
                   </div>
                 ))}
               <p className="muted">
-                Practice conversations are saved in the clinic. Use made-up patient details. No real
-                message is sent and no phone is called.
+                {ui('Practice conversations are saved in the clinic. Use made-up patient details. No real message is sent and no phone is called.')}
               </p>
             </>
           )}
@@ -247,8 +246,8 @@ export function Connections({
             {connections?.liveChannelOwner === 'platform' ? (
               <p role="status">
                 {view === 'whatsapp' && connections.whatsapp.configured
-                  ? 'Send Hi to your connected clinic number from another WhatsApp number to test a real appointment conversation.'
-                  : 'Live service is not connected yet. Your setup team needs to finish connecting it. You can try the assistant below without contacting a patient.'}
+                  ? ui('Send Hi to your connected clinic number from another WhatsApp number to test a real appointment conversation.')
+                  : ui('Live service is not connected yet. Your setup team needs to finish connecting it. You can try the assistant below without contacting a patient.')}
               </p>
             ) : view !== 'phone' ? (
               <Diagnostics />
@@ -261,17 +260,14 @@ export function Connections({
       </div>
       {view === 'overview' && (
         <div className="card everyday-tasks">
-          <h2>What would you like help with?</h2>
+          <h2>{ui("What would you like help with?")}</h2>
           <p className="muted">
-            These are the jobs your clinic assistant can help with. They are shared clinic settings;
-            each doctor’s personal access is managed above. Emergency checks always stay on.
+            {ui('These are the jobs your clinic assistant can help with. They are shared clinic settings; each doctor’s personal access is managed above. Emergency checks always stay on.')}
           </p>
           <div className="task-status-explanation">
-            <b>Task enabled means permission to help.</b>
+            <b>{ui("Task enabled means permission to help.")}</b>
             <p>
-              It does not mean the task is running now. Each task needs its starting event and
-              setup. WhatsApp messages and phone calls also need a working connection. Use “How this
-              works” below to see what the assistant does and what your team still handles.
+              {ui('It does not mean the task is running now. Each task needs its starting event and setup. WhatsApp messages and phone calls also need a working connection. Use “How this works” below to see what the assistant does and what your team still handles.')}
             </p>
           </div>
           {agents &&
@@ -279,27 +275,27 @@ export function Connections({
               <div className="row between" key={name} style={{ margin: '8px 0' }}>
                 <div style={{ flex: 1 }}>
                   <div className="task-title-row">
-                    <b>{labels[name]}</b>
+                    <b>{ui(labels[name])}</b>
                     <span
                       className={`task-setting-status ${agents[name] === false ? 'is-paused' : ''}`}
                     >
-                      {agents[name] !== false ? 'Task enabled' : 'Task paused'}
+                      {ui(agents[name] !== false ? 'Task enabled' : 'Task paused')}
                     </span>
                   </div>
                   <p className="muted" style={{ margin: '4px 0' }}>
-                    {descriptions[name]}
+                    {ui(descriptions[name])}
                   </p>
-                  <details className="task-help">
-                    <summary aria-label={`How this works: ${labels[name]}`}>How this works</summary>
+                  <details open={canManage} className="task-help">
+                    <summary aria-label={`${ui('How this works')}: ${ui(labels[name])}`}>{ui("How this works")}</summary>
                     <dl>
-                      <dt>When it starts</dt>
-                      <dd>{taskHelp[name].when}</dd>
-                      <dt>What it does</dt>
-                      <dd>{taskHelp[name].example}</dd>
-                      <dt>Your team’s role</dt>
-                      <dd>{taskHelp[name].control}</dd>
-                      <dt>What it needs</dt>
-                      <dd>{taskHelp[name].needs}</dd>
+                      <dt>{ui("When it starts")}</dt>
+                      <dd>{ui(taskHelp[name].when)}</dd>
+                      <dt>{ui("What it does")}</dt>
+                      <dd>{ui(taskHelp[name].example)}</dd>
+                      <dt>{ui("Your team’s role")}</dt>
+                      <dd>{ui(taskHelp[name].control)}</dd>
+                      <dt>{ui("What it needs")}</dt>
+                      <dd>{ui(taskHelp[name].needs)}</dd>
                     </dl>
                   </details>
                 </div>
@@ -307,10 +303,10 @@ export function Connections({
                   <button
                     className="small ghost"
                     disabled={busy}
-                    aria-label={`${agents[name] !== false ? 'Pause' : 'Enable'} task: ${labels[name]}`}
+                    aria-label={`${ui(agents[name] !== false ? 'Pause' : 'Enable')} ${ui('task:')} ${ui(labels[name])}`}
                     onClick={() => void toggle(name, agents[name] === false)}
                   >
-                    {agents[name] !== false ? 'Pause task' : 'Enable task'}
+                    {ui(agents[name] !== false ? 'Pause task' : 'Enable task')}
                   </button>
                 )}
               </div>
@@ -319,23 +315,23 @@ export function Connections({
       )}
       {canManage && (
         <p className="connection-footer">
-          <a href="/admin/settings">Edit clinic details and patient safety settings</a>
+          <a href="/admin/settings">{ui("Edit clinic details and patient safety settings")}</a>
         </p>
       )}
-      <details className="card connection-footer" style={{ marginTop: 16 }}>
-        <summary>Connection details for your setup team</summary>
+      <details open={canManage} className="card connection-footer" style={{ marginTop: 16 }}>
+        <summary>{ui("Connection details for your setup team")}</summary>
         <p>
-          Live channel owner:{' '}
+          {ui('Live channel owner:')}{' '}
           {connections?.liveChannelOwner === 'platform' ? 'AI-Agent-Platform' : 'Sahayak'}.
         </p>
         <p>
-          Draft service:{' '}
+          {ui('Draft service:')}{' '}
           {connections?.platform.configured
-            ? 'AI-Agent-Platform configured; availability not verified'
-            : 'Sahayak local builder'}
+            ? ui('AI-Agent-Platform configured; availability not verified')
+            : ui('Sahayak local builder')}
           .
         </p>
-        {canManage && <a href="/admin/integrations">Connected software setup</a>}
+        {canManage && <a href="/admin/integrations">{ui("Connected software setup")}</a>}
       </details>
     </section>
   );

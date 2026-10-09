@@ -13,9 +13,13 @@ export function WorkspaceBoundary({
   const path = usePathname();
   const allowed =
     !!s &&
-    (s.user.role === kind ||
+    (s.user.role === 'admin' ||
+      (s.user.role === 'doctor' && s.user.clinicAdmin) ||
+      s.user.role === kind ||
       (kind === 'doctor' && s.user.role === 'receptionist' && path === '/doctor/waitlist') ||
-      (kind === 'receptionist' && s.user.role === 'doctor' && path === '/console/privacy'));
+      (kind === 'receptionist' &&
+        s.user.role === 'doctor' &&
+        ['/console/privacy', '/console/arrivals'].includes(path)));
   useEffect(() => {
     if (s && !allowed) location.replace(roleHome(s.user.role));
   }, [s, allowed]);

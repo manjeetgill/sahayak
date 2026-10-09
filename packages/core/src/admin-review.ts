@@ -1,0 +1,31 @@
+/** Explicit, read-only tools available to a clinic Admin reviewing the product.
+ * Keep writes and doctor identity/signature checks in each tool's normal allow-list.
+ */
+export const ADMIN_REVIEW_TOOLS = new Set([
+  'ask_clinic',
+  'clinic_metric',
+  'build_daily_brief',
+  'search_medical_references',
+  'search_patients',
+  'get_patient_record',
+  'get_patient_document',
+  'get_previsit_brief',
+  'get_clinical_workspace',
+  'get_practice_overview',
+  'get_doctor_inbox',
+  'get_inbox_conversation',
+  'list_care_tasks',
+  'get_visit_checklist',
+  'list_waitlist',
+  'list_patient_checkins',
+  'list_feedback_work',
+  'feedback_report',
+  'list_medical_references',
+  'list_issued_documents',
+  'get_issued_document_pdf',
+  'list_care_templates',
+  'get_daily_care_brief',
+  'search_patient_record',
+  'get_shift_summary',
+  'list_qr_arrivals',
+]);

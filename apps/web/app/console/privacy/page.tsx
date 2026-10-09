@@ -1,9 +1,11 @@
 'use client';
+import { useStaffLang } from '../../../lib/staffText';
 import { useState } from 'react';
 import { API, session, staff, useSession } from '../../../lib/api';
 
 /** Desk privacy requests: a patient asks in person to see, take a copy of, or erase their data. */
 export default function Privacy() {
+  const { x: ui } = useStaffLang();
   const s = useSession();
   const [phone, setPhone] = useState('');
   const [found, setFound] = useState<any[] | null>(null);
@@ -54,23 +56,21 @@ export default function Privacy() {
   return (
     <div>
       <div className="topbar">
-        <b>Patient information requests</b>
-        <a href={s.user.role === 'doctor' ? '/doctor' : '/console'}>← Back</a>
+        <b>{ui("Patient information requests")}</b>
+        <a href={s.user.role === 'doctor' ? '/doctor' : '/console'}>{ui("← Back")}</a>
       </div>
       <div className="wrap privacy-page">
         <header className="screen-heading">
-          <span className="eyebrow">Reception</span>
-          <h1>Patient information requests</h1>
+          <span className="eyebrow">{ui("Reception")}</span>
+          <h1>{ui("Patient information requests")}</h1>
         </header>
         <p className="muted">
-          Use this when a patient asks, at the desk, for a copy of their data or for it to be
-          erased. Patients can also do this themselves on WhatsApp ("my data", "delete my data",
-          "STOP").
+          {ui("Use this when a patient asks, at the desk, for a copy of their data or for it to be erased. Patients can also do this themselves on WhatsApp (\"my data\", \"delete my data\", \"STOP\").")}
         </p>
         <div className="workspace-split">
           <div>
             <form className="card" onSubmit={search}>
-              <label htmlFor="ph">Patient phone number</label>
+              <label htmlFor="ph">{ui("Patient phone number")}</label>
               <input
                 id="ph"
                 value={phone}
@@ -78,7 +78,7 @@ export default function Privacy() {
                 placeholder="98XXXXXXXX"
               />
               <p>
-                <button type="submit">Find patient</button>
+                <button type="submit">{ui("Find patient")}</button>
               </p>
             </form>
             {msg && (
@@ -93,7 +93,7 @@ export default function Privacy() {
             )}
             {found && (
               <div className="card" style={{ marginTop: 12 }}>
-                {found.length === 0 && <p className="muted">No patient with that number.</p>}
+                {found.length === 0 && <p className="muted">{ui("No patient with that number.")}</p>}
                 {found.map((p) => (
                   <div key={p.id} className="row between">
                     <span>
@@ -101,10 +101,10 @@ export default function Privacy() {
                     </span>
                     <span className="row">
                       <button className="small ghost" onClick={() => download(p.id)}>
-                        Download copy
+                        {ui("Download copy")}
                       </button>
                       <button className="small danger" onClick={() => erase(p)}>
-                        Delete patient information
+                        {ui("Delete patient information")}
                       </button>
                     </span>
                   </div>
@@ -113,10 +113,9 @@ export default function Privacy() {
             )}
           </div>
           <aside className="card">
-            <h2>Patients can also message</h2>
+            <h2>{ui("Patients can also message")}</h2>
             <p>
-              “my data” to request a copy, “delete my data” to request erasure, or “STOP” to stop
-              messages.
+              {ui("“my data” to request a copy, “delete my data” to request erasure, or “STOP” to stop messages.")}
             </p>
           </aside>
         </div>

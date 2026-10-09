@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { useStaffLang } from '../../lib/staffText';
 
 const links = [
   ['/doctor/care', 'Open work'],
@@ -11,11 +12,12 @@ const links = [
 
 export function CareNav() {
   const pathname = usePathname();
+  const { x } = useStaffLang();
   return (
-    <nav className="section-tabs" aria-label="Follow-through care sections">
+    <nav className="section-tabs" aria-label={x('Follow-through care sections')}>
       {links.map(([href, label]) => (
         <a key={href} href={href} className={pathname === href ? 'active' : ''}>
-          {label}
+          {x(label)}
         </a>
       ))}
     </nav>

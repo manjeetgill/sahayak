@@ -26,7 +26,8 @@ export async function assistantOwner(
   ctx: ToolContext,
   requireEnabled = false,
 ): Promise<string | null> {
-  if (ctx.actor.kind === 'staff' && ctx.actor.role === 'admin') return null;
+  if (ctx.actor.kind === 'staff' && (ctx.actor.role === 'admin' || ctx.actor.clinicAdmin))
+    return null;
   if (ctx.actor.kind !== 'staff' || ctx.actor.role !== 'doctor' || !ctx.actor.doctorId)
     throw new ToolError('forbidden', 'Only an authorised doctor can manage their assistants.', 403);
   const id = ctx.actor.doctorId;
@@ -143,6 +144,18 @@ const preference = defineTool({
   async run({ db, ctx }, i) {
     const id = ctx.actor.kind === 'staff' ? ctx.actor.doctorId : null;
     if (!id) throw new ToolError('forbidden', 'Your account needs a doctor profile.', 403);
+    if (ctx.actor.kind === 'staff' && ctx.actor.clinicAdmin) {
+      const saved = await db.query(
+        `INSERT INTO doctor_assistant_access(clinic_id,doctor_id,kind,allowed,enabled)
+         SELECT $1,$2,$3,true,$4 WHERE EXISTS(SELECT 1 FROM doctors WHERE id=$2 AND active)
+         ON CONFLICT(clinic_id,doctor_id,kind) DO UPDATE
+         SET allowed=true,enabled=$4,updated_at=now() RETURNING doctor_id`,
+        [ctx.clinicId, id, i.kind, i.enabled],
+      );
+      if (!saved.rowCount) throw new ToolError('doctor_required', 'Your doctor profile is inactive', 403);
+      if (!i.enabled && i.kind === 'reminders') await pauseOwned(db, id);
+      return { ok: true };
+    }
     const saved = await db.query(
       `UPDATE doctor_assistant_access SET enabled=$2,updated_at=now() WHERE doctor_id=$1 AND kind=$3 AND allowed
       AND EXISTS(SELECT 1 FROM doctors WHERE id=$1 AND active) RETURNING doctor_id`,

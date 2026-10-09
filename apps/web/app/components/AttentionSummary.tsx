@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { staff } from '../../lib/api';
 import { useStaffLang } from '../../lib/staffText';
-export function AttentionSummary() {
+export function AttentionSummary({ solo = false }: { solo?: boolean }) {
   const { x } = useStaffLang();
   const [brief, setBrief] = useState<any>(null);
   const [data, setData] = useState<any>(null),
@@ -28,21 +28,20 @@ export function AttentionSummary() {
         <div className="panel-heading">
           <p>
             <b>{x('Nothing needs your attention.')}</b>{' '}
-            <span className="muted">No outstanding work. New items will appear here.</span>
+            <span className="muted">{x('No outstanding work. New items will appear here.')}</span>
           </p>
-          <a href="/doctor/inbox">View all 0</a>
+          <a href="/doctor/inbox">{x('View all')} 0</a>
         </div>
         {brief && (
           <details className="attention-detail">
-            <summary>Care to follow through</summary>
+            <summary>{x('Care to follow through')}</summary>
             <p>
-              {brief.followups} follow-up steps due within 24 hours or overdue · {brief.no_reply}{' '}
-              overdue replies · {brief.messages} staff conversations needing a reply
+              {brief.followups} {x('follow-up steps due within 24 hours or overdue')} · {brief.no_reply}{' '}
+              {x('overdue replies')} · {brief.messages} {x('staff conversations needing a reply')}
             </p>
             <p>
-              {brief.investigations} outstanding report tasks · {brief.referrals} referrals ·{' '}
-              {brief.insurance} insurance cases · {brief.outside_range} results outside supplied
-              ranges awaiting review
+              {brief.investigations} {x('outstanding report tasks')} · {brief.referrals} {x('referrals')} ·{' '}
+              {brief.insurance} {x('insurance cases')} · {brief.outside_range} {x('results outside supplied ranges awaiting review')}
             </p>
           </details>
         )}
@@ -53,58 +52,56 @@ export function AttentionSummary() {
     <section className="card attention-summary">
       <div className="panel-heading">
         <div>
-          <h2>{x('Needs your attention')}</h2>
-          <p className="muted">Ordered by urgency and due time</p>
+          <h2>{x(solo ? 'Needs me' : 'Needs your attention')}</h2>
+          <p className="muted">{x('Ordered by urgency and due time')}</p>
         </div>
-        <a href="/doctor/inbox">View all{data ? ` ${data.total}` : ''}</a>
+        <a href="/doctor/inbox">{x('View all')}{data ? ` ${data.total}` : ''}</a>
       </div>
       {error ? (
         <p role="alert">{error}</p>
       ) : data ? (
         <p>
-          <b>{data.urgent} urgent</b> · {data.overdue} overdue · {data.total} outstanding items
+          <b>{data.urgent} {x('urgent')}</b> · {data.overdue} {x('overdue')} · {data.total} {x('outstanding items')}
         </p>
       ) : (
-        <p>Loading outstanding work…</p>
+        <p>{x('Loading outstanding work…')}</p>
       )}
-      {data?.items?.slice(0, 3).map((item: any) => (
+      {data?.items?.slice(0, solo ? 5 : 3).map((item: any) => (
         <div className={`prototype-task-row priority-${item.priority}`} key={item.key}>
           <span className="task-signal" />
           <div>
             <strong>{item.title}</strong>
             <small>
-              {item.patient_name || 'Patient not yet identified'} · {item.reason}
+              {item.patient_name || x('Patient not yet identified')} · {item.reason}
             </small>
           </div>
           <a className="button-link" href={item.path || '/doctor/inbox'}>
-            Review
+            {x('Review')}
           </a>
         </div>
       ))}
       {data?.total === 0 && (
-        <p className="muted">No outstanding work. New items will appear here.</p>
+        <p className="muted">{x('No outstanding work. New items will appear here.')}</p>
       )}
       {brief && (
         <details className="attention-detail">
-          <summary>Care to follow through</summary>
+          <summary>{x('Care to follow through')}</summary>
           <p>
-            {brief.followups} follow-up steps due within 24 hours or overdue · {brief.no_reply}{' '}
-            overdue replies · {brief.messages} staff conversations needing a reply
+            {brief.followups} {x('follow-up steps due within 24 hours or overdue')} · {brief.no_reply}{' '}
+            {x('overdue replies')} · {brief.messages} {x('staff conversations needing a reply')}
           </p>
           <p>
-            {brief.investigations} outstanding report tasks · {brief.referrals} referrals ·{' '}
-            {brief.insurance} insurance cases · {brief.outside_range} results outside supplied
-            ranges awaiting review
+            {brief.investigations} {x('outstanding report tasks')} · {brief.referrals} {x('referrals')} ·{' '}
+            {brief.insurance} {x('insurance cases')} · {brief.outside_range} {x('results outside supplied ranges awaiting review')}
           </p>
           <p>
-            {brief.references_due} clinic references due for another review. Counts describe
-            recorded work and may overlap.
+            {brief.references_due} {x('clinic references due for another review. Counts describe recorded work and may overlap.')}
           </p>
         </details>
       )}
 
       <button className="ghost small" onClick={() => void load()}>
-        Refresh counts
+        {x('Refresh counts')}
       </button>
     </section>
   );

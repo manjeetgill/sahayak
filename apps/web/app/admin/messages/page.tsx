@@ -1,11 +1,13 @@
 'use client';
 import { FeedbackMessaging } from '../../components/FeedbackMessaging';
+import { useStaffLang } from '../../../lib/staffText';
 export default function Messages() {
+  const { x } = useStaffLang();
   return (
     <div className="wrap">
-      <h1>Patient check-in messages</h1>
+      <h1>{x('Patient check-in messages')}</h1>
       <p>
-        Set up delivery. Doctors and receptionists handle patient responses in their own workspaces.
+        {x('Set up delivery. Doctors and receptionists handle patient responses in their own workspaces.')}
       </p>
       <FeedbackMessaging />
     </div>

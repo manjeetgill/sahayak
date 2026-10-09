@@ -20,6 +20,7 @@ export const getClinicSettings = defineTool({
     return {
       clinicName: (await db.query('SELECT name FROM clinics WHERE id=$1', [ctx.clinicId])).rows[0]
         .name,
+      workspaceMode: s.workspace_mode,
       address: s.address,
       directions: s.directions,
       phone: s.phone,
@@ -54,6 +55,7 @@ export const getClinicSettings = defineTool({
 });
 
 const COLUMN: Record<string, string> = {
+  workspaceMode: 'workspace_mode',
   address: 'address',
   directions: 'directions',
   phone: 'phone',

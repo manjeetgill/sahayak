@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { staff } from '../../lib/api';
+import { useStaffLang } from '../../lib/staffText';
 
 const CHANNELS = [
   { src: 'whatsapp', label: 'WhatsApp status / groups' },
@@ -18,6 +19,7 @@ const caption = (clinic: string, lang: 'en' | 'hi', url: string) =>
 
 /** Links for each place the clinic is shared, ready captions, and where new patients came from. */
 export function ShareKit() {
+  const { x: ui } = useStaffLang();
   const [data, setData] = useState<{
     slug: string;
     clinic: string;
@@ -51,10 +53,8 @@ export function ShareKit() {
     <div data-testid="share-kit">
       <header className="doctor-page-heading">
         <div>
-          <h1>Share your clinic</h1>
-          <p className="muted">
-            One link for each place you share. New patients are counted by the link they used.
-          </p>
+          <h1>{ui("Share your clinic")}</h1>
+          <p className="muted">{ui("One link for each place you share. New patients are counted by the link they used.")}</p>
         </div>
         <button className="ghost" onClick={() => setLang(lang === 'en' ? 'hi' : 'en')}>
           {lang === 'en' ? 'हिन्दी' : 'English'}
@@ -86,9 +86,9 @@ export function ShareKit() {
         </section>
       ))}
       <section className="card">
-        <h3>Where new patients came from (last 90 days)</h3>
+        <h3>{ui("Where new patients came from (last 90 days)")}</h3>
         {data.sources.length === 0 ? (
-          <p className="muted">No new patients yet.</p>
+          <p className="muted">{ui("No new patients yet.")}</p>
         ) : (
           <ul data-testid="sources">
             {data.sources.map((s) => (
@@ -98,10 +98,7 @@ export function ShareKit() {
             ))}
           </ul>
         )}
-        <p className="muted">
-          Patients you import from an old list are not counted here. The printable reception poster
-          is under Clinic setup.
-        </p>
+        <p className="muted">{ui("Patients you import from an old list are not counted here. The printable reception poster is under Clinic setup.")}</p>
       </section>
     </div>
   );

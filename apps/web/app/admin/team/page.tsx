@@ -1,7 +1,9 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { staff, useSession } from '../../../lib/api';
+import { useStaffLang } from '../../../lib/staffText';
 export default function Team() {
+  const { x } = useStaffLang();
   const s = useSession('admin');
   const [people, setPeople] = useState<any[]>([]),
     [doctors, setDoctors] = useState<any[]>([]);
@@ -41,9 +43,9 @@ export default function Team() {
   if (!s) return null;
   return (
     <div className="wrap">
-      <p className="eyebrow">ADMIN</p>
-      <h1>Doctors &amp; team</h1>
-      <p>Choose the right workspace for each person. Share their sign-in details privately.</p>
+      <p className="eyebrow">{x("ADMIN")}</p>
+      <h1>{x("Doctors & team")}</h1>
+      <p>{x("Choose the right workspace for each person. Share their sign-in details privately.")}</p>
       {error && (
         <p className="error" role="alert">
           {error}
@@ -51,15 +53,15 @@ export default function Team() {
       )}
       {message && <p role="status">{message}</p>}
       <section className="card">
-        <h2>Current team</h2>
+        <h2>{x("Current team")}</h2>
         <div className="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Workspace</th>
-                <th>Login</th>
+                <th>{x("Name")}</th>
+                <th>{x("Email")}</th>
+                <th>{x("Workspace")}</th>
+                <th>{x("Login")}</th>
               </tr>
             </thead>
             <tbody>
@@ -68,29 +70,25 @@ export default function Team() {
                   <td>{p.name}</td>
                   <td>{p.email}</td>
                   <td>
-                    {p.role === 'admin' ? 'Admin' : p.role === 'doctor' ? 'Doctor' : 'Receptionist'}
+                    {x(p.role === 'admin' ? 'Admin' : p.role === 'doctor' ? 'Doctor' : 'Receptionist')}
                   </td>
                   <td>
                     {p.id === s.user.uid ? (
-                      'Your account'
+                      x('Your account')
                     ) : (
                       <button
                         className="ghost"
                         disabled={busy}
                         onClick={() => {
                           if (
-                            confirm(
-                              `Remove ${p.name}’s login? They will no longer be able to sign in.`,
-                            )
+                            confirm(`${x('Remove login for')} ${p.name}? ${x('They will no longer be able to sign in.')}`)
                           )
                             void run(
                               () => staff(`/staff/team/${p.id}`, undefined, 'DELETE'),
-                              'Login removed',
+                              x('Login removed'),
                             );
                         }}
-                      >
-                        Remove login
-                      </button>
+                      >{x("Remove login")}</button>
                     )}
                   </td>
                 </tr>
@@ -110,11 +108,11 @@ export default function Team() {
                 doctorId: form.role === 'doctor' ? form.doctorId : undefined,
               });
               setForm({ ...form, name: '', email: '', password: '', doctorId: '' });
-            }, 'Login created. Share the email and password privately.');
+            }, x('Login created. Share the email and password privately.'));
           }}
         >
-          <h2>Create a login</h2>
-          <label htmlFor="team-name">Name</label>
+          <h2>{x("Create a login")}</h2>
+          <label htmlFor="team-name">{x("Name")}</label>
           <input
             id="team-name"
             required
@@ -122,7 +120,7 @@ export default function Team() {
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
-          <label htmlFor="team-email">Email</label>
+          <label htmlFor="team-email">{x("Email")}</label>
           <input
             id="team-email"
             type="email"
@@ -130,26 +128,26 @@ export default function Team() {
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
           />
-          <label htmlFor="team-role">Workspace</label>
+          <label htmlFor="team-role">{x("Workspace")}</label>
           <select
             id="team-role"
             value={form.role}
             onChange={(e) => setForm({ ...form, role: e.target.value })}
           >
-            <option value="receptionist">Receptionist — appointments and front desk</option>
-            <option value="doctor">Doctor — consultations and patient care</option>
-            <option value="admin">Admin — clinic setup and connections</option>
+            <option value="receptionist">{x("Receptionist — appointments and front desk")}</option>
+            <option value="doctor">{x("Doctor — consultations and patient care")}</option>
+            <option value="admin">{x("Admin — clinic setup and connections")}</option>
           </select>
           {form.role === 'doctor' && (
             <>
-              <label htmlFor="team-doctor">Doctor profile</label>
+              <label htmlFor="team-doctor">{x("Doctor profile")}</label>
               <select
                 id="team-doctor"
                 required
                 value={form.doctorId}
                 onChange={(e) => setForm({ ...form, doctorId: e.target.value })}
               >
-                <option value="">Choose a doctor</option>
+                <option value="">{x("Choose a doctor")}</option>
                 {doctors
                   .filter((d) => d.active)
                   .map((d) => (
@@ -160,7 +158,7 @@ export default function Team() {
               </select>
             </>
           )}
-          <label htmlFor="team-password">Password (at least 10 characters)</label>
+          <label htmlFor="team-password">{x("Password (at least 10 characters)")}</label>
           <input
             id="team-password"
             type="password"
@@ -171,7 +169,7 @@ export default function Team() {
             onChange={(e) => setForm({ ...form, password: e.target.value })}
           />
           <p>
-            <button disabled={busy}>Create login</button>
+            <button disabled={busy}>{x("Create login")}</button>
           </p>
         </form>
         <form
@@ -181,12 +179,12 @@ export default function Team() {
             void run(async () => {
               await staff('/staff/doctors', doctor);
               setDoctor({ name: '', speciality: '' });
-            }, 'Doctor added. Create their login using the form alongside.');
+            }, x('Doctor added. Create their login using the form alongside.'));
           }}
         >
-          <h2>Add a doctor profile</h2>
-          <p>Add the doctor here, then create their login.</p>
-          <label htmlFor="doctor-name">Doctor’s name</label>
+          <h2>{x("Add a doctor profile")}</h2>
+          <p>{x("Add the doctor here, then create their login.")}</p>
+          <label htmlFor="doctor-name">{x("Doctor’s name")}</label>
           <input
             id="doctor-name"
             required
@@ -194,16 +192,16 @@ export default function Team() {
             value={doctor.name}
             onChange={(e) => setDoctor({ ...doctor, name: e.target.value })}
           />
-          <label htmlFor="speciality">Speciality</label>
+          <label htmlFor="speciality">{x("Speciality")}</label>
           <input
             id="speciality"
             value={doctor.speciality}
             onChange={(e) => setDoctor({ ...doctor, speciality: e.target.value })}
           />
           <p>
-            <button disabled={busy}>Add doctor</button>
+            <button disabled={busy}>{x("Add doctor")}</button>
           </p>
-          <h3>Clinic doctors</h3>
+          <h3>{x("Clinic doctors")}</h3>
           <ul>
             {doctors.map((d) => (
               <li key={d.id}>

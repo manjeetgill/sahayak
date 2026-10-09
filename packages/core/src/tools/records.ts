@@ -113,7 +113,7 @@ export const getPatientRecord = defineTool({
     if (!p) throw new ToolError('not_found', 'Patient not found', 404);
     const notes = (
       await db.query(
-        `SELECT n.id, n.doctor_id, n.queue_entry_id, n.transcript, n.status, n.source, n.note, n.flags, n.amends_note_id, n.amend_reason, n.created_at, n.signed_at, d.name AS doctor
+        `SELECT n.id, n.doctor_id, n.queue_entry_id, n.transcript, n.status, n.source, n.capture_consent_id, n.note, n.flags, n.amends_note_id, n.amend_reason, n.created_at, n.signed_at, d.name AS doctor
            FROM visit_notes n JOIN doctors d ON d.id=n.doctor_id WHERE n.patient_id=$1 ORDER BY n.created_at DESC`,
         [patientId],
       )
@@ -161,7 +161,8 @@ export const saveVisitNoteDraft = defineTool({
   input: z.object({
     patientId: UUID,
     transcript: z.string().trim().min(1).max(12000),
-    source: z.enum(['typed', 'dictated']).default('typed'),
+    source: z.enum(['typed', 'dictated', 'conversation']).default('typed'),
+    captureConsentId: UUID.optional(),
     note: NoteSchema,
     flags: z.array(z.string().max(200)).max(10).default([]),
     queueEntryId: UUID.optional(),
@@ -172,6 +173,14 @@ export const saveVisitNoteDraft = defineTool({
     const doctorId = myDoctor(ctx);
     if (!(await db.query('SELECT 1 FROM patients WHERE id=$1', [i.patientId])).rowCount)
       throw new ToolError('not_found', 'Patient not found', 404);
+    if (i.source === 'conversation') {
+      if (!i.captureConsentId) throw new ToolError('consent_required', 'Record patient consent before capturing the conversation');
+      const consent = await db.query(
+        'SELECT 1 FROM consultation_capture_consents WHERE id=$1 AND patient_id=$2 AND doctor_id=$3',
+        [i.captureConsentId, i.patientId, doctorId],
+      );
+      if (!consent.rowCount) throw new ToolError('consent_required', 'No matching patient consent record');
+    }
     if (
       i.queueEntryId &&
       !(
@@ -183,14 +192,15 @@ export const saveVisitNoteDraft = defineTool({
     )
       throw new ToolError('wrong_visit', 'Visit must belong to this patient and doctor');
     const r = await db.query(
-      `INSERT INTO visit_notes (clinic_id,patient_id,doctor_id,queue_entry_id,source,transcript,note,flags,created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      `INSERT INTO visit_notes (clinic_id,patient_id,doctor_id,queue_entry_id,source,capture_consent_id,transcript,note,flags,created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
       [
         ctx.clinicId,
         i.patientId,
         doctorId,
         i.queueEntryId ?? null,
         i.source,
+        i.source === 'conversation' ? i.captureConsentId : null,
         i.transcript,
         JSON.stringify(clean(i.note)),
         JSON.stringify(i.flags),
@@ -338,6 +348,7 @@ export const storePatientDocument = defineTool({
     base64: z.string().min(8).max(12_000_000),
     caption: z.string().trim().max(200).optional(),
     kind: z.enum(['report', 'photo', 'xray', 'other']).default('report'),
+    careTaskId: UUID.optional(),
   }),
   allow: ['patient', 'system', 'staff:doctor', 'staff:receptionist'],
   auditInput: (i) => ({ patientId: i.patientId, filename: i.filename, kind: i.kind }),
@@ -351,12 +362,16 @@ export const storePatientDocument = defineTool({
       throw new ToolError('unsupported_file', 'Only JPEG, PNG, WebP and PDF files are accepted');
     if (!(await db.query('SELECT 1 FROM patients WHERE id=$1', [i.patientId])).rowCount)
       throw new ToolError('not_found', 'Patient not found', 404);
+    if (i.careTaskId && !(await db.query(
+      "SELECT 1 FROM care_tasks WHERE id=$1 AND patient_id=$2 AND kind='report' AND status='requested' FOR UPDATE",
+      [i.careTaskId, i.patientId],
+    )).rowCount) throw new ToolError('report_request', 'This report request is no longer awaiting a file', 409);
     const r = await db.query(
       'INSERT INTO patient_documents (clinic_id,patient_id,uploaded_via,kind,filename,mime,size_bytes,data,caption) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',
       [
         ctx.clinicId,
         i.patientId,
-        ctx.actor.kind === 'staff' ? 'staff' : 'whatsapp',
+        ctx.actor.kind === 'staff' ? 'staff' : ctx.actor.kind === 'patient' ? 'patient_web' : 'whatsapp',
         i.kind,
         safeName(i.filename),
         mime,
@@ -365,6 +380,10 @@ export const storePatientDocument = defineTool({
         i.caption ?? null,
       ],
     );
+    if (i.careTaskId && !(await db.query(
+      "UPDATE care_tasks SET status='received',document_id=$2,updated_at=now() WHERE id=$1 AND patient_id=$3 AND status='requested'",
+      [i.careTaskId, r.rows[0].id, i.patientId],
+    )).rowCount) throw new ToolError('report_request', 'This report request is no longer awaiting a file', 409);
     return { documentId: r.rows[0].id as string, mime, size: buf.length };
   },
 });

@@ -31,6 +31,8 @@ import { shortcutTools } from './shortcuts';
 import { patientImportTools } from './patient-import';
 import { leaveTools } from './leave';
 import { growthTools } from './growth';
+import { soloWorkTools } from './solo-work';
+import { consultationAidTools } from './consultation-aids';
 
 let done = false;
 /** Register every tool module once. Called by the API/agent runtime at startup. */
@@ -70,6 +72,8 @@ export function registerAllTools() {
     ...patientImportTools,
     ...leaveTools,
     ...growthTools,
+    ...soloWorkTools,
+    ...consultationAidTools,
   ]);
   done = true;
 }

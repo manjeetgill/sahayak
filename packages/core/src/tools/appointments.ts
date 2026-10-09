@@ -7,7 +7,7 @@ import { lockAppointments, offerCancelledSlot } from './waitlist';
 import { emitWebhook } from '../webhooks';
 
 const STAFF = ['staff:doctor', 'staff:receptionist'];
-const BOOKERS = [...STAFF, 'agent:front_desk', 'agent:leads', 'agent:schedule', 'api'];
+const BOOKERS = [...STAFF, 'agent:front_desk', 'agent:leads', 'agent:schedule', 'api', 'patient'];
 
 export async function freeSlots(
   db: Db,
@@ -136,7 +136,7 @@ export const bookAppointment = defineTool({
     patientId: z.string().uuid(),
     startsAt: z.string().datetime(),
     reason: z.string().max(200).optional(),
-    source: z.enum(['manual', 'whatsapp', 'walk_in', 'agent', 'api']).default('agent'),
+    source: z.enum(['manual', 'whatsapp', 'walk_in', 'agent', 'api', 'patient_web']).default('agent'),
   }),
   allow: BOOKERS,
   async run(r, i) {
@@ -233,7 +233,7 @@ export const cancelAppointment = defineTool({
   async run(r, { appointmentId }) {
     const { db, ctx, emit } = r;
     const a = await db.query(
-      "SELECT patient_id,doctor_id,starts_at FROM appointments WHERE id=$1 AND status IN ('booked','needs_rebooking')",
+      "SELECT patient_id,doctor_id,starts_at FROM appointments WHERE id=$1 AND status IN ('booked','needs_rebooking') AND starts_at>now()",
       [appointmentId],
     );
     if (!a.rowCount) throw new ToolError('not_found', 'Appointment not found', 404);
@@ -265,7 +265,7 @@ export const rescheduleAppointment = defineTool({
   allow: BOOKERS,
   async run(r, i) {
     const { db, ctx, emit } = r;
-    const a = await db.query('SELECT doctor_id, patient_id FROM appointments WHERE id=$1', [
+    const a = await db.query("SELECT doctor_id, patient_id FROM appointments WHERE id=$1 AND status='booked' AND starts_at>now()", [
       i.appointmentId,
     ]);
     if (!a.rowCount) throw new ToolError('not_found', 'Appointment not found', 404);

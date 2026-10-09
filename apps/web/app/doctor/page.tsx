@@ -8,12 +8,15 @@ import { AskClinic } from '../components/AskClinic';
 import { PatientSearch } from '../components/PatientSearch';
 import { beep, staff, useLive, useSession } from '../../lib/api';
 import { useStaffLang } from '../../lib/staffText';
+import { useWorkspaceMode } from '../../lib/workspaceMode';
+import { SoloDoctorDesk } from '../components/SoloDoctorDesk';
 
 const utilitySection = (hash: string) => hash;
 const greeting = (d = new Date()) =>
   d.getHours() < 12 ? 'Good morning' : d.getHours() < 17 ? 'Good afternoon' : 'Good evening';
 export default function Doctor() {
   const s = useSession('doctor');
+  const mode = useWorkspaceMode(s?.user.clinicId);
   const { lang, x } = useStaffLang();
   const utility = useSection(utilitySection, '');
   const [queue, setQueue] = useState<any[]>([]),
@@ -82,7 +85,7 @@ export default function Doctor() {
         <div>
           <span className="page-eyebrow">{x("Today's clinic")}</span>
           <h1>
-            {x(greeting())}, Dr. {s.user.name.replace(/^Dr\.\s*/i, '').split(' ')[0]}
+            {x(greeting())}, {lang === 'hi' ? 'डॉ.' : 'Dr.'} {s.user.name.replace(/^Dr\.\s*/i, '').split(' ')[0]}
           </h1>
           <p className="muted">{x('Your next patient and outstanding work are together here.')}</p>
         </div>
@@ -95,22 +98,26 @@ export default function Doctor() {
       </header>
       {!setupDone && (
         <div className="banner warn" role="status">
-          Your clinic setup is not finished. Ask your clinic admin to complete it.
+          {x('Your clinic setup is not finished. Ask your clinic admin to complete it.')}
         </div>
       )}
-      {llmDown && <div className="banner warn">{t('en', 'console.llm_down')}</div>}
+      {llmDown && <div className="banner warn">{t(lang, 'console.llm_down')}</div>}
       {urgent.map((f) => (
         <div key={f.id} className="banner urgent" role="alert">
-          {t('en', 'console.red_flag_alert')} — {f.summary}
+          {t(lang, 'console.red_flag_alert')} — {f.summary}
           <button
             className="small ghost"
             style={{ marginLeft: 12, background: '#fff' }}
             onClick={() => act(`/staff/flags/${f.id}/resolve`)}
           >
-            Seen
+            {x('Seen')}
           </button>
         </div>
       ))}
+      {mode === 'solo' && <AttentionSummary solo />}
+      {mode === 'solo' && s.user.role === 'doctor' && s.user.doctorId && (
+        <SoloDoctorDesk doctorId={s.user.doctorId} onCheckin={() => void load()} />
+      )}
       <div className="grid3" style={{ gridTemplateColumns: '1.3fr 1fr' }}>
         <div>
           <div className="card current-consultation" hidden={!current} data-testid="patient-card">
@@ -121,12 +128,12 @@ export default function Doctor() {
                     <span className="page-eyebrow">{x('Now seeing')}</span>
                     <h2>{current.patient_name}</h2>
                   </div>
-                  <span className="tag called">Token {current.token_number}</span>
+                  <span className="tag called">{x('Token')} {current.token_number}</span>
                 </div>
-                <p className="muted">{current.age ? `Age ${current.age}` : ''}</p>
+                <p className="muted">{current.age ? `${x('Age')} ${current.age}` : ''}</p>
                 <p>
-                  <b>Intake:</b>{' '}
-                  {current.intake_summary ?? <span className="muted">No intake answers yet</span>}
+                  <b>{x('Intake:')}</b>{' '}
+                  {current.intake_summary ?? <span className="muted">{x('No intake answers yet')}</span>}
                 </p>
                 <div className="row">
                   {current.status === 'called' ? (
@@ -170,7 +177,7 @@ export default function Doctor() {
               <p className="muted">{x('No patient in the room. Press Next patient.')}</p>
             )}
           </div>
-          <AttentionSummary />
+          {mode !== 'solo' && <AttentionSummary />}
           <div className="card" style={{ marginTop: '1rem' }}>
             <h3>
               {t(lang, 'doctor.waiting')} ({waiting.length})
@@ -180,7 +187,7 @@ export default function Doctor() {
                 <div key={q.id} className="row between">
                   <span>
                     <b>{q.token_number}</b> · {q.patient_name}{' '}
-                    <span className="muted">~{q.wait_minutes} min</span>
+                    <span className="muted">~{q.wait_minutes} {x('min')}</span>
                   </span>
                   <span className="row">
                     <button
@@ -201,7 +208,7 @@ export default function Doctor() {
             </div>
             {held.length > 0 && (
               <>
-                <h3 style={{ marginTop: '1rem' }}>On hold</h3>
+                <h3 style={{ marginTop: '1rem' }}>{x('On hold')}</h3>
                 <div className="list">
                   {held.map((q) => (
                     <div key={q.id} className="row between">
@@ -209,7 +216,7 @@ export default function Doctor() {
                         <b>{q.token_number}</b> · {q.patient_name}
                       </span>
                       <button className="small" onClick={() => act(`/staff/queue/${q.id}/resume`)}>
-                        Resume
+                        {x('Resume')}
                       </button>
                     </div>
                   ))}
@@ -221,8 +228,8 @@ export default function Doctor() {
         <aside className="workspace-stack">
           <section className="card today-metrics">
             <div className="panel-heading">
-              <h2>Today</h2>
-              <span className="tag">Live</span>
+              <h2>{x('Today')}</h2>
+              <span className="tag">{x('Live')}</span>
             </div>
             <div className="metric-grid">
               <div className="metric-tile">
@@ -239,10 +246,10 @@ export default function Doctor() {
               </div>
             </div>
             <details>
-              <summary>Appointments today</summary>
+              <summary>{x('Appointments today')}</summary>
               <p className="muted">
-                {today.length} appointments · {queue.length} checked in · {done} seen ·{' '}
-                {waiting.length} waiting
+                {today.length} {x('appointments')} · {queue.length} {x('checked in')} · {done} {x('seen')} ·{' '}
+                {waiting.length} {x('waiting')}
               </p>
               <div className="list">
                 {today.map((a) => (
@@ -271,8 +278,8 @@ export default function Doctor() {
             <p className="muted">{x('Preview affected patients before sending.')}</p>
             <form className="row" onSubmit={proposeLate}>
               <input
-                aria-label="Running late"
-                placeholder='Running late? e.g. "running 30 min late"'
+                aria-label={x('Running late')}
+                placeholder={x('Running late? e.g. "running 30 min late"')}
                 value={late}
                 onChange={(e) => setLate(e.target.value)}
               />
@@ -288,16 +295,15 @@ export default function Doctor() {
             {proposal && (
               <div data-testid="late-proposal" style={{ marginTop: '.6rem' }}>
                 <p>
-                  <b>{proposal.affected}</b> patient(s) affected by a {proposal.minutes}-minute
-                  delay
+                  <b>{proposal.affected}</b> {x('patient(s) affected by a')} {proposal.minutes}-{x('minute delay')}
                   {proposal.needsRebooking
-                    ? ` (${proposal.needsRebooking} will need a new day/time)`
+                    ? ` (${proposal.needsRebooking} ${x('will need a new day/time')})`
                     : ''}
                   .
                 </p>
-                <p className="muted">Nothing is sent until you confirm.</p>
+                <p className="muted">{x('Nothing is sent until you confirm.')}</p>
                 <div className="row">
-                  <button onClick={confirmLate}>Confirm and notify patients</button>
+                  <button onClick={confirmLate}>{x('Confirm and notify patients')}</button>
                   <button
                     className="ghost"
                     onClick={() =>
@@ -306,19 +312,19 @@ export default function Doctor() {
                       )
                     }
                   >
-                    Cancel
+                    {x('Cancel')}
                   </button>
                 </div>
               </div>
             )}
             {summary && (
               <div data-testid="late-summary" style={{ marginTop: '.6rem' }}>
-                <b>Running-late update ({summary.proposal.minutes} min)</b>
+                <b>{x('Running-late update')} ({summary.proposal.minutes} {x('min')})</b>
                 <div className="muted">
-                  {summary.counts.notified}/{summary.counts.affected} notified ·{' '}
-                  {summary.counts.keptNewTime} kept new time · {summary.counts.rebooked} rebooked ·{' '}
-                  {summary.counts.waitingForReply} waiting for reply
-                  {summary.counts.needsCall ? ` · ${summary.counts.needsCall} need a call` : ''}
+                  {summary.counts.notified}/{summary.counts.affected} {x('notified')} ·{' '}
+                  {summary.counts.keptNewTime} {x('kept new time')} · {summary.counts.rebooked} {x('rebooked')} ·{' '}
+                  {summary.counts.waitingForReply} {x('waiting for reply')}
+                  {summary.counts.needsCall ? ` · ${summary.counts.needsCall} ${x('need a call')}` : ''}
                 </div>
               </div>
             )}
@@ -331,19 +337,19 @@ export default function Doctor() {
               <a href="/doctor/practice">{x('Clinic overview')}</a>
             </nav>
             <details className="more-clinic-tools">
-              <summary>More clinic tools</summary>
+              <summary>{x('More clinic tools')}</summary>
               <nav className="action-links">
-                <a href="#ask-clinic">Ask your clinic</a>
-                <a href="/doctor/inbox">Needs my attention</a>
-                <a href="/doctor/waitlist">Waiting list</a>
-                <a href="/doctor/templates">Reusable care plans</a>
-                <a href="/doctor/references">Medical reference</a>
+                <a href="#ask-clinic">{x('Ask your clinic')}</a>
+                <a href="/doctor/inbox">{x('Needs my attention')}</a>
+                <a href="/doctor/waitlist">{x('Waiting list')}</a>
+                <a href="/doctor/templates">{x('Reusable care plans')}</a>
+                <a href="/doctor/references">{x('Medical reference')}</a>
                 <a href="/doctor/share">{x("Share your clinic")}</a>
                 <a href="/doctor/away">{x("I'm away")}</a>
-                <a href="/doctor/shortcuts">My visit shortcuts</a>
-                <a href="/doctor/settings">My professional details</a>
+                <a href="/doctor/shortcuts">{x('My visit shortcuts')}</a>
+                <a href="/doctor/settings">{x('My professional details')}</a>
 
-                <a href="/safety">Safety report</a>
+                <a href="/safety">{x('Safety report')}</a>
               </nav>
             </details>
           </section>

@@ -2,7 +2,9 @@
 import { useEffect, useState } from 'react';
 import { staff, useSession } from '../../../lib/api';
 import { CareNav } from '../../components/CareNav';
+import { useStaffLang } from '../../../lib/staffText';
 export default function Templates() {
+  const { x } = useStaffLang();
   const session = useSession('doctor');
   const [creating, setCreating] = useState(false);
   const [items, setItems] = useState<any[]>([]),
@@ -30,34 +32,33 @@ export default function Templates() {
   if (!session) return null;
   return (
     <main className="wrap" style={{ maxWidth: 900 }}>
-      <a href="/doctor">← Today’s clinic</a>
+      <a href="/doctor">← {x('Today’s clinic')}</a>
       <div className="panel-heading">
         <div>
-          <span className="eyebrow">Care</span>
-          <h1>Reusable care plans</h1>
+          <span className="eyebrow">{x('Care')}</span>
+          <h1>{x('Reusable care plans')}</h1>
         </div>
         <button onClick={() => setCreating((v) => !v)}>
-          {creating ? 'Close form' : 'Create reusable plan'}
+          {x(creating ? 'Close form' : 'Create reusable plan')}
         </button>
       </div>
       <p>
-        Save clinic wording and a schedule. Keep patient names and personal details out. Each
-        patient’s plan must still be reviewed and approved before use.
+        {x('Save clinic wording and a schedule. Keep patient names and personal details out. Each patient’s plan must still be reviewed and approved before use.')}
       </p>
       <CareNav />
       {error && <p role="alert">{error}</p>}
       <div className={`workspace-split plans-workspace ${creating ? 'creating' : ''}`}>
         <fieldset disabled={busy} hidden={!creating}>
-          <legend>{previousId ? 'New version for review' : 'Create a reusable plan'}</legend>
+          <legend>{x(previousId ? 'New version for review' : 'Create a reusable plan')}</legend>
           <label>
-            Plan title
+            {x('Plan title')}
             <input value={title} onChange={(e) => setTitle(e.target.value)} />
           </label>
           {steps.map((s, n) => (
             <fieldset key={n}>
-              <legend>Step {n + 1}</legend>
+              <legend>{x('Step')} {n + 1}</legend>
               <label>
-                Task name
+                {x('Task name')}
                 <input
                   value={s.title}
                   onChange={(e) =>
@@ -66,7 +67,7 @@ export default function Templates() {
                 />
               </label>
               <label>
-                Wording for the patient
+                {x('Wording for the patient')}
                 <textarea
                   value={s.message}
                   onChange={(e) =>
@@ -75,7 +76,7 @@ export default function Templates() {
                 />
               </label>
               <label>
-                Days after plan starts
+                {x('Days after plan starts')}
                 <input
                   type="number"
                   min="0"
@@ -92,7 +93,7 @@ export default function Templates() {
               </label>
               {steps.length > 1 && (
                 <button onClick={() => setSteps(steps.filter((_, j) => j !== n))}>
-                  Remove step
+                  {x('Remove step')}
                 </button>
               )}
             </fieldset>
@@ -101,7 +102,7 @@ export default function Templates() {
             disabled={steps.length >= 12}
             onClick={() => setSteps([...steps, { title: '', message: '', afterDays: 0 }])}
           >
-            Add step
+            {x('Add step')}
           </button>{' '}
           <button
             disabled={!title.trim() || steps.some((s) => !s.title.trim() || !s.message.trim())}
@@ -114,25 +115,25 @@ export default function Templates() {
               })
             }
           >
-            Save version for review
+            {x('Save version for review')}
           </button>
         </fieldset>
         <section className="card">
-          <h2>Plan library and version history</h2>
-          {!items.length && <p>No reusable plans yet.</p>}
+          <h2>{x('Plan library and version history')}</h2>
+          {!items.length && <p>{x('No reusable plans yet.')}</p>}
           {items.map((t) => (
             <article className="card" key={t.id}>
               <h3>
-                {t.title} · version {t.version}
+                {t.title} · {x('version')} {t.version}
               </h3>
               <p>
-                {t.archived_at ? 'Retired' : t.approved_at ? 'Approved' : 'Awaiting approval'} ·{' '}
+                {x(t.archived_at ? 'Retired' : t.approved_at ? 'Approved' : 'Awaiting approval')} ·{' '}
                 {t.author}
               </p>
               {t.steps.map((s: any, n: number) => (
                 <p key={n}>
                   <b>
-                    Day {s.afterDays}: {s.title}
+                    {x('Day')} {s.afterDays}: {s.title}
                   </b>
                   <br />
                   {s.message}
@@ -144,7 +145,7 @@ export default function Templates() {
                   onClick={() => {
                     if (
                       confirm(
-                        'I reviewed all wording and dates and checked that no patient details are included. Approve this reusable plan?',
+                        x('I reviewed all wording and dates and checked that no patient details are included. Approve this reusable plan?'),
                       )
                     )
                       void run(() =>
@@ -152,7 +153,7 @@ export default function Templates() {
                       );
                   }}
                 >
-                  Approve reusable plan
+                  {x('Approve reusable plan')}
                 </button>
               )}{' '}
               <button
@@ -165,7 +166,7 @@ export default function Templates() {
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
               >
-                Create revised version
+                {x('Create revised version')}
               </button>{' '}
               {!t.archived_at && (
                 <button
@@ -173,7 +174,7 @@ export default function Templates() {
                   onClick={() => {
                     if (
                       confirm(
-                        'Retire this version from new use? Existing patient plans will stay unchanged.',
+                        x('Retire this version from new use? Existing patient plans will stay unchanged.'),
                       )
                     )
                       void run(() =>
@@ -181,7 +182,7 @@ export default function Templates() {
                       );
                   }}
                 >
-                  Retire version
+                  {x('Retire version')}
                 </button>
               )}
             </article>

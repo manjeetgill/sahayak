@@ -1,6 +1,6 @@
 import { beforeAll, afterAll, it, expect } from 'vitest';
 import pg from 'pg';
-import { createTestClinic, dropTestClinic, hashPassword, makePool } from '@sahayak/db';
+import { createTestClinic, dropTestClinic, hashPassword, makePool, addPatient } from '@sahayak/db';
 import { EventBus, callTool, registerAllTools } from '@sahayak/core';
 import { LlmGate } from '@sahayak/agents';
 import { buildApp } from '../src/app';
@@ -52,7 +52,7 @@ afterAll(async () => {
   await db.end();
   await pool.end();
 });
-it('admin can read setup, team, settings and integrations but cannot open clinical work', async () => {
+it('admin can open setup and review care screens while patient-care writes stay restricted', async () => {
   for (const url of [
     '/me',
     '/staff/setup',
@@ -63,13 +63,36 @@ it('admin can read setup, team, settings and integrations but cannot open clinic
   ])
     expect((await request('admin', 'GET', url)).statusCode, url).toBe(200);
   for (const url of [
-    '/staff/patients',
+    '/staff/patients?phone=%2B919899998888',
     '/staff/feedback',
     '/staff/inbox',
     '/staff/audit',
     '/staff/feedback/report',
+    '/staff/queue',
+    '/staff/today',
+    '/staff/flags',
+    '/staff/conversations',
+    '/staff/care-tasks',
+    '/staff/waitlist',
+    '/staff/qr-arrivals',
+    '/staff/practice',
+    '/staff/schedule/summary',
+    '/staff/references',
+    '/staff/patient-checkins',
+    '/staff/patient-checkins/preferences/all',
+    '/staff/safety-report',
   ])
-    expect((await request('admin', 'GET', url)).statusCode, url).toBe(403);
+    expect((await request('admin', 'GET', url)).statusCode, url).toBe(200);
+  for (const url of [
+    '/staff/checkin',
+    '/staff/queue/call-next',
+    '/staff/notes/draft',
+    '/staff/feedback/improvements',
+    '/staff/workbench/instructions',
+  ])
+    expect((await request('admin', 'POST', url, {})).statusCode, url).toBe(403);
+  for (const url of ['/staff/workbench/template-list', '/staff/workbench/daily-brief'])
+    expect((await request('admin', 'POST', url, {})).statusCode, url).toBe(200);
 });
 it('care staff cannot configure connections, create logins or change clinic settings', async () => {
   for (const role of ['doctor', 'receptionist']) {
@@ -85,6 +108,56 @@ it('care staff cannot configure connections, create logins or change clinic sett
     );
     expect((await request(role, 'GET', '/staff/feedback')).statusCode).toBe(200);
   }
+});
+it('single-doctor view lets a doctor check in only to their own queue', async () => {
+  const checkin = (doctorId: string, phone: string) =>
+    request('doctor', 'POST', '/staff/checkin', {
+      name: 'Synthetic Walk-in',
+      phone,
+      doctorId,
+      consent: { visit_data: true, whatsapp_messaging: false, reminders_followups: false },
+    });
+  expect((await request('doctor', 'GET', '/staff/settings')).json().workspaceMode).toBe('full');
+  expect((await checkin(clinic.doctorIds[0], '+919900001111')).statusCode).toBe(403);
+  expect((await request('admin', 'PUT', '/staff/settings', { workspaceMode: 'solo' })).statusCode).toBe(200);
+  expect((await request('doctor', 'GET', '/staff/settings')).json().workspaceMode).toBe('solo');
+  expect(
+    (await request('admin', 'GET', '/staff/setup')).json().items.find((item: any) => item.id === 'receptionist').required,
+  ).toBe(false);
+  expect((await checkin(clinic.doctorIds[1], '+919900001112')).statusCode).toBe(403);
+  const added = await checkin(clinic.doctorIds[0], '+919900001113');
+  expect(added.statusCode).toBe(200);
+  expect(added.json().token).toBeGreaterThan(0);
+  expect((await request('admin', 'PUT', '/staff/settings', { workspaceMode: 'full' })).statusCode).toBe(200);
+  expect(
+    (await request('admin', 'GET', '/staff/setup')).json().items.find((item: any) => item.id === 'receptionist').required,
+  ).toBe(true);
+  expect((await checkin(clinic.doctorIds[0], '+919900001114')).statusCode).toBe(403);
+});
+it('a selected doctor keeps clinical identity while managing solo clinic setup', async () => {
+  expect((await request('doctor', 'GET', '/staff/integrations')).statusCode).toBe(403);
+  expect((await request('doctor', 'GET', '/staff/conversations')).statusCode).toBe(403);
+  expect((await request('admin', 'PUT', '/staff/settings', { workspaceMode: 'solo' })).statusCode).toBe(200);
+  expect(
+    (await request('admin', 'PUT', '/staff/team/solo-owner', { userId: ids.doctor })).statusCode,
+  ).toBe(200);
+  expect((await request('doctor', 'GET', '/me')).json().clinicAdmin).toBe(true);
+  expect((await request('doctor', 'GET', '/staff/integrations')).statusCode).toBe(200);
+  expect((await request('doctor', 'GET', '/staff/conversations')).statusCode).toBe(200);
+  expect(
+    (await request('doctor', 'PUT', '/staff/agents/preferences', { kind: 'reminders', enabled: false })).statusCode,
+  ).toBe(200);
+  expect((await request('doctor', 'GET', '/staff/team')).statusCode).toBe(200);
+  expect(
+    (await request('doctor', 'PUT', '/staff/settings', { workspaceMode: 'solo' })).statusCode,
+  ).toBe(200);
+  expect((await request('doctor', 'GET', '/staff/patient-checkins')).statusCode).toBe(200);
+  expect((await request('doctor', 'GET', '/staff/queue')).statusCode).toBe(200);
+  await db.query('UPDATE staff_users SET solo_owner=false WHERE id=$1', [ids.doctor]);
+  expect((await request('doctor', 'GET', '/me')).json().clinicAdmin).toBe(false);
+  expect((await request('doctor', 'GET', '/staff/integrations')).statusCode).toBe(403);
+  expect((await request('doctor', 'GET', '/staff/conversations')).statusCode).toBe(403);
+  expect((await request('admin', 'PUT', '/staff/settings', { workspaceMode: 'full' })).statusCode).toBe(200);
 });
 it('admin creates all role types and refuses linking a doctor from another clinic', async () => {
   for (const role of ['admin', 'doctor', 'receptionist']) {
@@ -159,7 +232,7 @@ it('tool permissions also reject bypassing the HTTP role checks', async () => {
     callTool(
       { pool, bus },
       { clinicId: clinic.clinicId, actor: { kind: 'staff', role: 'admin', userId: ids.admin } },
-      'list_feedback_work',
+      'update_feedback_case',
       {},
     ),
   ).rejects.toMatchObject({ status: 403 });
@@ -218,4 +291,39 @@ it('keeps automatic scheduling preferences with the doctor and delivery approval
     (await request('doctor', 'PUT', '/staff/feedback/messaging', { enabled: true, reviewed: true }))
       .statusCode,
   ).toBe(403);
+});
+
+it('Admin review is clinic-scoped and cannot sign a note or confirm a payment', async () => {
+  const own = await addPatient(db, clinic.clinicId, 'Admin review patient', '+919880001111');
+  const foreign = await addPatient(db, other.clinicId, 'Other clinic patient', '+919880002222');
+  for (const suffix of ['record', 'workspace', 'brief']) {
+    expect((await request('admin', 'GET', `/staff/patients/${own}/${suffix}`)).statusCode).toBe(
+      200,
+    );
+    expect((await request('admin', 'GET', `/staff/patients/${foreign}/${suffix}`)).statusCode).toBe(
+      404,
+    );
+  }
+  const patients = await request('admin', 'GET', '/staff/patients/search?q=patient');
+  expect(patients.statusCode).toBe(200);
+  expect(patients.body).toContain('Admin review patient');
+  expect(patients.body).not.toContain('Other clinic patient');
+  expect((await request('admin', 'POST', `/staff/notes/${own}/sign`, {})).statusCode).toBe(403);
+  expect((await request('admin', 'POST', `/staff/qr-arrivals/${own}/confirm`, {})).statusCode).toBe(
+    403,
+  );
+  expect(
+    (await request('admin', 'PUT', '/staff/patient-checkins/preferences', {})).statusCode,
+  ).toBe(403);
+  expect(
+    (await request('doctor', 'GET', '/staff/patient-checkins/preferences/all')).statusCode,
+  ).toBe(403);
+  expect(
+    (await request('admin', 'POST', '/staff/workbench/record-search', { patientId: own }))
+      .statusCode,
+  ).toBe(200);
+  expect(
+    (await request('admin', 'POST', '/staff/workbench/record-search', { patientId: foreign }))
+      .statusCode,
+  ).toBe(404);
 });

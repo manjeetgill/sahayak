@@ -5,7 +5,7 @@ import { emitWebhook } from '../webhooks';
 import { clinicToday, getSettings, notifyPatient, queueSnapshot } from './common';
 
 const CONSENT_NOTICE_VERSION = 'v1';
-const FRONT = ['patient', 'staff:receptionist', 'agent:checkin', 'api'];
+const FRONT = ['patient', 'staff:doctor', 'staff:receptionist', 'agent:checkin', 'api'];
 
 /** Add the next token for the doctor's queue today. Serialised per clinic+day so numbers never clash. */
 export async function issueToken(
@@ -139,6 +139,17 @@ export const checkInPatient = defineTool({
   allow: FRONT,
   async run(r, input) {
     const { db, ctx } = r;
+    if (ctx.actor.kind === 'staff' && ctx.actor.role === 'doctor') {
+      const mode = (
+        await db.query('SELECT workspace_mode FROM clinic_settings WHERE clinic_id=$1', [ctx.clinicId])
+      ).rows[0]?.workspace_mode;
+      if (mode !== 'solo' || ctx.actor.doctorId !== input.doctorId)
+        throw new ToolError(
+          'forbidden',
+          'Doctor walk-in check-in is available for your own queue in the single-doctor clinic view.',
+          403,
+        );
+    }
     const { patientId, name, language, returning } = await registerCheckinPatient(r, input);
     // Link today's booked appointment for this doctor, if there is one.
     const { date } = await clinicToday(db, ctx.clinicId);

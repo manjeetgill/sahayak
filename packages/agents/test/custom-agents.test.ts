@@ -10,6 +10,7 @@ const rt = { pool, bus: new EventBus('') };
 const env = { rt, gate: new LlmGate(null) };
 let A: Awaited<ReturnType<typeof createTestClinic>>,
   B: Awaited<ReturnType<typeof createTestClinic>>;
+let daytimeZone = 'UTC';
 let manager: ToolContext, managerB: ToolContext, doc: ToolContext, rec: ToolContext;
 const ids: Record<string, string> = {};
 
@@ -69,6 +70,14 @@ beforeAll(async () => {
   registerAllTools();
   A = await createTestClinic(admin, 'cag');
   B = await createTestClinic(admin, 'cagb');
+  // Keep message-delivery assertions in clinic daytime regardless of when CI runs.
+  const offset = (12 - new Date().getUTCHours() + 24) % 24;
+  const signed = offset <= 14 ? offset : offset - 24;
+  daytimeZone = signed === 0 ? 'UTC' : signed > 0 ? `Etc/GMT-${signed}` : `Etc/GMT+${-signed}`;
+  await admin.query('UPDATE clinics SET timezone=$1 WHERE id=ANY($2)', [
+    daytimeZone,
+    [A.clinicId, B.clinicId],
+  ]);
   manager = await staffOf(A, 'admin', null);
   managerB = await staffOf(B, 'admin', null);
   doc = await staffOf(A, 'doctor', A.doctorIds[0], '+919810000001');
@@ -298,7 +307,7 @@ describe('quiet hours', () => {
       )
     ).rows[0];
     expect(later).toEqual({ later: true, hm: '08:00' });
-    await admin.query("UPDATE clinics SET timezone='Asia/Kolkata' WHERE id=$1", [A.clinicId]);
+    await admin.query('UPDATE clinics SET timezone=$2 WHERE id=$1', [A.clinicId, daytimeZone]);
   });
 });
 

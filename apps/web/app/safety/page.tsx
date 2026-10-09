@@ -2,6 +2,7 @@
 import { displayLabel } from '../../lib/labels';
 import { useCallback, useEffect, useState } from 'react';
 import { API, session, staff, useSession } from '../../lib/api';
+import { useStaffLang } from '../../lib/staffText';
 
 const FILTERS = [
   { v: '', l: 'All entries' },
@@ -13,6 +14,7 @@ const FILTERS = [
 
 /** Safety report: proof, not promises. Live checks, 30-day activity, latest eval run, and the audit log. */
 export default function Safety() {
+  const { x, lang } = useStaffLang();
   const s = useSession();
   const [rep, setRep] = useState<any>(null);
   const [rows, setRows] = useState<any[]>([]);
@@ -67,7 +69,7 @@ export default function Safety() {
       style={{ flex: '1 1 150px', borderColor: bad ? 'var(--danger)' : undefined }}
     >
       <div className="muted" style={{ fontSize: '.8rem' }}>
-        {label}
+        {x(label)}
       </div>
       <div
         style={{ fontSize: '1.6rem', fontWeight: 800, color: bad ? 'var(--danger)' : undefined }}
@@ -79,14 +81,14 @@ export default function Safety() {
   return (
     <div>
       <div className="topbar">
-        <b>Safety report</b>
-        <a href={s.user.role === 'doctor' ? '/doctor' : '/console'}>← Back</a>
+        <b>{x('Safety report')}</b>
+        <a href={s.user.role === 'doctor' ? '/doctor' : '/console'}>← {x('Back')}</a>
       </div>
       <div className="wrap safety-page" style={{ maxWidth: 1120 }}>
         <header className="screen-heading">
-          <span className="eyebrow">Clinic assurance</span>
-          <h1>Safety report</h1>
-          <p className="muted">Protections, current status and activity history.</p>
+          <span className="eyebrow">{x('Clinic assurance')}</span>
+          <h1>{x('Safety report')}</h1>
+          <p className="muted">{x('Protections, current status and activity history.')}</p>
         </header>
         {err && (
           <div className="error" role="alert">
@@ -96,19 +98,23 @@ export default function Safety() {
         {rep && (
           <div className="safety-overview">
             <div className="card protections-panel">
-              <h2>Protections, checked just now</h2>
+              <h2>{x('Protections, checked just now')}</h2>
               <div className="list" data-testid="controls">
                 {rep.controls.map((c: any) => (
                   <div key={c.id} className="row" style={{ alignItems: 'flex-start' }}>
                     <span
-                      aria-label={c.ok ? 'ok' : 'attention'}
+                      aria-label={x(c.ok ? 'ok' : 'attention')}
                       style={{ color: c.ok ? 'var(--ok)' : 'var(--danger)', fontWeight: 800 }}
                     >
                       {c.ok ? '✓' : '!'}
                     </span>
                     <span>
-                      <b>{c.label}</b>
-                      <div className="muted">{c.detail}</div>
+                      <b>{x(c.label)}</b>
+                      <div className="muted">{lang === 'hi' && c.id === 'rls'
+                        ? c.detail.replace(/(\d+) of (\d+) data tables protected/, '$1 / $2 डेटा तालिकाएँ सुरक्षित')
+                        : lang === 'hi' && c.id === 'redflags'
+                          ? c.detail.replace(/(\d+) built-in phrases \(cannot be removed\) \+ (\d+) added by this clinic, plus the AI check when enabled/, '$1 पहले से मौजूद वाक्य (हटाए नहीं जा सकते) + क्लिनिक के जोड़े $2 वाक्य, और चालू होने पर AI जाँच')
+                          : x(c.detail)}</div>
                     </span>
                   </div>
                 ))}
@@ -116,7 +122,7 @@ export default function Safety() {
             </div>
 
             <section className="safety-metrics">
-              <h2 style={{ marginTop: '1.2rem' }}>Last 30 days</h2>
+              <h2 style={{ marginTop: '1.2rem' }}>{x('Last 30 days')}</h2>
               <div className="row" style={{ flexWrap: 'wrap', alignItems: 'stretch' }}>
                 {stat('Patient messages', a.messages_in)}
                 {stat('Emergency alerts', a.red_flags)}
@@ -135,25 +141,24 @@ export default function Safety() {
               </div>
             </section>
             <div className="card evaluation-panel" data-testid="eval">
-              <h2>Safety test results</h2>
+              <h2>{x('Safety test results')}</h2>
               {!ev ? (
                 <p className="muted">
-                  No safety test results recorded yet. Ask your setup team to run the checks.
+                  {x('No safety test results recorded yet. Ask your setup team to run the checks.')}
                 </p>
               ) : (
                 <>
                   <p className="muted">
-                    {new Date(ev.ranAt).toLocaleString()} · {ev.passed}/{ev.total} sample messages
-                    (Hindi, Hinglish, English) passed · mode:{' '}
+                    {new Date(ev.ranAt).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')} · {ev.passed}/{ev.total} {x('sample messages (Hindi, Hinglish, English) passed')} · {x('mode:')}{' '}
                     {ev.mode === 'llm'
-                      ? 'with AI model'
-                      : 'built-in rules only (AI model not exercised)'}
+                      ? x('with AI model')
+                      : x('built-in rules only (AI model not exercised)')}
                   </p>
                   <div className="list">
                     {ev.rules.map((r: any) => (
                       <div key={r.rule}>
                         <div className="row between">
-                          <span>{r.label}</span>
+                          <span>{x(r.label)}</span>
                           <b
                             style={{ color: r.passed === r.total ? 'var(--ok)' : 'var(--danger)' }}
                           >
@@ -168,9 +173,9 @@ export default function Safety() {
                       </div>
                     ))}
                     <div className="row between">
-                      <span>No reply contained medical advice</span>
+                      <span>{x('No reply contained medical advice')}</span>
                       <b style={{ color: ev.noMedicalAdvice ? 'var(--ok)' : 'var(--danger)' }}>
-                        {ev.noMedicalAdvice ? 'Yes' : 'No'}
+                        {x(ev.noMedicalAdvice ? 'Yes' : 'No')}
                       </b>
                     </div>
                   </div>
@@ -182,24 +187,24 @@ export default function Safety() {
 
         <div className="card" style={{ marginTop: '1.2rem' }}>
           <div className="row between">
-            <h2>Activity history</h2>
+            <h2>{x('Activity history')}</h2>
             <button className="ghost small" onClick={csv}>
-              Download activity spreadsheet (90 days)
+              {x('Download activity spreadsheet (90 days)')}
             </button>
           </div>
           <p className="muted">
-            Recorded assistant messages, actions and decisions. Entries cannot be edited or deleted.
+            {x('Recorded assistant messages, actions and decisions. Entries cannot be edited or deleted.')}
           </p>
           <div className="row" style={{ margin: '.5rem 0' }}>
             <select
-              aria-label="Filter"
+              aria-label={x('Filter')}
               value={kind}
               onChange={(e) => setKind(e.target.value)}
               style={{ width: 'auto' }}
             >
               {FILTERS.map((f) => (
                 <option key={f.v} value={f.v}>
-                  {f.l}
+                  {x(f.l)}
                 </option>
               ))}
             </select>
@@ -209,7 +214,7 @@ export default function Safety() {
                 checked={onlyFailed}
                 onChange={(e) => setOnlyFailed(e.target.checked)}
               />
-              Only failed or blocked
+              {x('Only failed or blocked')}
             </label>
           </div>
           <div style={{ overflowX: 'auto' }}>
@@ -219,28 +224,28 @@ export default function Safety() {
             >
               <thead>
                 <tr style={{ textAlign: 'left' }}>
-                  <th>Time</th>
-                  <th>Who</th>
-                  <th>What</th>
-                  <th>Patient</th>
-                  <th>Result</th>
-                  <th>Detail</th>
+                  <th>{x('Time')}</th>
+                  <th>{x('Who')}</th>
+                  <th>{x('What')}</th>
+                  <th>{x('Patient')}</th>
+                  <th>{x('Result')}</th>
+                  <th>{x('Detail')}</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.id} style={{ borderTop: '1px solid var(--line)' }}>
                     <td>
-                      {new Date(r.at).toLocaleString('en-IN', {
+                      {new Date(r.at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN', {
                         dateStyle: 'short',
                         timeStyle: 'short',
                       })}
                     </td>
-                    <td>{displayLabel(r.agent)}</td>
-                    <td>{displayLabel(r.tool ?? r.kind)}</td>
+                    <td>{x(displayLabel(r.agent))}</td>
+                    <td>{x(displayLabel(r.tool ?? r.kind))}</td>
                     <td>{r.patient ?? ''}</td>
                     <td style={{ color: r.ok ? 'var(--ok)' : 'var(--danger)' }}>
-                      {r.ok ? 'Completed' : 'Blocked or unsuccessful'}
+                      {x(r.ok ? 'Completed' : 'Blocked or unsuccessful')}
                     </td>
                     <td
                       className="muted"
@@ -252,7 +257,7 @@ export default function Safety() {
                       }}
                     >
                       <details>
-                        <summary>Details for your setup team</summary>
+                        <summary>{x('Details for your setup team')}</summary>
                         {r.detail}
                       </details>
                     </td>
@@ -264,7 +269,7 @@ export default function Safety() {
           {more && rows.length > 0 && (
             <p>
               <button className="ghost" onClick={loadMore}>
-                Load more
+                {x('Load more')}
               </button>
             </p>
           )}

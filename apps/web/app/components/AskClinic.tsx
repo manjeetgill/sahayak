@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { staff } from '../../lib/api';
+import { useStaffLang } from '../../lib/staffText';
 
 const EXAMPLES = [
   'How many patients today?',
@@ -12,6 +13,7 @@ const EXAMPLES = [
 
 /** Ask a question about the clinic in plain words (English or Hindi). Read-only, from the clinic's own data. */
 export function AskClinic() {
+  const { x: ui } = useStaffLang();
   const [q, setQ] = useState('');
   const [log, setLog] = useState<{ q: string; a: string }[]>([]);
   const [busy, setBusy] = useState(false);
@@ -32,7 +34,7 @@ export function AskClinic() {
   };
   return (
     <div className="card" data-testid="ask-clinic">
-      <h3>Ask your clinic</h3>
+      <h3>{ui("Ask your clinic")}</h3>
       <form
         className="row ask-form"
         onSubmit={(e) => {
@@ -41,21 +43,17 @@ export function AskClinic() {
         }}
       >
         <input
-          aria-label="Ask your clinic"
-          placeholder="e.g. who didn't show up yesterday?"
+          aria-label={ui("Ask your clinic")}
+          placeholder={ui("e.g. who didn't show up yesterday?")}
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <button type="submit" disabled={busy}>
-          Ask
-        </button>
-        <button type="button" className="ghost" disabled={busy} onClick={() => ask('brief')}>
-          Today's summary
-        </button>
+        <button type="submit" disabled={busy}>{ui("Ask")}</button>
+        <button type="button" className="ghost" disabled={busy} onClick={() => ask('brief')}>{ui("Today's summary")}</button>
       </form>
       {!log.length && (
         <p className="muted" style={{ fontSize: '.85rem' }}>
-          Try:{' '}
+          {ui("Try:")}{' '}
           {EXAMPLES.map((x) => (
             <a
               key={x}

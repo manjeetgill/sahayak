@@ -3,9 +3,11 @@ import DirectGoogleConnections from '../../components/DirectGoogleConnections';
 import { displayLabel } from '../../../lib/labels';
 import { useEffect, useState } from 'react';
 import { API, staff, useSession } from '../../../lib/api';
+import { useStaffLang } from '../../../lib/staffText';
 
 /** Direct connections plus optional developer access for other clinic software. */
 export default function Integrations() {
+  const { x, lang } = useStaffLang();
   const s = useSession('admin');
   const [d, setD] = useState<any>(null);
   const [err, setErr] = useState(''),
@@ -43,16 +45,16 @@ export default function Integrations() {
   return (
     <div>
       <div className="topbar">
-        <b>Connected software</b>
-        <nav className="row" aria-label="Return links">
-          <a href="/">Home</a>
-          <a href="/admin/settings">← Clinic settings</a>
+        <b>{x("Connected software")}</b>
+        <nav className="row" aria-label={x('Return links')}>
+          <a href="/">{x("Home")}</a>
+          <a href="/admin/settings">{x("← Clinic settings")}</a>
         </nav>
       </div>
       <div className="wrap integrations-page" style={{ maxWidth: 1120 }}>
         <header className="screen-heading">
-          <span className="eyebrow">Clinic connections</span>
-          <h1>Connect other clinic software</h1>
+          <span className="eyebrow">{x("Clinic connections")}</span>
+          <h1>{x("Connect other clinic software")}</h1>
         </header>
         {err && (
           <div className="error" role="alert">
@@ -66,21 +68,17 @@ export default function Integrations() {
         )}
         <DirectGoogleConnections />
         {d && (
-          <details className="card" style={{ marginTop: 24 }}>
-            <summary>Custom connections — for your setup team</summary>
-            <p className="muted">
-              For your setup team: configure access for another system to exchange supported clinic
-              information. A developer must set up each connection. This is optional and is not
-              needed for daily consultations. Keys give access to this clinic only.
-            </p>
+          <details open className="card" style={{ marginTop: 24 }}>
+            <summary>{x("Custom connections — for your setup team")}</summary>
+            <p className="muted">{x("For your setup team: configure access for another system to exchange supported clinic information. A developer must set up each connection. This is optional and is not needed for daily consultations. Keys give access to this clinic only.")}</p>
 
             <div className="workspace-split">
               <div className="card access-panel">
-                <h2>Access keys for other software</h2>
+                <h2>{x("Access keys for other software")}</h2>
                 <p className="muted">
-                  <b>View only</b>: view doctors, slots, appointments, queue ·{' '}
-                  <b>View and make changes</b>: also book/cancel/move appointments and message
-                  consenting patients · <b>Manage connections</b>: also manage update connections.
+                  <b>{x('View only')}</b>: {x('view doctors, slots, appointments, queue')} ·{' '}
+                  <b>{x('View and make changes')}</b>: {x('also book/cancel/move appointments and message consenting patients')} ·{' '}
+                  <b>{x('Manage connections')}</b>: {x('also manage update connections.')}
                 </p>
                 {newKey && (
                   <div
@@ -89,7 +87,7 @@ export default function Integrations() {
                     role="status"
                     data-testid="new-key"
                   >
-                    <b>Copy this key now. It will not be shown again.</b>
+                    <b>{x("Copy this key now. It will not be shown again.")}</b>
                     <div
                       style={{ wordBreak: 'break-all', fontFamily: 'monospace', margin: '6px 0' }}
                     >
@@ -98,12 +96,8 @@ export default function Integrations() {
                     <button
                       className="small"
                       onClick={() => navigator.clipboard?.writeText(newKey.key)}
-                    >
-                      Copy
-                    </button>{' '}
-                    <button className="small ghost" onClick={() => setNewKey(null)}>
-                      I saved it
-                    </button>
+                    >{x("Copy")}</button>{' '}
+                    <button className="small ghost" onClick={() => setNewKey(null)}>{x("I saved it")}</button>
                   </div>
                 )}
                 <div className="list">
@@ -112,32 +106,28 @@ export default function Integrations() {
                       <span>
                         <b>{k.name}</b> <span className="tag">{k.scopes.join(',')}</span>{' '}
                         <span className="muted">
-                          shy_{k.prefix}_… ·{' '}
+                          {x("shy_")}{k.prefix}_… ·{' '}
                           {k.revoked_at
-                            ? 'revoked'
+                            ? x('revoked')
                             : k.last_used_at
-                              ? `last used ${new Date(k.last_used_at).toLocaleDateString()}`
-                              : 'never used'}
+                              ? `${x('last used')} ${new Date(k.last_used_at).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN')}`
+                              : x('never used')}
                         </span>
                       </span>
                       {!k.revoked_at && (
                         <button
                           className="small danger"
                           onClick={() =>
-                            confirm(
-                              `Revoke "${k.name}"? Anything using it stops working immediately.`,
-                            ) &&
+                            confirm(`${x('Revoke')} "${k.name}"? ${x('Anything using it stops working immediately.')}`) &&
                             run(() =>
                               staff(`/staff/integrations/keys/${k.id}`, undefined, 'DELETE'),
                             )
                           }
-                        >
-                          Revoke
-                        </button>
+                        >{x("Revoke")}</button>
                       )}
                     </div>
                   ))}
-                  {!d.keys.length && <p className="muted">No keys yet.</p>}
+                  {!d.keys.length && <p className="muted">{x("No keys yet.")}</p>}
                 </div>
                 <form
                   className="row"
@@ -153,28 +143,28 @@ export default function Integrations() {
                   }}
                 >
                   <input
-                    aria-label="Key name"
-                    placeholder="Name, e.g. clinic billing system"
+                    aria-label={x('Key name')}
+                    placeholder={x('Name, e.g. clinic billing system')}
                     value={kname}
                     onChange={(e) => setKname(e.target.value)}
                     required
                   />
                   <select
-                    aria-label="Key access"
+                    aria-label={x('Key access')}
                     value={kscope}
                     onChange={(e) => setKscope(e.target.value)}
                     style={{ width: 'auto' }}
                   >
-                    <option value="read">View only</option>
-                    <option value="write">View and make changes</option>
-                    <option value="admin">Manage connections</option>
+                    <option value="read">{x("View only")}</option>
+                    <option value="write">{x("View and make changes")}</option>
+                    <option value="admin">{x("Manage connections")}</option>
                   </select>
-                  <button type="submit">Create key</button>
+                  <button type="submit">{x("Create key")}</button>
                 </form>
               </div>
 
               <div className="card updates-panel">
-                <h2>Send updates to other software</h2>
+                <h2>{x("Send updates to other software")}</h2>
                 {newSecret && (
                   <div
                     className="card"
@@ -182,15 +172,13 @@ export default function Integrations() {
                     role="status"
                     data-testid="new-secret"
                   >
-                    <b>Connection verification key (shown once):</b>
+                    <b>{x("Connection verification key (shown once):")}</b>
                     <div
                       style={{ wordBreak: 'break-all', fontFamily: 'monospace', margin: '6px 0' }}
                     >
                       {newSecret}
                     </div>
-                    <button className="small ghost" onClick={() => setNewSecret(null)}>
-                      I saved it
-                    </button>
+                    <button className="small ghost" onClick={() => setNewSecret(null)}>{x("I saved it")}</button>
                   </div>
                 )}
                 <div className="list">
@@ -200,12 +188,12 @@ export default function Integrations() {
                         <span style={{ wordBreak: 'break-all' }}>
                           <b>{h.url}</b>
                           <div className="muted">
-                            {h.events.map(displayLabel).join(', ')} ·{' '}
+                            {h.events.map((e: string) => x(displayLabel(e))).join(', ')} ·{' '}
                             {h.level === 'minimal'
-                              ? 'Reference numbers only'
-                              : 'Patient details included'}{' '}
-                            · {h.sent_7d} sent / {h.failed_7d} failed (7 days)
-                            {h.pending ? ` · ${h.pending} pending` : ''}
+                              ? x('Reference numbers only')
+                              : x('Patient details included')}{' '}
+                            · {h.sent_7d} {x('sent')} / {h.failed_7d} {x('failed (7 days)')}
+                            {h.pending ? ` · ${h.pending} ${x('pending')}` : ''}
                           </div>
                         </span>
                         <span className="row">
@@ -221,7 +209,7 @@ export default function Integrations() {
                               )
                             }
                           >
-                            {h.active ? 'Pause' : 'Resume'}
+                            {x(h.active ? 'Pause' : 'Resume')}
                           </button>
                           <button
                             className="small ghost"
@@ -232,37 +220,33 @@ export default function Integrations() {
                                   .deliveries,
                               );
                             }}
-                          >
-                            Log
-                          </button>
+                          >{x("Log")}</button>
                           <button
                             className="small danger"
                             onClick={() =>
-                              confirm('Delete this update connection?') &&
+                              confirm(x('Delete this update connection?')) &&
                               run(() =>
                                 staff(`/staff/integrations/webhooks/${h.id}`, undefined, 'DELETE'),
                               )
                             }
-                          >
-                            Delete
-                          </button>
+                          >{x("Delete")}</button>
                         </span>
                       </div>
                       {open === h.id && (
                         <div className="muted" style={{ fontSize: '.85rem' }}>
-                          {deliv.map((x) => (
-                            <div key={x.id}>
-                              {new Date(x.created_at).toLocaleString()} ·{' '}
-                              {displayLabel(x.event_type)} · {displayLabel(x.status)}
-                              {x.last_error ? ` (${x.last_error})` : ''}
+                          {deliv.map((delivery) => (
+                            <div key={delivery.id}>
+                              {new Date(delivery.created_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')} ·{' '}
+                              {x(displayLabel(delivery.event_type))} · {x(displayLabel(delivery.status))}
+                              {delivery.last_error ? ` (${delivery.last_error})` : ''}
                             </div>
                           ))}
-                          {!deliv.length && 'No deliveries yet'}
+                          {!deliv.length && x('No deliveries yet')}
                         </div>
                       )}
                     </div>
                   ))}
-                  {!d.hooks.length && <p className="muted">No update connections yet.</p>}
+                  {!d.hooks.length && <p className="muted">{x("No update connections yet.")}</p>}
                 </div>
                 <form
                   style={{ marginTop: 8 }}
@@ -276,7 +260,7 @@ export default function Integrations() {
                   }}
                 >
                   <input
-                    aria-label="Address to send updates to"
+                    aria-label={x('Address to send updates to')}
                     placeholder="https://your-clinic-software.example.com/updates"
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
@@ -296,44 +280,37 @@ export default function Integrations() {
                             checked={events.includes(e)}
                             onChange={() => toggle(e)}
                           />
-                          {displayLabel(e)}
+                          {x(displayLabel(e))}
                         </label>
                       ))}
                   </div>
-                  <label htmlFor="lvl">What to send about patients</label>
+                  <label htmlFor="lvl">{x("What to send about patients")}</label>
                   <select id="lvl" value={level} onChange={(e) => setLevel(e.target.value)}>
-                    <option value="minimal">Reference numbers only (recommended)</option>
-                    <option value="full">Include patient name and phone (and message text)</option>
+                    <option value="minimal">{x("Reference numbers only (recommended)")}</option>
+                    <option value="full">{x("Include patient name and phone (and message text)")}</option>
                   </select>
                   {level === 'full' && (
-                    <p className="muted">
-                      Only choose this for tools you trust and that you are allowed to share patient
-                      details with. Patients are told their data is used to manage their visit.
-                    </p>
+                    <p className="muted">{x("Only choose this for tools you trust and that you are allowed to share patient details with. Patients are told their data is used to manage their visit.")}</p>
                   )}
                   <p className="row">
-                    <button type="submit" disabled={!events.length}>
-                      Add update connection
-                    </button>
+                    <button type="submit" disabled={!events.length}>{x("Add update connection")}</button>
                     <button
                       type="button"
                       className="ghost"
                       onClick={() =>
                         run(async () => {
                           await staff('/staff/integrations/test', {});
-                          setMsg('Test event queued. Check the Log.');
+                          setMsg(x('Test event queued. Check the Log.'));
                         })
                       }
-                    >
-                      Send test event
-                    </button>
+                    >{x("Send test event")}</button>
                   </p>
                 </form>
               </div>
             </div>
-            <details className="card technical-reference" style={{ marginTop: '1rem' }}>
-              <summary>Try it — technical reference</summary>
-              <h2>Try it</h2>
+            <details open className="card technical-reference" style={{ marginTop: '1rem' }}>
+              <summary>{x("Try it — technical reference")}</summary>
+              <h2>{x("Try it")}</h2>
               <pre
                 style={{
                   whiteSpace: 'pre-wrap',
@@ -344,11 +321,11 @@ export default function Integrations() {
                 }}
               >{`curl ${API}/v1/doctors \\\n  -H "Authorization: Bearer shy_xxxxxxxx_..."`}</pre>
               <p className="muted">
-                Full reference:{' '}
+                {x('Full reference:')}{' '}
                 <a href={`${API}/v1/openapi.json`} target="_blank" rel="noreferrer">
-                  {API}/v1/openapi.json
+                  {API}{x("/v1/openapi.json")}
                 </a>
-                . These connections do not require n8n.
+                . {x('These connections do not require n8n.')}
               </p>
             </details>
           </details>

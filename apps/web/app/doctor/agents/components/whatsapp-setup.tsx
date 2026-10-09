@@ -1,4 +1,5 @@
 'use client';
+import { useStaffLang } from '../../../../lib/staffText';
 import { useEffect, useId, useRef, useState } from 'react';
 import { staff } from '../../../../lib/api';
 type Setup = { phone: string; faq: string; state: string; preparation?: string };
@@ -18,6 +19,7 @@ const labels: Record<string, string> = {
   CONNECTED: 'Number ownership verified — preparing your appointment assistant',
 };
 export function WhatsAppSetup({ canManage }: { canManage: boolean }) {
+  const { x: ui } = useStaffLang();
   const [status, setStatus] = useState<Status | null>(null),
     [phone, setPhone] = useState(''),
     [faq, setFaq] = useState(''),
@@ -97,9 +99,7 @@ export function WhatsAppSetup({ canManage }: { canManage: boolean }) {
         script.onload = () => resolve();
         script.onerror = () =>
           reject(
-            new Error(
-              'Authorization could not load. Ask your setup team to check the saved connection.',
-            ),
+            new Error(ui('Authorization could not load. Ask your setup team to check the saved connection.')),
           );
         document.head.appendChild(script);
       });
@@ -107,7 +107,7 @@ export function WhatsAppSetup({ canManage }: { canManage: boolean }) {
     widget.current = w.ChakraWhatsappConnect!.init({
       connectToken: session.connect_token,
       container: `#${containerId}`,
-      onError: () => setError('Authorization interrupted. Check status before starting again.'),
+      onError: () => setError(ui('Authorization interrupted. Check status before starting again.')),
       onSuccess: (data: { pluginId: string }) =>
         void run(async () => {
           await staff('/staff/agents/whatsapp/complete', { plugin_id: data.pluginId });
@@ -128,11 +128,10 @@ export function WhatsAppSetup({ canManage }: { canManage: boolean }) {
   };
   const editable = canManage && (!status?.setup || status.setup.state === 'REQUESTED');
   return (
-    <section className="card" aria-label="Connect your clinic WhatsApp">
-      <h3>Connect your clinic WhatsApp</h3>
+    <section className="card" aria-label={ui('Connect your clinic WhatsApp')}>
+      <h3>{ui("Connect your clinic WhatsApp")}</h3>
       <p>
-        Give us your business number. The owner authorizes WhatsApp and completes the OTP. We supply
-        the standard appointment conversation using your doctor schedules in Sahayak.
+        {ui('Give us your business number. The owner authorizes WhatsApp and completes the OTP. We supply the standard appointment conversation using your doctor schedules in Sahayak.')}
       </p>
       {error && (
         <p role="alert" className="error">
@@ -141,11 +140,11 @@ export function WhatsAppSetup({ canManage }: { canManage: boolean }) {
       )}
       <p role="status">
         {status?.setup
-          ? (phaseLabel[phase ?? ''] ?? labels[status.setup.state])
-          : 'Start with your clinic number.'}
+          ? ui(phaseLabel[phase ?? ''] ?? labels[status.setup.state])
+          : ui('Start with your clinic number.')}
       </p>
       <label>
-        Business WhatsApp number (including country code)
+        {ui('Business WhatsApp number (including country code)')}
         <input
           type="tel"
           placeholder="+919876543210"
@@ -155,9 +154,7 @@ export function WhatsAppSetup({ canManage }: { canManage: boolean }) {
         />
       </label>
       <p>
-        <strong>Included appointment flow:</strong> welcome → book appointment → first visit or
-        follow-up → doctor → available time → patient confirms. Set doctor hours and slot lengths in
-        Sahayak; you do not need to design an agent or write FAQs.
+        <strong>{ui("Included appointment flow:")}</strong> {ui('welcome → book appointment → first visit or follow-up → doctor → available time → patient confirms. Set doctor hours and slot lengths in Sahayak; you do not need to design an agent or write FAQs.')}
       </p>
       {editable && (
         <button
@@ -169,19 +166,19 @@ export function WhatsAppSetup({ canManage }: { canManage: boolean }) {
             })
           }
         >
-          {status?.onboardingAvailable ? 'Save and connect WhatsApp' : 'Save clinic number'}
+          {ui(status?.onboardingAvailable ? 'Save and connect WhatsApp' : 'Save clinic number')}
         </button>
       )}
       {canManage && status?.setup?.state === 'CONNECTING' && (
         <button disabled={busy} onClick={() => void run(connect)}>
-          Continue owner authorization
+          {ui("Continue owner authorization")}
         </button>
       )}
       {canManage &&
         status?.setup?.state === 'CONNECTED' &&
         !['READY', 'ACTIVE'].includes(phase ?? '') && (
           <button disabled={busy} onClick={() => void run(refresh)}>
-            Finish connection / check test message
+            {ui("Finish connection / check test message")}
           </button>
         )}
       {canManage && phase === 'READY' && (
@@ -194,7 +191,7 @@ export function WhatsAppSetup({ canManage }: { canManage: boolean }) {
             })
           }
         >
-          Enable WhatsApp replies
+          {ui("Enable WhatsApp replies")}
         </button>
       )}
       {canManage && phase === 'ACTIVE' && (
@@ -207,20 +204,19 @@ export function WhatsAppSetup({ canManage }: { canManage: boolean }) {
             })
           }
         >
-          Pause WhatsApp replies
+          {ui("Pause WhatsApp replies")}
         </button>
       )}
       {status?.platformConfigured &&
         !status.onboardingAvailable &&
         status?.setup?.state !== 'CONNECTED' && (
           <p role="status">
-            Your setup team is finishing WhatsApp authorization setup. You can save your number now.
+            {ui("Your setup team is finishing WhatsApp authorization setup. You can save your number now.")}
           </p>
         )}
       {status && !status.platformConfigured && (
         <p>
-          Your details can be saved now. Your setup team must enable the clinic’s platform
-          connection before authorization.
+          {ui('Your details can be saved now. Your setup team must enable the clinic’s platform connection before authorization.')}
         </p>
       )}
       {canManage && status?.setup && (
@@ -233,25 +229,23 @@ export function WhatsAppSetup({ canManage }: { canManage: boolean }) {
             })
           }
         >
-          Check connection status
+          {ui("Check connection status")}
         </button>
       )}
       <div id={containerId} ref={container} />
-      <ol aria-label="WhatsApp setup progress">
-        <li>Add clinic number and doctor timings.</li>
-        <li>Owner completes Meta/Chakra authorization and phone verification.</li>
-        <li>We verify number ownership; Sahayak prepares the standard booking assistant.</li>
-        <li>Send a test message, check connection status, and enable replies.</li>
+      <ol aria-label={ui('WhatsApp setup progress')}>
+        <li>{ui("Add clinic number and doctor timings.")}</li>
+        <li>{ui("Owner completes Meta/Chakra authorization and phone verification.")}</li>
+        <li>{ui("We verify number ownership; Sahayak prepares the standard booking assistant.")}</li>
+        <li>{ui("Send a test message, check connection status, and enable replies.")}</li>
       </ol>
       {!status?.bridgeConfigured && (
         <p>
-          Your setup team must configure the shared secure Sahayak connection once before live setup
-          can finish.
+          {ui('Your setup team must configure the shared secure Sahayak connection once before live setup can finish.')}
         </p>
       )}
       <p>
-        No API keys, webhooks, or agent prompts are needed from the clinic. Number ownership review
-        remains required before activation.
+        {ui('No API keys, webhooks, or agent prompts are needed from the clinic. Number ownership review remains required before activation.')}
       </p>
     </section>
   );

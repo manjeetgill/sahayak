@@ -3,7 +3,9 @@ import { displayLabel } from '../../../lib/labels';
 import { useEffect, useState } from 'react';
 import { staff, useSession } from '../../../lib/api';
 import { CareNav } from '../../components/CareNav';
+import { useStaffLang } from '../../../lib/staffText';
 export default function Waitlist() {
+  const { x, lang } = useStaffLang();
   const s = useSession();
   const [adding, setAdding] = useState(false);
   const [data, setData] = useState<any>(null),
@@ -43,20 +45,18 @@ export default function Waitlist() {
   if (!s) return null;
   return (
     <div className="wrap" style={{ maxWidth: 850 }}>
-      <a href={s.user.role === 'doctor' ? '/doctor' : '/console'}>← Dashboard</a>
+      <a href={s.user.role === 'doctor' ? '/doctor' : '/console'}>← {x('Dashboard')}</a>
       <div className="panel-heading">
         <div>
-          <span className="eyebrow">Care</span>
-          <h1>Cancellation waiting list</h1>
+          <span className="eyebrow">{x('Care')}</span>
+          <h1>{x('Cancellation waiting list')}</h1>
         </div>
         <button onClick={() => setAdding((v) => !v)}>
-          {adding ? 'Close form' : 'Add patient'}
+          {x(adding ? 'Close form' : 'Add patient')}
         </button>
       </div>
       <p>
-        Offers go to opted-in patients in signup order who have messaging and reminder consent. An
-        offer reserves the slot for 15 minutes. Patients accept by replying with the offer code.
-        Offers are sent between 08:00 and 21:00 clinic time.
+        {x('Offers go to opted-in patients in signup order who have messaging and reminder consent. An offer reserves the slot for 15 minutes. Patients accept by replying with the offer code. Offers are sent between 08:00 and 21:00 clinic time.')}
       </p>
       {s.user.role === 'doctor' && <CareNav />}
       {error && (
@@ -67,10 +67,10 @@ export default function Waitlist() {
       {message && <p role="status">{message}</p>}
       <div className={`workspace-split waitlist-workspace ${adding ? 'adding' : ''}`}>
         <fieldset disabled={busy} hidden={!adding}>
-          <legend>Add patient</legend>
+          <legend>{x('Add patient')}</legend>
           <label>
-            Find patient
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name or phone" />
+            {x('Find patient')}
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={x('Name or phone')} />
           </label>
           <button
             disabled={q.trim().length < 2}
@@ -80,16 +80,16 @@ export default function Waitlist() {
               )
             }
           >
-            Search
+            {x('Search')}
           </button>
           <label>
-            Patient
+            {x('Patient')}
             <select
-              aria-label="Patient"
+              aria-label={x('Patient')}
               value={patientId}
               onChange={(e) => setPatient(e.target.value)}
             >
-              <option value="">Choose patient</option>
+              <option value="">{x('Choose patient')}</option>
               {patients.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} · {p.phone}
@@ -98,13 +98,13 @@ export default function Waitlist() {
             </select>
           </label>
           <label>
-            Doctor
+            {x('Doctor')}
             <select
-              aria-label="Doctor"
+              aria-label={x('Doctor')}
               value={doctorId}
               onChange={(e) => setDoctor(e.target.value)}
             >
-              <option value="">Choose doctor</option>
+              <option value="">{x('Choose doctor')}</option>
               {doctors.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
@@ -113,16 +113,16 @@ export default function Waitlist() {
             </select>
           </label>
           <label>
-            From date
+            {x('From date')}
             <input type="date" value={fromDate} onChange={(e) => setFrom(e.target.value)} />
           </label>
           <label>
-            Through date
+            {x('Through date')}
             <input type="date" value={toDate} onChange={(e) => setTo(e.target.value)} />
           </label>
           <label className="check">
             <input type="checkbox" checked={optedIn} onChange={(e) => setOpted(e.target.checked)} />
-            The patient explicitly agreed to receive cancellation-slot offers.
+            {x('The patient explicitly agreed to receive cancellation-slot offers.')}
           </label>
           <button
             disabled={!patientId || !doctorId || !fromDate || !toDate || !optedIn}
@@ -136,19 +136,19 @@ export default function Waitlist() {
                   optedIn: true,
                 });
                 setOpted(false);
-                setMessage('Added to waiting list.');
+                setMessage(x('Added to waiting list.'));
               })
             }
           >
-            Add to waiting list
+            {x('Add to waiting list')}
           </button>
         </fieldset>
         <section className="card waiting-patients">
           <button className="ghost" disabled={busy} onClick={() => run(load)}>
-            Refresh
+            {x('Refresh')}
           </button>
-          <h2>Waiting patients</h2>
-          {data?.waiting.length === 0 && <p>No waiting patients.</p>}
+          <h2>{x('Waiting patients')}</h2>
+          {data?.waiting.length === 0 && <p>{x('No waiting patients.')}</p>}
           {data?.waiting.map((w: any) => (
             <p key={w.id}>
               {w.patient_name} · {w.doctor} · {String(w.from_date).slice(0, 10)} –{' '}
@@ -158,7 +158,7 @@ export default function Waitlist() {
                 className="small ghost"
                 onClick={() => run(() => staff(`/staff/waitlist/${w.id}`, undefined, 'DELETE'))}
               >
-                Withdraw
+                {x('Withdraw')}
               </button>
             </p>
           ))}
@@ -166,14 +166,13 @@ export default function Waitlist() {
       </div>
       <div className="workspace-split" style={{ marginTop: '1rem' }}>
         <section className="card">
-          <h2>Cancelled slots</h2>
+          <h2>{x('Cancelled slots')}</h2>
           <p>
-            Cancellations attempt the first offer automatically. If an offer expires, use Offer next
-            to approach the next eligible patient. No appointment is created until acceptance.
+            {x('Cancellations attempt the first offer automatically. If an offer expires, use Offer next to approach the next eligible patient. No appointment is created until acceptance.')}
           </p>
           {data?.cancellations.map((a: any) => (
             <p key={a.id}>
-              {a.doctor} · {new Date(a.starts_at).toLocaleString()}{' '}
+              {a.doctor} · {new Date(a.starts_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')}{' '}
               <button
                 disabled={busy}
                 onClick={() =>
@@ -181,24 +180,24 @@ export default function Waitlist() {
                     const r = await staff('/staff/waitlist/offer', { appointmentId: a.id });
                     setMessage(
                       r.offered
-                        ? 'Offer prepared. Check message activity to see whether it was sent.'
-                        : 'No offer prepared. The time may be reserved, messaging may be closed for the day, or no waiting patient meets the requirements.',
+                        ? x('Offer prepared. Check message activity to see whether it was sent.')
+                        : x('No offer prepared. The time may be reserved, messaging may be closed for the day, or no waiting patient meets the requirements.'),
                     );
                   })
                 }
               >
-                Offer next
+                {x('Offer next')}
               </button>
             </p>
           ))}
         </section>
         <section className="card">
-          <h2>Recent offers</h2>
-          {data?.offers.length === 0 && <p className="muted">No offers yet.</p>}
+          <h2>{x('Recent offers')}</h2>
+          {data?.offers.length === 0 && <p className="muted">{x('No offers yet.')}</p>}
           {data?.offers.map((o: any) => (
             <p key={o.id}>
-              {o.patient_name} · {new Date(o.starts_at).toLocaleString()} · {displayLabel(o.status)}{' '}
-              · expires {new Date(o.expires_at).toLocaleString()} · code {o.code}
+              {o.patient_name} · {new Date(o.starts_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')} · {x(displayLabel(o.status))}{' '}
+              · {x('expires')} {new Date(o.expires_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')} · {x('code')} {o.code}
             </p>
           ))}
         </section>

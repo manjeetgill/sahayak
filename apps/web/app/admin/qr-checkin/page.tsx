@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react';
 import { OnlinePaymentSetup } from '../../components/OnlinePaymentSetup';
 import { QRCodeSVG } from 'qrcode.react';
 import { staff } from '../../../lib/api';
+import { useStaffLang } from '../../../lib/staffText';
 export default function QrSetup() {
+  const { x } = useStaffLang();
   const [data, setData] = useState<any>(null),
     [amount, setAmount] = useState(''),
     [error, setError] = useState(''),
@@ -20,12 +22,19 @@ export default function QrSetup() {
   const url = data?.publicWebUrl ? `${data.publicWebUrl}/c/${data.slug}/arrival` : '';
   return (
     <div className="wrap">
-      <p className="eyebrow">ADMIN</p>
-      <h1>Scan, pay at reception, join the queue</h1>
-      <p>
-        Patients scan the clinic QR and enter their details. Reception confirms payment received;
-        Sahayak records it and adds the patient to the doctor’s queue.
-      </p>
+      <p className="eyebrow">{x("ADMIN")}</p>
+      <h1>{x("Payments & patient check-in")}</h1>
+      <p>{x("Choose how your clinic collects consultation fees. Patients scan the clinic QR, enter their details, and pay online when enabled or at reception. A confirmed payment adds them to the doctor’s queue.")}</p>
+      <nav
+        className="row"
+        aria-label={x('Payment setup sections')}
+        style={{ flexWrap: 'wrap', marginBottom: 20 }}
+      >
+        <a href="#consultation-fee">{x("Consultation fee")}</a>
+        <a href="#online-payments">{x("Online payments")}</a>
+        <a href="#payment-activity">{x("Payment activity")}</a>
+        <a href="#clinic-qr">{x("Clinic QR")}</a>
+      </nav>
       {error && (
         <p role="alert" className="error">
           {error}
@@ -35,6 +44,8 @@ export default function QrSetup() {
       {data && (
         <form
           className="card"
+          id="consultation-fee"
+          style={{ scrollMarginTop: 90 }}
           onSubmit={async (e) => {
             e.preventDefault();
             setBusy(true);
@@ -50,7 +61,7 @@ export default function QrSetup() {
                 },
                 'PUT',
               );
-              setMessage('Saved. Your QR check-in settings are ready.');
+              setMessage(x('Saved. Your QR check-in settings are ready.'));
             } catch (e: any) {
               setError(e.message);
             } finally {
@@ -58,15 +69,16 @@ export default function QrSetup() {
             }
           }}
         >
+          <h2>{x("Consultation fee & QR check-in")}</h2>
           <label className="check">
             <input
               type="checkbox"
               checked={data.enabled}
               onChange={(e) => setData({ ...data, enabled: e.target.checked })}
             />
-            Enable QR check-in with payment confirmation
+            {x('Enable QR check-in with payment confirmation')}
           </label>
-          <label htmlFor="qr-fee">Consultation fee (₹)</label>
+          <label htmlFor="qr-fee">{x("Consultation fee (₹)")}</label>
           <input
             id="qr-fee"
             type="number"
@@ -76,7 +88,7 @@ export default function QrSetup() {
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
-          <label htmlFor="qr-origin">Address patients can open on their phones</label>
+          <label htmlFor="qr-origin">{x("Address patients can open on their phones")}</label>
           <input
             id="qr-origin"
             type="url"
@@ -84,21 +96,15 @@ export default function QrSetup() {
             value={data.publicWebUrl}
             onChange={(e) => setData({ ...data, publicWebUrl: e.target.value })}
           />
-          <p className="muted">
-            Use your public clinic address, or this server’s Wi-Fi address for a local test.
-            “localhost” only works on this computer.
-          </p>
-          <p>
-            Payment is confirmed by reception after checking cash, UPI, or card payment. Scanning
-            this QR does not collect money or verify a bank transfer.
-          </p>
-          <button disabled={busy}>Save QR settings</button>
+          <p className="muted">{x("Use your public clinic address, or this server’s Wi-Fi address for a local test. “localhost” only works on this computer.")}</p>
+          <p>{x("For payments at reception, staff must check the cash, UPI, or card receipt before confirming. Online payments are verified through Razorpay when enabled below. Scanning the check-in QR alone does not confirm payment.")}</p>
+          <button disabled={busy}>{x("Save QR settings")}</button>
         </form>
       )}
       <OnlinePaymentSetup />
       {data && (
-        <section className="card">
-          <h2>Clinic QR</h2>
+        <section className="card" id="clinic-qr" style={{ scrollMarginTop: 90 }}>
+          <h2>{x("Clinic QR")}</h2>
           {url ? (
             <>
               <QRCodeSVG value={url} size={240} />
@@ -107,13 +113,13 @@ export default function QrSetup() {
               </p>
             </>
           ) : (
-            <p>Save an address reachable from the patient’s phone to create a usable QR.</p>
+            <p>{x("Save an address reachable from the patient’s phone to create a usable QR.")}</p>
           )}
           <p>
-            <a href={`/c/${data.slug}/poster`}>Open printable reception poster</a>
+            <a href={`/c/${data.slug}/poster`}>{x("Open printable reception poster")}</a>
           </p>
           <p>
-            <a href={`/c/${data.slug}/arrival`}>Preview patient check-in on this computer</a>
+            <a href={`/c/${data.slug}/arrival`}>{x("Preview patient check-in on this computer")}</a>
           </p>
         </section>
       )}

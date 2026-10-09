@@ -1,7 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { staff } from '../../lib/api';
+import { useStaffLang } from '../../lib/staffText';
 export function OnlinePaymentSetup() {
+  const { x: ui } = useStaffLang();
   const [setup, setSetup] = useState<any>(null),
     [orders, setOrders] = useState<any[]>([]),
     [error, setError] = useState(''),
@@ -29,8 +31,8 @@ export function OnlinePaymentSetup() {
     }
   }
   return (
-    <section className="card">
-      <h2>Online payments — Razorpay</h2>
+    <section className="card" id="online-payments" style={{ scrollMarginTop: 90 }}>
+      <h2>{ui("Online payments — Razorpay")}</h2>
       {error && (
         <p role="alert" className="error">
           {error}
@@ -40,19 +42,14 @@ export function OnlinePaymentSetup() {
         <>
           <p>
             <strong>
-              {setup.enabled ? 'Online checkout enabled' : 'Online checkout paused'} ·{' '}
-              {setup.mode === 'live' ? 'Real payments' : 'Test payments'}
+              {ui(setup.enabled ? 'Online checkout enabled' : 'Online checkout paused')} ·{' '}
+              {ui(setup.mode === 'live' ? 'Real payments' : 'Test payments')}
             </strong>
           </p>
-          <p>{setup.message}</p>
+          <p>{ui(setup.message)}</p>
+          <p>{ui("After Razorpay confirms receipt, the patient automatically joins the doctor’s queue. Reception can still record cash for check-ins where online payment has not started.")}</p>
           <p>
-            After Razorpay confirms receipt, the patient automatically joins the doctor’s queue.
-            Reception can still record cash for check-ins where online payment has not started.
-          </p>
-          <p>
-            In Razorpay, subscribe to payment.captured, order.paid and refund.processed at your
-            public API address followed by <code>{setup.webhookPath}</code>. Enable automatic
-            capture in Razorpay.
+            {ui("In Razorpay, subscribe to payment.captured, order.paid and refund.processed at your public API address followed by")} <code>{setup.webhookPath}</code>{ui(". Enable automatic capture in Razorpay.")}
           </p>
           {!setup.enabled && (
             <label className="check">
@@ -61,10 +58,10 @@ export function OnlinePaymentSetup() {
                 checked={accepted}
                 onChange={(e) => setAccepted(e.target.checked)}
               />
-              I checked the payment account, capture settings and webhook.{' '}
-              {setup.mode === 'live'
+              {ui("I checked the payment account, capture settings and webhook.")}{' '}
+              {ui(setup.mode === 'live'
                 ? 'Patients will be charged real money; provider fees apply.'
-                : 'Only test payments will be made.'}
+                : 'Only test payments will be made.')}
             </label>
           )}
           <p>
@@ -74,26 +71,21 @@ export function OnlinePaymentSetup() {
                 void run(() => staff('/staff/payments/setup', { enabled: !setup.enabled }, 'PUT'))
               }
             >
-              {setup.enabled ? 'Pause new online payments' : 'Enable online checkout'}
+              {ui(setup.enabled ? 'Pause new online payments' : 'Enable online checkout')}
             </button>{' '}
-            <button className="ghost" disabled={busy} onClick={() => void run(load)}>
-              Refresh payment setup
-            </button>
+            <button className="ghost" disabled={busy} onClick={() => void run(load)}>{ui("Refresh payment setup")}</button>
           </p>
-          <p>
-            Keys stay on the server. This screen never asks patients for card details. A pause stops
-            new checkouts; payments already in progress can still complete.
-          </p>
+          <p>{ui("Keys stay on the server. This screen never asks patients for card details. A pause stops new checkouts; payments already in progress can still complete.")}</p>
         </>
       )}
-      <h3>Payment activity</h3>
-      {!orders.length && <p>No online payment attempts yet.</p>}
+      <h3 id="payment-activity" style={{ scrollMarginTop: 90 }}>{ui("Payment activity")}</h3>
+      {!orders.length && <p>{ui("No online payment attempts yet.")}</p>}
       {orders.map((o) => (
         <div className="card" key={o.id}>
           <p>
-            <strong>₹{(o.amount_paise / 100).toFixed(2)}</strong> {o.test_mode && '(Test payment)'}{' '}
+            <strong>₹{(o.amount_paise / 100).toFixed(2)}</strong> {o.test_mode && ui('(Test payment)')}{' '}
             ·{' '}
-            {o.state === 'captured'
+            {ui(o.state === 'captured'
               ? 'Verified and queued'
               : o.state === 'review'
                 ? 'Staff review needed'
@@ -101,26 +93,24 @@ export function OnlinePaymentSetup() {
                   ? 'Awaiting payment'
                   : o.state === 'unknown'
                     ? 'Confirmation unavailable'
-                    : 'Preparing payment'}
+                    : 'Preparing payment')}
           </p>
           <p className="muted">
-            Receipt {o.id} · {new Date(o.created_at).toLocaleString()}
+            {ui("Receipt")} {o.id} · {new Date(o.created_at).toLocaleString()}
           </p>
           {o.detail && <p>{o.detail}</p>}
-          {o.provider_payment_id && <p>Payment reference: {o.provider_payment_id}</p>}
-          {o.verified_at && <p>Verified: {new Date(o.verified_at).toLocaleString()}</p>}
+          {o.provider_payment_id && <p>{ui("Payment reference:")} {o.provider_payment_id}</p>}
+          {o.verified_at && <p>{ui("Verified:")} {new Date(o.verified_at).toLocaleString()}</p>}
           {o.provider_order_id ? (
             <button
               disabled={busy}
               className="ghost"
               onClick={() => void run(() => staff(`/staff/payments/${o.id}/refresh`, {}))}
-            >
-              Check provider status
-            </button>
+            >{ui("Check provider status")}</button>
           ) : (
             <>
               <label>
-                Order reference from Razorpay
+                {ui("Order reference from Razorpay")}
                 <input
                   value={recovery[o.id] ?? ''}
                   placeholder="order_…"
@@ -134,13 +124,8 @@ export function OnlinePaymentSetup() {
                     staff(`/staff/payments/${o.id}/recover`, { orderId: recovery[o.id] }),
                   )
                 }
-              >
-                Verify and link this order
-              </button>
-              <p>
-                Find the matching receipt in Razorpay first. Linking an order does not initiate
-                another charge.
-              </p>
+              >{ui("Verify and link this order")}</button>
+              <p>{ui("Find the matching receipt in Razorpay first. Linking an order does not initiate another charge.")}</p>
             </>
           )}
         </div>

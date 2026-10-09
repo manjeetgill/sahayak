@@ -55,6 +55,7 @@ export const updateDoctor = defineTool({
     if (
       ctx.actor.kind === 'staff' &&
       ctx.actor.role === 'doctor' &&
+      !ctx.actor.clinicAdmin &&
       (ctx.actor.doctorId !== i.doctorId ||
         Object.keys(i).some((k) => !['doctorId', 'registrationNo', 'qualifications'].includes(k)))
     )
@@ -163,10 +164,31 @@ export const listStaff = defineTool({
     return {
       staff: (
         await db.query(
-          'SELECT id, email, name, role, doctor_id FROM staff_users ORDER BY role, name',
+          'SELECT id, email, name, role, doctor_id, solo_owner FROM staff_users ORDER BY role, name',
         )
       ).rows,
     };
+  },
+});
+
+export const setSoloOwner = defineTool({
+  name: 'set_solo_owner',
+  description: 'Choose the doctor who can also manage the clinic in single-doctor view.',
+  module: 'core',
+  input: z.object({ userId: z.string().uuid() }),
+  allow: ADMIN,
+  async run({ db }, { userId }) {
+    const doctor = (
+      await db.query(
+        `SELECT s.id FROM staff_users s JOIN doctors d ON d.id=s.doctor_id
+         WHERE s.id=$1 AND s.role='doctor' AND d.active`,
+        [userId],
+      )
+    ).rows[0];
+    if (!doctor) throw new ToolError('doctor_required', 'Choose an active doctor login in this clinic', 400);
+    await db.query('UPDATE staff_users SET solo_owner=false WHERE solo_owner');
+    await db.query('UPDATE staff_users SET solo_owner=true WHERE id=$1', [userId]);
+    return { ok: true };
   },
 });
 
@@ -248,10 +270,13 @@ export const getSetupStatus = defineTool({
       },
       {
         id: 'receptionist',
-        required: true,
+        required: s.workspace_mode !== 'solo',
         ok: (await count("SELECT count(*)::int n FROM staff_users WHERE role='receptionist'")) > 0,
-        label: 'A receptionist login',
-        hint: 'The person who supervises the assistant.',
+        label: s.workspace_mode === 'solo' ? 'Receptionist login (optional)' : 'A receptionist login',
+        hint:
+          s.workspace_mode === 'solo'
+            ? 'The doctor can check in patients and review QR arrivals.'
+            : 'The person who supervises the assistant.',
       },
       {
         id: 'intake',
@@ -323,6 +348,7 @@ export const setupTools = [
   updateDoctor,
   addStaff,
   listStaff,
+  setSoloOwner,
   removeStaff,
   getSetupStatus,
   completeSetup,

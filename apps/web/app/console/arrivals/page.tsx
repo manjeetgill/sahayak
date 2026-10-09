@@ -1,8 +1,10 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { staff, useLive, useSession } from '../../../lib/api';
+import { useStaffLang } from '../../../lib/staffText';
 export default function Arrivals() {
-  const s = useSession('receptionist');
+  const s = useSession();
+  const { x } = useStaffLang();
   const [rows, setRows] = useState<any[]>([]),
     [settings, setSettings] = useState<any>(null),
     [error, setError] = useState(''),
@@ -28,7 +30,7 @@ export default function Arrivals() {
     try {
       const r = await fn();
       setMessage(
-        r.token ? `Payment recorded. Token ${r.token} added to the doctor’s queue.` : 'Updated.',
+        r.token ? `${x('Payment recorded. Token')} ${r.token} ${x('added to the doctor’s queue.')}` : x('Updated.'),
       );
       await load();
     } catch (e: any) {
@@ -40,16 +42,15 @@ export default function Arrivals() {
   if (!s) return null;
   return (
     <div className="wrap">
-      <p className="eyebrow">RECEPTION</p>
-      <h1>QR arrivals &amp; payments</h1>
+      <p className="eyebrow">{x('PATIENT ARRIVALS')}</p>
+      <h1>{x('QR arrivals & payments')}</h1>
       <p>
-        Check the payment in your cash drawer, UPI app, or card terminal before confirming. A
-        patient saying “paid” does not confirm payment.
+        {x('Check the payment in your cash drawer, UPI app, or card terminal before confirming. A patient saying “paid” does not confirm payment.')}
       </p>
       {settings && (
         <p>
           <a href={`/c/${settings.slug}/poster`} target="_blank" rel="noreferrer">
-            Open reception QR poster
+            {x('Open reception QR poster')}
           </a>
         </p>
       )}
@@ -60,44 +61,44 @@ export default function Arrivals() {
       )}
       {message && <p role="status">{message}</p>}
       <button className="ghost" onClick={() => void load().catch((e) => setError(e.message))}>
-        Refresh arrivals
+        {x('Refresh arrivals')}
       </button>
-      {!rows.length && <p>No QR arrivals today.</p>}
+      {!rows.length && <p>{x('No QR arrivals today.')}</p>}
       {rows.map((a) => (
         <section className="card" key={a.id}>
           <h2>{a.name}</h2>
           <p>
-            {a.phone} · {a.doctor} · Reference {a.id.slice(0, 8).toUpperCase()}
+            {a.phone} · {a.doctor} · {x('Reference')} {a.id.slice(0, 8).toUpperCase()}
           </p>
           <p>
-            Consultation fee: <strong>₹{(a.amount_paise / 100).toFixed(2)}</strong>
+            {x('Consultation fee:')} <strong>₹{(a.amount_paise / 100).toFixed(2)}</strong>
           </p>
           {a.online_state && (
             <p>
-              Online payment:{' '}
+              {x('Online payment:')}{' '}
               {a.online_state === 'review'
-                ? 'Staff review needed — do not take another payment'
+                ? x('Staff review needed — do not take another payment')
                 : a.online_state === 'captured'
-                  ? 'Verified by Razorpay'
-                  : 'In progress — check with the setup team before taking another payment'}
+                  ? x('Verified by Razorpay')
+                  : x('In progress — check with the setup team before taking another payment')}
             </p>
           )}
           {a.status === 'awaiting_payment' &&
           !a.online_state &&
           new Date(a.expires_at) > new Date() ? (
             <>
-              <p>Details received — waiting for payment confirmation</p>
-              <label htmlFor={`method-${a.id}`}>Payment method</label>
+              <p>{x('Details received — waiting for payment confirmation')}</p>
+              <label htmlFor={`method-${a.id}`}>{x('Payment method')}</label>
               <select
                 id={`method-${a.id}`}
                 value={methods[a.id] ?? 'cash'}
                 onChange={(e) => setMethods({ ...methods, [a.id]: e.target.value })}
               >
-                <option value="cash">Cash</option>
-                <option value="upi">UPI</option>
-                <option value="card">Card</option>
-                <option value="bank">Bank transfer</option>
-                <option value="other">Other</option>
+                <option value="cash">{x('Cash')}</option>
+                <option value="upi">{x("UPI")}</option>
+                <option value="card">{x('Card')}</option>
+                <option value="bank">{x('Bank transfer')}</option>
+                <option value="other">{x('Other')}</option>
               </select>
               <label className="check">
                 <input
@@ -105,7 +106,7 @@ export default function Arrivals() {
                   checked={confirmed[a.id] ?? false}
                   onChange={(e) => setConfirmed({ ...confirmed, [a.id]: e.target.checked })}
                 />
-                I verified that ₹{(a.amount_paise / 100).toFixed(2)} was received for this patient.
+                {x('I verified that')} ₹{(a.amount_paise / 100).toFixed(2)} {x('was received for this patient.')}
               </label>
               <p>
                 <button
@@ -119,26 +120,26 @@ export default function Arrivals() {
                     )
                   }
                 >
-                  Confirm payment &amp; add to queue
+                  {x('Confirm payment & add to queue')}
                 </button>{' '}
                 <button
                   className="ghost"
                   disabled={busy}
                   onClick={() => void act(() => staff(`/staff/qr-arrivals/${a.id}/cancel`, {}))}
                 >
-                  Cancel unpaid check-in
+                  {x('Cancel unpaid check-in')}
                 </button>
               </p>
             </>
           ) : (
             <p>
               {a.status === 'queued'
-                ? `${a.paid_paise >= a.amount_paise ? 'Payment recorded' : 'Payment needs review'} · Token ${a.token_number} · ${a.visit_status === 'done' ? 'Consultation complete' : a.visit_status === 'called' || a.visit_status === 'in_consultation' ? 'Doctor is ready' : 'In the queue'}`
+                ? `${x(a.paid_paise >= a.amount_paise ? 'Payment recorded' : 'Payment needs review')} · ${x('Token')} ${a.token_number} · ${x(a.visit_status === 'done' ? 'Consultation complete' : a.visit_status === 'called' || a.visit_status === 'in_consultation' ? 'Doctor is ready' : 'In the queue')}`
                 : a.status === 'cancelled'
-                  ? 'Cancelled'
+                  ? x('Cancelled')
                   : a.online_state
-                    ? 'Online payment pending or under review.'
-                    : 'Expired — cancel this unpaid check-in before the patient tries again'}
+                    ? x('Online payment pending or under review.')
+                    : x('Expired — cancel this unpaid check-in before the patient tries again')}
             </p>
           )}
           {a.status === 'awaiting_payment' && new Date(a.expires_at) <= new Date() && (
@@ -146,7 +147,7 @@ export default function Arrivals() {
               disabled={busy}
               onClick={() => void act(() => staff(`/staff/qr-arrivals/${a.id}/cancel`, {}))}
             >
-              Cancel expired check-in
+              {x('Cancel expired check-in')}
             </button>
           )}
         </section>

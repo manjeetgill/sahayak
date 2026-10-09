@@ -1,5 +1,6 @@
 'use client';
-import { useState } from 'react';
+import { useStaffLang } from '../../../../lib/staffText';
+import { useEffect, useState } from 'react';
 import { staff } from '../../../../lib/api';
 
 const scenarios = [
@@ -35,7 +36,9 @@ const scenarios = [
   ],
 ];
 export function GuidedTest({ channel }: { channel: 'whatsapp' | 'voice' }) {
+  const { lang, x: ui } = useStaffLang();
   const [language, setLanguage] = useState<'en' | 'hi'>('en');
+  useEffect(() => setLanguage(lang), [lang]);
   const [scenario, setScenario] = useState(0);
   const [result, setResult] = useState<any>(null);
   const [busy, setBusy] = useState(false);
@@ -65,15 +68,12 @@ export function GuidedTest({ channel }: { channel: 'whatsapp' | 'voice' }) {
   };
   return (
     <section className="card" style={{ marginTop: 16 }}>
-      <h3>Try a practice conversation</h3>
+      <h3>{ui("Try a practice conversation")}</h3>
       <p>
-        No WhatsApp message is delivered and no phone is dialled by this test. It uses a generated
-        test contact and stores a conversation in this clinic. Example to trys may create enquiries or
-        alerts for staff. Mark practice alerts as handled afterwards. The configured AI service may process the
-        sample text.
+        {ui('This test sends no WhatsApp message and makes no phone call. It uses a made-up contact and saves the conversation in this clinic. Examples may create enquiries or staff alerts. Mark practice alerts as handled afterward. The configured AI service may process the sample text.')}
       </p>
       <label>
-        Language
+        {ui('Language')}
         <select
           value={language}
           disabled={busy}
@@ -82,12 +82,12 @@ export function GuidedTest({ channel }: { channel: 'whatsapp' | 'voice' }) {
             setResult(null);
           }}
         >
-          <option value="en">English</option>
+          <option value="en">{ui("English")}</option>
           <option value="hi">हिन्दी</option>
         </select>
       </label>
       <label>
-        Example to try
+        {ui('Example to try')}
         <select
           value={scenario}
           disabled={busy}
@@ -98,21 +98,21 @@ export function GuidedTest({ channel }: { channel: 'whatsapp' | 'voice' }) {
         >
           {scenarios.map(([name], i) => (
             <option key={name} value={i}>
-              {name}
+              {ui(name)}
             </option>
           ))}
         </select>
       </label>
       <blockquote>{scenarios[scenario][language === 'en' ? 1 : 2]}</blockquote>
       <p>
-        <b>What should happen:</b> {scenarios[scenario][3]}
+        <b>{ui("What should happen:")}</b> {ui(scenarios[scenario][3])}
       </p>
       <label className="check">
         <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
-        I understand this creates test records in this clinic.
+        {ui('I understand this creates test records in this clinic.')}
       </label>
       <button disabled={busy || !accepted} onClick={() => void run()}>
-        {busy ? 'Testing…' : 'Try this example'}
+        {ui(busy ? 'Testing…' : 'Try this example')}
       </button>
       {error && (
         <p role="alert" className="error">
@@ -121,16 +121,16 @@ export function GuidedTest({ channel }: { channel: 'whatsapp' | 'voice' }) {
       )}
       {result && (
         <div role="status">
-          <h4>Assistant’s reply</h4>
+          <h4>{ui("Assistant’s reply")}</h4>
           {result.replies.map((text: string, i: number) => (
             <p key={i}>{text}</p>
           ))}
           <p>
-            Reply handled by: {result.handledBy === 'human' ? 'Reception team' : 'Clinic assistant'}{' '}
-            · Emergency alert raised: {result.redFlag ? 'Yes' : 'No'}
+            {ui('Reply handled by:')} {ui(result.handledBy === 'human' ? 'Reception team' : 'Clinic assistant')}{' '}
+            · {ui('Emergency alert raised:')} {ui(result.redFlag ? 'Yes' : 'No')}
           </p>
           <p>
-            Compare this response with the expected behaviour. This does not send a real message or make a call.
+            {ui("Compare this response with the expected behaviour. This does not send a real message or make a call.")}
           </p>
         </div>
       )}

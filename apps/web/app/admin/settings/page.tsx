@@ -2,9 +2,11 @@
 import { useEffect, useState } from 'react';
 import { useSection } from '../../components/useSection';
 import { staff, useSession } from '../../../lib/api';
+import { useStaffLang } from '../../../lib/staffText';
 
 const settingsSection = (hash: string) =>
   [
+    'all',
     'clinic-details',
     'patient-questions',
     'common-questions',
@@ -17,12 +19,13 @@ const settingsSection = (hash: string) =>
     'safety-controls',
   ].includes(hash)
     ? hash
-    : 'clinic-details';
+    : 'all';
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 /** Agent builder: the admin configures how the front-desk assistants behave. Safety rules are not configurable here. */
 export default function Settings() {
+  const { x } = useStaffLang();
   const s = useSession('admin');
-  const selectedSection = useSection(settingsSection, 'clinic-details');
+  const selectedSection = useSection(settingsSection, 'all');
   const [cfg, setCfg] = useState<any>(null);
   const [msg, setMsg] = useState(''),
     [err, setErr] = useState('');
@@ -42,7 +45,7 @@ export default function Settings() {
             {err}
           </p>
         ) : (
-          <p>Loading clinic details…</p>
+          <p>{x("Loading clinic details…")}</p>
         )}
       </div>
     );
@@ -64,7 +67,7 @@ export default function Settings() {
       body.timings = Object.fromEntries(DAYS.map((d) => [d, body.timings[d] || 'Closed']));
     try {
       await staff('/staff/settings', body, 'PUT');
-      setMsg('Saved');
+      setMsg(x('Saved'));
       await load();
     } catch (e: any) {
       setErr(e.message);
@@ -74,8 +77,8 @@ export default function Settings() {
   return (
     <div>
       <div className="topbar">
-        <b>Clinic settings</b>
-        <a href="/admin">← Back to clinic setup</a>
+        <b>{x("Clinic settings")}</b>
+        <a href="/admin">{x("← Back to clinic setup")}</a>
       </div>
       <div className="wrap" style={{ maxWidth: 760 }}>
         {msg && (
@@ -90,89 +93,71 @@ export default function Settings() {
         )}
 
         <header className="screen-heading">
-          <span className="eyebrow">Clinic</span>
-          <h1>Clinic settings</h1>
-          <p className="muted">Update one section at a time.</p>
+          <span className="eyebrow">{x("Clinic")}</span>
+          <h1>{x("Clinic settings")}</h1>
+          <p className="muted">{x("All settings are shown below. Use the section links to focus on one area.")}</p>
         </header>
         <div className="settings-page-grid">
-          <nav className="settings-section-nav" aria-label="Settings sections">
+          <nav className="settings-section-nav" aria-label={x('Settings sections')}>
+            <a href="#all" aria-current={selectedSection === 'all' ? 'page' : undefined}>{x("Show all settings")}</a>
             <a
               href="#messaging"
               aria-current={selectedSection === 'messaging' ? 'page' : undefined}
-            >
-              Daily staff summary
-            </a>
+            >{x("Daily staff summary")}</a>
             <a
               href="#clinic-details"
               aria-current={selectedSection === 'clinic-details' ? 'page' : undefined}
-            >
-              Clinic details
-            </a>
+            >{x("Clinic details")}</a>
             <a
               href="#patient-questions"
               aria-current={selectedSection === 'patient-questions' ? 'page' : undefined}
-            >
-              Patient questions
-            </a>
+            >{x("Patient questions")}</a>
             <a
               href="#common-questions"
               aria-current={selectedSection === 'common-questions' ? 'page' : undefined}
-            >
-              Common questions
-            </a>
+            >{x("Common questions")}</a>
             <a
               href="#follow-ups"
               aria-current={selectedSection === 'follow-ups' ? 'page' : undefined}
-            >
-              Follow-ups
-            </a>
+            >{x("Follow-ups")}</a>
             <a
               href="#public-page"
               aria-current={selectedSection === 'public-page' ? 'page' : undefined}
-            >
-              Public page
-            </a>
+            >{x("Public page")}</a>
             <a
               href="#connected-software"
               aria-current={selectedSection === 'connected-software' ? 'page' : undefined}
-            >
-              Connected software
-            </a>
+            >{x("Connected software")}</a>
             <a
               href="#privacy-retention"
               aria-current={selectedSection === 'privacy-retention' ? 'page' : undefined}
-            >
-              Privacy
-            </a>
+            >{x("Privacy")}</a>
             <a
               href="#clinic-assistants"
               aria-current={selectedSection === 'clinic-assistants' ? 'page' : undefined}
-            >
-              Assistants
-            </a>
+            >{x("Assistants")}</a>
             <a
               href="#safety-controls"
               aria-current={selectedSection === 'safety-controls' ? 'page' : undefined}
-            >
-              Safety
-            </a>
+            >{x("Safety")}</a>
           </nav>
           <div className="settings-sections">
-            <section className="card" hidden={selectedSection !== 'messaging'} id="messaging">
-              <h2>Daily staff summary</h2>
-              <p>
-                Doctors add their own WhatsApp number in My profile. Delivery needs a working clinic
-                connection.
-              </p>
+            <section
+              className="card"
+              hidden={selectedSection !== 'all' && selectedSection !== 'messaging'}
+              id="messaging"
+            >
+              <h2>{x("Daily staff summary")}</h2>
+              <p>{x("Doctors add their own WhatsApp number in My profile. Delivery needs a working clinic connection.")}</p>
               <label className="check">
                 <input
                   type="checkbox"
                   checked={cfg.brief?.enabled === true}
                   onChange={(e) => set('brief', { ...cfg.brief, enabled: e.target.checked })}
                 />
-                Send the daily summary
+                {x('Send the daily summary')}
               </label>
-              <label htmlFor="summary-time">Send it at (clinic time)</label>
+              <label htmlFor="summary-time">{x("Send it at (clinic time)")}</label>
               <input
                 id="summary-time"
                 type="time"
@@ -180,46 +165,48 @@ export default function Settings() {
                 onChange={(e) => set('brief', { ...cfg.brief, time: e.target.value })}
               />
               <p>
-                <button onClick={() => save(['brief'])}>Save summary settings</button>
+                <button onClick={() => save(['brief'])}>{x("Save summary settings")}</button>
               </p>
             </section>
-            <div className="card" hidden={selectedSection !== 'clinic-details'} id="clinic-details">
-              <h2>Clinic information</h2>
-              <p className="muted">
-                The clinic assistant uses these details when answering patients.
-              </p>
-              <label htmlFor="addr">Address</label>
+            <div
+              className="card"
+              hidden={selectedSection !== 'all' && selectedSection !== 'clinic-details'}
+              id="clinic-details"
+            >
+              <h2>{x("Clinic information")}</h2>
+              <p className="muted">{x("The clinic assistant uses these details when answering patients.")}</p>
+              <label htmlFor="addr">{x("Address")}</label>
               <input
                 id="addr"
                 value={cfg.address ?? ''}
                 onChange={(e) => set('address', e.target.value)}
               />
-              <label htmlFor="dir">Directions</label>
+              <label htmlFor="dir">{x("Directions")}</label>
               <input
                 id="dir"
                 value={cfg.directions ?? ''}
                 onChange={(e) => set('directions', e.target.value)}
               />
-              <label htmlFor="ph">Clinic phone</label>
+              <label htmlFor="ph">{x("Clinic phone")}</label>
               <input
                 id="ph"
                 value={cfg.phone ?? ''}
                 onChange={(e) => set('phone', e.target.value)}
               />
-              <label htmlFor="avg">Average consultation (minutes)</label>
+              <label htmlFor="avg">{x("Average consultation (minutes)")}</label>
               <input
                 id="avg"
                 type="number"
                 value={cfg.avgConsultMinutes}
                 onChange={(e) => set('avgConsultMinutes', e.target.value)}
               />
-              <h3 style={{ marginTop: '1rem' }}>Timings</h3>
+              <h3 style={{ marginTop: '1rem' }}>{x("Timings")}</h3>
               {DAYS.map((d) => (
                 <div key={d} className="row" style={{ margin: '4px 0' }}>
-                  <span style={{ width: 40 }}>{d}</span>
+                  <span style={{ width: 40 }}>{x(d)}</span>
                   <input
-                    aria-label={`Timings ${d}`}
-                    placeholder="09:00-13:00, 17:00-20:00 or Closed"
+                    aria-label={`${x('Timings')} ${x(d)}`}
+                    placeholder={x('09:00-13:00, 17:00-20:00 or Closed')}
                     value={cfg.timings?.[d] ?? ''}
                     onChange={(e) => set('timings', { ...cfg.timings, [d]: e.target.value })}
                   />
@@ -230,27 +217,22 @@ export default function Settings() {
                   onClick={() =>
                     save(['address', 'directions', 'phone', 'avgConsultMinutes', 'timings'])
                   }
-                >
-                  Save clinic information
-                </button>
+                >{x("Save clinic information")}</button>
               </p>
             </div>
 
             <div
               className="card"
-              hidden={selectedSection !== 'patient-questions'}
+              hidden={selectedSection !== 'all' && selectedSection !== 'patient-questions'}
               id="patient-questions"
               style={{ marginTop: '1rem' }}
             >
-              <h2>Before-visit questions</h2>
-              <p className="muted">
-                Asked on WhatsApp while the patient waits. Both languages required. Questions only:
-                the assistant never gives medical advice.
-              </p>
+              <h2>{x("Before-visit questions")}</h2>
+              <p className="muted">{x("Asked on WhatsApp while the patient waits. Both languages required. Questions only: the assistant never gives medical advice.")}</p>
               {cfg.intakeQuestions.map((q: any, i: number) => (
                 <div key={i} className="row" style={{ margin: '4px 0' }}>
                   <input
-                    aria-label={`Question ${i + 1} English`}
+                    aria-label={`${x('Question')} ${i + 1} ${x('English')}`}
                     value={q.en}
                     onChange={(e) =>
                       set(
@@ -262,7 +244,7 @@ export default function Settings() {
                     }
                   />
                   <input
-                    aria-label={`Question ${i + 1} Hindi`}
+                    aria-label={`${x('Question')} ${i + 1} ${x('Hindi')}`}
                     value={q.hi}
                     onChange={(e) =>
                       set(
@@ -281,9 +263,7 @@ export default function Settings() {
                         cfg.intakeQuestions.filter((_: any, j: number) => j !== i),
                       )
                     }
-                  >
-                    Remove
-                  </button>
+                  >{x("Remove")}</button>
                 </div>
               ))}
               <p className="row">
@@ -295,32 +275,27 @@ export default function Settings() {
                       { id: `q${Date.now() % 100000}`, en: '', hi: '' },
                     ])
                   }
-                >
-                  Add question
-                </button>
-                <button onClick={() => save(['intakeQuestions'])}>Save questions</button>
+                >{x("Add question")}</button>
+                <button onClick={() => save(['intakeQuestions'])}>{x("Save questions")}</button>
               </p>
             </div>
 
             <div
               className="card"
-              hidden={selectedSection !== 'common-questions'}
+              hidden={selectedSection !== 'all' && selectedSection !== 'common-questions'}
               id="common-questions"
               style={{ marginTop: '1rem' }}
             >
-              <h2>Answers to common questions (FAQ)</h2>
-              <p className="muted">
-                When a patient message contains one of the keywords, the assistant sends your
-                answer. Clinic information only, no medical advice.
-              </p>
+              <h2>{x("Answers to common questions (FAQ)")}</h2>
+              <p className="muted">{x("When a patient message contains one of the keywords, the assistant sends your answer. Clinic information only, no medical advice.")}</p>
               {cfg.faqs.map((f: any, i: number) => (
                 <div
                   key={f.id}
                   style={{ borderTop: '1px solid var(--line)', paddingTop: 8, marginTop: 8 }}
                 >
                   <input
-                    aria-label={`FAQ ${i + 1} keywords`}
-                    placeholder="keywords, comma separated"
+                    aria-label={`${x('FAQ')} ${i + 1} ${x('keywords')}`}
+                    placeholder={x('keywords, comma separated')}
                     value={f.keywords.join(', ')}
                     onChange={(e) =>
                       set(
@@ -340,8 +315,8 @@ export default function Settings() {
                     }
                   />
                   <input
-                    aria-label={`FAQ ${i + 1} answer English`}
-                    placeholder="Answer (English)"
+                    aria-label={`${x('FAQ')} ${i + 1} ${x('answer')} ${x('English')}`}
+                    placeholder={x('Answer (English)')}
                     value={f.en}
                     onChange={(e) =>
                       set(
@@ -354,7 +329,7 @@ export default function Settings() {
                     style={{ marginTop: 4 }}
                   />
                   <input
-                    aria-label={`FAQ ${i + 1} answer Hindi`}
+                    aria-label={`${x('FAQ')} ${i + 1} ${x('answer')} ${x('Hindi')}`}
                     placeholder="उत्तर (हिन्दी)"
                     value={f.hi}
                     onChange={(e) =>
@@ -375,9 +350,7 @@ export default function Settings() {
                         cfg.faqs.filter((_: any, j: number) => j !== i),
                       )
                     }
-                  >
-                    Remove
-                  </button>
+                  >{x("Remove")}</button>
                 </div>
               ))}
               <p className="row">
@@ -389,21 +362,19 @@ export default function Settings() {
                       { id: `faq${Date.now() % 100000}`, keywords: [], en: '', hi: '' },
                     ])
                   }
-                >
-                  Add FAQ
-                </button>
-                <button onClick={() => save(['faqs'])}>Save FAQs</button>
+                >{x("Add FAQ")}</button>
+                <button onClick={() => save(['faqs'])}>{x("Save FAQs")}</button>
               </p>
             </div>
 
             <div
               className="card"
-              hidden={selectedSection !== 'follow-ups'}
+              hidden={selectedSection !== 'all' && selectedSection !== 'follow-ups'}
               id="follow-ups"
               style={{ marginTop: '1rem' }}
             >
-              <h2>Follow-ups</h2>
-              <label htmlFor="r1">Appointment reminder: hours before</label>
+              <h2>{x("Follow-ups")}</h2>
+              <label htmlFor="r1">{x("Appointment reminder: hours before")}</label>
               <input
                 id="r1"
                 type="number"
@@ -412,14 +383,14 @@ export default function Settings() {
                   set('followupRules', { ...fr, reminder_hours_before: e.target.value })
                 }
               />
-              <label htmlFor="r2">Post-visit check-in: hours after the visit</label>
+              <label htmlFor="r2">{x("Post-visit check-in: hours after the visit")}</label>
               <input
                 id="r2"
                 type="number"
                 value={fr.post_visit_hours}
                 onChange={(e) => set('followupRules', { ...fr, post_visit_hours: e.target.value })}
               />
-              <label htmlFor="r3">Review recall: days since last visit</label>
+              <label htmlFor="r3">{x("Review recall: days since last visit")}</label>
               <input
                 id="r3"
                 type="number"
@@ -427,22 +398,18 @@ export default function Settings() {
                 onChange={(e) => set('followupRules', { ...fr, recall_days: e.target.value })}
               />
               <p>
-                <button onClick={() => save(['followupRules'])}>Save follow-up timing</button>
+                <button onClick={() => save(['followupRules'])}>{x("Save follow-up timing")}</button>
               </p>
             </div>
 
             <div
               className="card"
-              hidden={selectedSection !== 'public-page'}
+              hidden={selectedSection !== 'all' && selectedSection !== 'public-page'}
               id="public-page"
               style={{ marginTop: '1rem' }}
             >
-              <h2>Patient feedback and public page</h2>
-              <p className="muted">
-                After a visit the assistant asks the patient to rate it from 1 to 5 (only patients
-                who agreed to follow-up messages). Everyone who rates is offered your review link;
-                low ratings alert the receptionist so you can reach out personally.
-              </p>
+              <h2>{x("Patient feedback and public page")}</h2>
+              <p className="muted">{x("After a visit the assistant asks the patient to rate it from 1 to 5 (only patients who agreed to follow-up messages). Everyone who rates is offered your review link; low ratings alert the receptionist so you can reach out personally.")}</p>
               <label className="check">
                 <input
                   type="checkbox"
@@ -451,9 +418,9 @@ export default function Settings() {
                     set('reputation', { ...cfg.reputation, enabled: e.target.checked })
                   }
                 />
-                Ask for feedback after visits
+                {x('Ask for feedback after visits')}
               </label>
-              <label htmlFor="rurl">Your Google review link (optional)</label>
+              <label htmlFor="rurl">{x("Your Google review link (optional)")}</label>
               <input
                 id="rurl"
                 value={cfg.reputation?.review_url ?? ''}
@@ -462,7 +429,7 @@ export default function Settings() {
                 }
                 placeholder="https://g.page/r/..."
               />
-              <label htmlFor="rdel">Ask this many hours after the visit</label>
+              <label htmlFor="rdel">{x("Ask this many hours after the visit")}</label>
               <input
                 id="rdel"
                 type="number"
@@ -479,10 +446,9 @@ export default function Settings() {
                     set('reputation', { ...cfg.reputation, show_rating: e.target.checked })
                   }
                 />
-                Show the average rating on my public page (needs at least 10 ratings; every rating
-                counts, nothing is hidden)
+                {x('Show the average rating on my public page (needs at least 10 ratings; every rating counts, nothing is hidden)')}
               </label>
-              <label htmlFor="about">About the clinic (shown on your public page)</label>
+              <label htmlFor="about">{x("About the clinic (shown on your public page)")}</label>
               <textarea
                 id="about"
                 rows={3}
@@ -490,22 +456,18 @@ export default function Settings() {
                 onChange={(e) => set('publicPage', { about: e.target.value })}
               />
               <p>
-                <button onClick={() => save(['reputation', 'publicPage'])}>Save</button>
+                <button onClick={() => save(['reputation', 'publicPage'])}>{x("Save")}</button>
               </p>
             </div>
 
             <div
               className="card"
-              hidden={selectedSection !== 'privacy-retention'}
+              hidden={selectedSection !== 'all' && selectedSection !== 'privacy-retention'}
               id="privacy-retention"
               style={{ marginTop: '1rem' }}
             >
-              <h2>How long we keep data</h2>
-              <p className="muted">
-                Older data is deleted automatically every night (India's DPDP Act expects data not
-                to be kept longer than needed). Activity history is never deleted; we only remove
-                personal content.
-              </p>
+              <h2>{x("How long we keep data")}</h2>
+              <p className="muted">{x("Older data is deleted automatically every night (India's DPDP Act expects data not to be kept longer than needed). Activity history is never deleted; we only remove personal content.")}</p>
               {(
                 [
                   ['messages_days', 'Chat messages: days (min 30)'],
@@ -515,7 +477,7 @@ export default function Settings() {
                 ] as const
               ).map(([k, label]) => (
                 <div key={k}>
-                  <label htmlFor={k}>{label}</label>
+                  <label htmlFor={k}>{x(label)}</label>
                   <input
                     id={k}
                     type="number"
@@ -527,54 +489,45 @@ export default function Settings() {
                 </div>
               ))}
               <p>
-                <button onClick={() => save(['retentionRules'])}>Save retention</button>
+                <button onClick={() => save(['retentionRules'])}>{x("Save retention")}</button>
               </p>
             </div>
 
             <div
               className="card"
-              hidden={selectedSection !== 'clinic-assistants'}
+              hidden={selectedSection !== 'all' && selectedSection !== 'clinic-assistants'}
               id="clinic-assistants"
               style={{ marginTop: '1rem' }}
             >
-              <h2>Clinic assistants</h2>
-              <p>
-                Choose which everyday tasks the clinic assistant helps with, and review reminders
-                before turning them on.
-              </p>
-              <a href="/admin/agents">Manage clinic assistants</a>
+              <h2>{x("Clinic assistants")}</h2>
+              <p>{x("Choose which everyday tasks the clinic assistant helps with, and review reminders before turning them on.")}</p>
+              <a href="/admin/agents">{x("Manage clinic assistants")}</a>
             </div>
 
             <details
               open
-              hidden={selectedSection !== 'connected-software'}
+              hidden={selectedSection !== 'all' && selectedSection !== 'connected-software'}
               id="connected-software"
               className="card"
               style={{ marginTop: '1rem' }}
             >
-              <summary>Connected software — for your setup team</summary>
-              <p>
-                Optional technical setup for exchanging information with another clinic system. Your
-                daily work does not require this.
-              </p>
-              <a href="/admin/integrations">Open connected software settings</a>
+              <summary>{x("Connected software — for your setup team")}</summary>
+              <p>{x("Optional technical setup for exchanging information with another clinic system. Your daily work does not require this.")}</p>
+              <a href="/admin/integrations">{x("Open connected software settings")}</a>
             </details>
             <div
               className="card"
-              hidden={selectedSection !== 'safety-controls'}
+              hidden={selectedSection !== 'all' && selectedSection !== 'safety-controls'}
               id="safety-controls"
               style={{ marginTop: '1rem' }}
             >
-              <h2>Emergency phrases</h2>
-              <p className="muted">
-                A built-in list of Hindi and English emergency phrases is always active and cannot
-                be removed. You can add phrases specific to your clinic.
-              </p>
+              <h2>{x("Emergency phrases")}</h2>
+              <p className="muted">{x("A built-in list of Hindi and English emergency phrases is always active and cannot be removed. You can add phrases specific to your clinic.")}</p>
               <div className="list">
                 {cfg.redFlagPhrases.map((p: any) => (
                   <div key={p.id} className="row between">
                     <span>
-                      {p.phrase} <span className="tag">{p.language}</span>
+                      {p.phrase} <span className="tag">{p.language === 'hi' ? x('Hindi') : x('English')}</span>
                     </span>
                     <button
                       className="small ghost"
@@ -583,9 +536,7 @@ export default function Settings() {
                           .then(load)
                           .catch((x) => setErr(x.message))
                       }
-                    >
-                      Remove
-                    </button>
+                    >{x("Remove")}</button>
                   </div>
                 ))}
               </div>
@@ -606,12 +557,12 @@ export default function Settings() {
                 }}
               >
                 <input
-                  aria-label="New emergency phrase"
+                  aria-label={x('New emergency phrase')}
                   value={phrase}
                   onChange={(e) => setPhrase(e.target.value)}
-                  placeholder="e.g. bee sting swelling"
+                  placeholder={x('e.g. bee sting swelling')}
                 />
-                <button type="submit">Add phrase</button>
+                <button type="submit">{x("Add phrase")}</button>
               </form>
             </div>
           </div>

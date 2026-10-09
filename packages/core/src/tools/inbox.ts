@@ -19,6 +19,7 @@ export const doctorInbox = defineTool({
         'draft',
         'messages',
         'result',
+        'payment',
         'insurance',
         'checkin',
       ])
@@ -40,7 +41,7 @@ export const doctorInbox = defineTool({
         jsonb_agg(jsonb_build_object('id',f.id,'summary',f.summary,'kind',f.kind,'created_at',f.created_at) ORDER BY f.created_at DESC) AS alerts
       FROM flags f WHERE f.status='open' GROUP BY COALESCE(f.conversation_id,f.id),f.conversation_id
       UNION ALL
-      SELECT 'conversation:'||c.id,'conversation',c.patient_id,2,'Reception team needs to reply',
+      SELECT 'conversation:'||c.id,'conversation',c.patient_id,2,'Patient message needs a reply',
         'This conversation is being handled by staff.',(SELECT max(created_at) FROM messages WHERE conversation_id=c.id AND direction='in'),NULL,u.name,c.id,NULL,'[]'::jsonb
       FROM conversations c LEFT JOIN staff_users u ON u.id=c.human_user_id
       WHERE c.handled_by='human'
@@ -66,10 +67,10 @@ export const doctorInbox = defineTool({
       SELECT 'note:'||n.id,'draft',n.patient_id,2,'Visit note needs your signature','Review and sign your draft note.',n.created_at,NULL,'You',NULL,
         '/doctor/patients/'||n.patient_id||'#note-composer','[]'::jsonb
       FROM visit_notes n
-      WHERE n.status='draft' AND n.doctor_id=$1
+      WHERE n.status='draft' AND (n.doctor_id=$1 OR $7::boolean)
       UNION ALL
       SELECT 'certificate:'||d.id,'draft',d.patient_id,2,'Document needs your signature','Review your draft certificate or prescription.',d.created_at,NULL,NULL,NULL,
-        '/doctor/patients/'||d.patient_id||'#issued-documents','[]'::jsonb FROM issued_documents d WHERE d.status='draft' AND d.doctor_id=$1
+        '/doctor/patients/'||d.patient_id||'#issued-documents','[]'::jsonb FROM issued_documents d WHERE d.status='draft' AND (d.doctor_id=$1 OR $7::boolean)
       UNION ALL
       SELECT 'step:'||s.id,'followup',s.patient_id,CASE WHEN s.status IN ('needs_review','no_response') OR (s.status='contacted' AND s.response_due_at<now()) THEN 1 WHEN s.due_at<now() THEN 1 ELSE 3 END,
         s.title,CASE WHEN s.status='no_response' OR (s.status='contacted' AND s.response_due_at<now()) THEN 'No reply recorded by the deadline. Follow up or arrange staff review.' WHEN s.status='needs_review' THEN 'Patient reply needs doctor review.' WHEN s.status='contacted' THEN 'Contact recorded; waiting for a response or review.' ELSE 'Approved follow-up step. Contact the patient through your usual clinic process.' END,
@@ -89,8 +90,18 @@ export const doctorInbox = defineTool({
       SELECT 'result:'||e.id,'result',e.patient_id,2,'Test result outside supplied report range','Doctor review is not yet recorded; check the original report.',e.created_at,NULL,NULL,NULL,'/doctor/patients/'||e.patient_id||'#care-workspace','[]'::jsonb
       FROM clinical_entries e WHERE e.kind='lab' AND e.status='active' AND e.verified_at IS NOT NULL AND e.result_reviewed_at IS NULL
       AND ((e.data->>'value')::numeric < (e.data->>'low')::numeric OR (e.data->>'value')::numeric > (e.data->>'high')::numeric)
+      UNION ALL
+      SELECT 'payment:'||o.id,'payment',a.patient_id,1,'Payment needs checking',
+        CASE WHEN o.state='review' THEN 'The provider reported a payment that needs staff review. Do not collect it again.'
+             ELSE 'Payment status is uncertain. Check the provider before asking the patient to retry.' END,
+        o.updated_at,NULL,NULL,NULL,'/console/arrivals','[]'::jsonb
+      FROM qr_payment_orders o JOIN qr_arrivals a ON a.id=o.arrival_id
+      WHERE o.state IN ('review','unknown')
     ), enriched AS (SELECT i.*,p.name AS patient_name,
       CASE
+        WHEN i.kind='alert' THEN COALESCE(
+          (SELECT human_user_id FROM conversations WHERE id=i.conversation_id),
+          (SELECT id FROM staff_users WHERE solo_owner LIMIT 1))
         WHEN i.kind='conversation' THEN (SELECT human_user_id FROM conversations WHERE id=i.conversation_id)
         WHEN i.kind='task' THEN (SELECT assigned_to FROM care_tasks WHERE id=split_part(i.key,':',2)::uuid)
         WHEN i.kind='followup' THEN (SELECT cp.assigned_to FROM care_plan_steps cs JOIN care_plans cp ON cp.id=cs.plan_id WHERE cs.id=split_part(i.key,':',2)::uuid)
@@ -119,6 +130,7 @@ export const doctorInbox = defineTool({
         input.page,
         input.all ?? false,
         input.category ?? 'all',
+        ctx.actor.kind === 'staff' && ctx.actor.role === 'admin',
       ],
     );
     const doctors = (

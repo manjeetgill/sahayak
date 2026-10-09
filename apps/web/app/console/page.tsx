@@ -10,7 +10,7 @@ import { beep, staff, useLive, useSession } from '../../lib/api';
 const receptionSection = (hash: string) => (hash === 'conversations' ? 'conversations' : 'today');
 export default function Console() {
   const s = useSession('receptionist');
-  const { x } = useStaffLang();
+  const { x, lang } = useStaffLang();
   const section = useSection(receptionSection, 'today');
   const [checkinOpen, setCheckinOpen] = useState(false);
   const [queue, setQueue] = useState<any[]>([]),
@@ -112,18 +112,18 @@ export default function Console() {
           <button onClick={() => setCheckinOpen(true)}>{x('Check in patient')}</button>
         ) : (
           <button className="ghost" onClick={() => void act(load)}>
-            Refresh
+            {x('Refresh')}
           </button>
         )}
       </header>
       {llmDown && (
         <div className="banner warn" role="status">
-          {t('en', 'console.llm_down')}
+          {t(lang, 'console.llm_down')}
         </div>
       )}
       {urgent.map((f) => (
         <div key={f.id} className="banner urgent" role="alert">
-          {t('en', 'console.red_flag_alert')} — {f.summary}
+          {t(lang, 'console.red_flag_alert')} — {f.summary}
         </div>
       ))}
       {err && (
@@ -135,7 +135,7 @@ export default function Console() {
       <div className="reception-layout">
         <div className="reception-main" hidden={section !== 'today'}>
           <div className="card reception-queue">
-            <h2>{t('en', 'console.queue')}</h2>
+            <h2>{t(lang, 'console.queue')}</h2>
             <div className="list">
               {queue
                 .filter((q) => !['done', 'no_show', 'cancelled'].includes(q.status))
@@ -143,7 +143,7 @@ export default function Console() {
                   <div key={q.id} className="row between">
                     <span>
                       <b>{q.token_number}</b> · {q.patient_name}{' '}
-                      <span className={`tag ${q.status}`}>{q.status}</span>{' '}
+                      <span className={`tag ${q.status}`}>{x(displayLabel(q.status))}</span>{' '}
                       <span className="muted">{q.phone}</span>
                     </span>
                     <span className="row">
@@ -152,7 +152,7 @@ export default function Console() {
                           className="small ghost"
                           onClick={() => act(() => staff(`/staff/queue/${q.id}/no-show`, {}))}
                         >
-                          No-show
+                          {x('No-show')}
                         </button>
                       )}
                       {['on_hold', 'skipped'].includes(q.status) && (
@@ -160,7 +160,7 @@ export default function Console() {
                           className="small"
                           onClick={() => act(() => staff(`/staff/queue/${q.id}/resume`, {}))}
                         >
-                          Resume
+                          {x('Resume')}
                         </button>
                       )}
                       {q.status === 'waiting' && (
@@ -168,7 +168,7 @@ export default function Console() {
                           className="small ghost"
                           onClick={() => act(() => staff(`/staff/queue/${q.id}/skip`, {}))}
                         >
-                          Skip
+                          {x('Skip')}
                         </button>
                       )}
                     </span>
@@ -176,10 +176,10 @@ export default function Console() {
                 ))}
             </div>
             <button className="ghost" onClick={() => setCheckinOpen((v) => !v)}>
-              Add walk-in
+              {x('Add walk-in')}
             </button>
             <section hidden={!checkinOpen} className="walkin-form">
-              <h3 style={{ marginTop: '1.2rem' }}>{t('en', 'console.manual_checkin')}</h3>
+              <h3 style={{ marginTop: '1.2rem' }}>{t(lang, 'console.manual_checkin')}</h3>
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -195,22 +195,22 @@ export default function Console() {
                 }}
               >
                 <input
-                  aria-label="Name"
-                  placeholder="Name"
+                  aria-label={x('Name')}
+                  placeholder={x('Name')}
                   value={mc.name}
                   onChange={(e) => setMc({ ...mc, name: e.target.value })}
                   style={{ marginBottom: 6 }}
                 />
                 <input
-                  aria-label="Phone"
-                  placeholder="Phone"
+                  aria-label={x('Phone')}
+                  placeholder={x('Phone')}
                   value={mc.phone}
                   onChange={(e) => setMc({ ...mc, phone: e.target.value })}
                   required
                   style={{ marginBottom: 6 }}
                 />
                 <select
-                  aria-label="Doctor"
+                  aria-label={x('Doctor')}
                   value={mc.doctorId}
                   onChange={(e) => setMc({ ...mc, doctorId: e.target.value })}
                   style={{ marginBottom: 6 }}
@@ -227,25 +227,24 @@ export default function Console() {
                     checked={mc.whatsapp}
                     onChange={(e) => setMc({ ...mc, whatsapp: e.target.checked })}
                   />
-                  Patient agreed to WhatsApp messages
+                  {x('Patient agreed to WhatsApp messages')}
                 </label>
                 <p className="muted">
-                  Recording this check-in confirms the patient agreed at the desk to the clinic
-                  storing their visit details.
+                  {x('Recording this check-in confirms the patient agreed at the desk to the clinic storing their visit details.')}
                 </p>
-                <button type="submit">Check in</button>
+                <button type="submit">{x('Check in')}</button>
               </form>
             </section>
           </div>
           <div className="card">
-            <h2>Needs attention ({flags.length})</h2>
+            <h2>{x('Needs attention')} ({flags.length})</h2>
             <div className="list">
               {flags.map((f) => (
                 <div key={f.id} className={`flag ${f.severity}`}>
                   <div className="row between">
-                    <b>{displayLabel(f.kind)}</b>
+                    <b>{x(displayLabel(f.kind))}</b>
                     <span className="muted">
-                      {new Date(f.created_at).toLocaleTimeString('en-IN', {
+                      {new Date(f.created_at).toLocaleTimeString(lang === 'hi' ? 'hi-IN' : 'en-IN', {
                         hour: 'numeric',
                         minute: '2-digit',
                       })}
@@ -256,7 +255,7 @@ export default function Console() {
                   <div className="row" style={{ marginTop: 6 }}>
                     {f.conversation_id && (
                       <button className="small ghost" onClick={() => openConv(f.conversation_id)}>
-                        Review conversation
+                        {x('Review conversation')}
                       </button>
                     )}
                     {f.conversation_id && (
@@ -271,14 +270,14 @@ export default function Console() {
                           })
                         }
                       >
-                        Reply myself
+                        {x('Reply myself')}
                       </button>
                     )}
                     <button
                       className="small"
                       onClick={() => act(() => staff(`/staff/flags/${f.id}/resolve`, {}))}
                     >
-                      Mark handled
+                      {x('Mark handled')}
                     </button>
                   </div>
                 </div>
@@ -299,10 +298,10 @@ export default function Console() {
                   <span className="task-signal" />
                   <div>
                     <strong>{c.patient_name ?? c.contact}</strong>
-                    <small>{c.last_message || 'Waiting for a reply'}</small>
+                    <small>{c.last_message || x('Waiting for a reply')}</small>
                   </div>
                   <button className="ghost small" onClick={() => void openConv(c.id)}>
-                    Reply
+                    {x('Reply')}
                   </button>
                 </div>
               ))}
@@ -329,7 +328,7 @@ export default function Console() {
           <section className="card">
             <h2>{x('Quick actions')}</h2>
             <nav className="action-links">
-              <a href="/console/arrivals">QR arrivals &amp; payments</a>
+              <a href="/console/arrivals">{x('QR arrivals & payments')}</a>
               <a href="/doctor/waitlist">{x('Waiting list')}</a>
               <a href="/console/privacy">{x('Privacy requests')}</a>
 
@@ -344,18 +343,17 @@ export default function Console() {
           hidden={section !== 'conversations'}
         >
           <section className="card conversation-list">
-            <h2>Conversations</h2>
+            <h2>{x('Conversations')}</h2>
             <label className="check">
               <input
                 type="checkbox"
                 checked={attentionOnly}
                 onChange={(e) => setAttentionOnly(e.target.checked)}
               />
-              Needs attention only
+              {x('Needs attention only')}
             </label>
             <p className="muted">
-              Marking an alert as handled does not let the assistant reply again. Review the
-              conversation first, then use Let the assistant reply.
+              {x('Marking an alert as handled does not let the assistant reply again. Review the conversation first, then use Let the assistant reply.')}
             </p>
             <div className="list" style={{ maxHeight: 180, overflow: 'auto' }}>
               {convs
@@ -376,16 +374,16 @@ export default function Console() {
                     <span>
                       <b>{c.patient_name ?? c.contact}</b>{' '}
                       <span className={`tag ${c.handled_by === 'human' ? 'on_hold' : ''}`}>
-                        {displayLabel(c.handled_by)}
+                        {x(displayLabel(c.handled_by))}
                       </span>
                       <span className="muted">
                         {flags
                           .filter((f) => f.conversation_id === c.id)
-                          .map((f) => displayLabel(f.kind))
+                          .map((f) => x(displayLabel(f.kind)))
                           .join(' · ') ||
                           (c.handled_by === 'human'
-                            ? 'Reception team is replying'
-                            : 'Assistant is replying')}
+                            ? x('Reception team is replying')
+                            : x('Assistant is replying'))}
                         <br />
                         {(c.last_message ?? '').slice(0, 50)}
                       </span>
@@ -395,10 +393,10 @@ export default function Console() {
             </div>
           </section>
           <section className="card selected-conversation">
-            <h2>Selected conversation</h2>
+            <h2>{x('Selected conversation')}</h2>
             {!cur && (
               <p className="muted">
-                Choose a conversation to read its original messages and reply.
+                {x('Choose a conversation to read its original messages and reply.')}
               </p>
             )}
             {cur && (
@@ -415,7 +413,7 @@ export default function Console() {
                         })
                       }
                     >
-                      {t('en', 'console.takeover')}
+                      {t(lang, 'console.takeover')}
                     </button>
                   ) : (
                     <button
@@ -426,7 +424,7 @@ export default function Console() {
                         })
                       }
                     >
-                      Let the assistant reply
+                      {x('Let the assistant reply')}
                     </button>
                   )}
                 </div>
@@ -465,12 +463,12 @@ export default function Console() {
                   }}
                 >
                   <input
-                    aria-label="Reply"
+                    aria-label={x('Reply')}
                     value={reply}
                     onChange={(e) => setReply(e.target.value)}
-                    placeholder="Reply as receptionist"
+                    placeholder={x('Reply as receptionist')}
                   />
-                  <button type="submit">Send</button>
+                  <button type="submit">{x('Send')}</button>
                 </form>
               </>
             )}

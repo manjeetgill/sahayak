@@ -1,7 +1,9 @@
 'use client';
+import { useStaffLang } from '../../../lib/staffText';
 import { useEffect, useState, useRef } from 'react';
 import { staff, useSession } from '../../../lib/api';
 export default function References() {
+  const { lang, x: ui } = useStaffLang();
   const s = useSession('doctor');
   const editor = useRef<HTMLDetailsElement>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -37,11 +39,10 @@ export default function References() {
   if (!s) return null;
   return (
     <main className="wrap references-page" style={{ maxWidth: 1120 }}>
-      <a href="/doctor">← Today’s clinic</a>
-      <h1>Medical reference</h1>
+      <a href="/doctor">{ui("← Today’s clinic")}</a>
+      <h1>{ui("Medical reference")}</h1>
       <p>
-        Find original publications and keep a clinic-reviewed reading list. Results are publication
-        details, not a generated treatment recommendation or a complete review of the evidence.
+        {ui('Find original publications and keep a clinic-reviewed reading list. Results are publication details, not a generated treatment recommendation or a complete review of the evidence.')}
       </p>
       {error && (
         <p role="alert" className="error">
@@ -51,13 +52,13 @@ export default function References() {
       <div className="workspace-split">
         <div className="reference-search-panel">
           <fieldset className="card" disabled={busy}>
-            <legend>Search PubMed</legend>
+            <legend>{ui("Search PubMed")}</legend>
             <label>
-              General medical topic
+              {ui('General medical topic')}
               <input
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
-                placeholder="For example: diabetes follow-up guidelines"
+                placeholder={ui('For example: diabetes follow-up guidelines')}
               />
             </label>
             <label className="check">
@@ -66,7 +67,7 @@ export default function References() {
                 checked={guidelines}
                 onChange={(e) => setGuidelines(e.target.checked)}
               />
-              Guidelines only
+              {ui('Guidelines only')}
             </label>
             <label className="check">
               <input
@@ -74,7 +75,7 @@ export default function References() {
                 checked={consent}
                 onChange={(e) => setConsent(e.target.checked)}
               />
-              Send this general topic to PubMed. I have not included patient details.
+              {ui('Send this general topic to PubMed. I have not included patient details.')}
             </label>
             <button
               disabled={!consent || topic.trim().length < 3}
@@ -90,17 +91,16 @@ export default function References() {
                 )
               }
             >
-              Find publications
+              {ui("Find publications")}
             </button>
           </fieldset>
           {results && (
             <section>
               <p>
-                Retrieved {new Date(results.retrievedAt).toLocaleString()}. Publication date order;
-                new does not necessarily mean better evidence.
+                {ui('Retrieved')} {new Date(results.retrievedAt).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')}. {ui('Publication date order; new does not necessarily mean better evidence.')}
               </p>
               {!results.results.length && (
-                <p>No publications matched. Try a different general topic.</p>
+                <p>{ui("No publications matched. Try a different general topic.")}</p>
               )}
               {results.results.map((r: any) => (
                 <article className="card" key={r.id}>
@@ -122,7 +122,7 @@ export default function References() {
                       }
                     }}
                   >
-                    Use in reading list
+                    {ui("Use in reading list")}
                   </button>
                 </article>
               ))}
@@ -130,13 +130,12 @@ export default function References() {
           )}
         </div>
         <section className="card reading-list-panel">
-          <h2>Clinic reading list</h2>
+          <h2>{ui("Clinic reading list")}</h2>
           <p>
-            Review the original publication before recording your notes. Dates and notes below are
-            entered by your clinic; no guideline changes are applied automatically.
+            {ui('Review the original publication before recording your notes. Dates and notes below are entered by your clinic; no guideline changes are applied automatically.')}
           </p>
           <details ref={editor}>
-            <summary>Add a reviewed reference</summary>
+            <summary>{ui("Add a reviewed reference")}</summary>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -157,7 +156,7 @@ export default function References() {
                   notes: 'Your evidence notes and limitations (no patient details)',
                 }).map(([key, label]) => (
                   <label key={key}>
-                    {label}
+                    {ui(label)}
                     <input
                       required
                       type={
@@ -172,7 +171,7 @@ export default function References() {
                     />
                   </label>
                 ))}
-                <button>{editing ? 'Save updated review' : 'Save reviewed reference'}</button>
+                <button>{ui(editing ? 'Save updated review' : 'Save reviewed reference')}</button>
                 {editing && (
                   <button
                     type="button"
@@ -181,13 +180,13 @@ export default function References() {
                       setForm({ title: '', url: '', publishedOn: '', reviewDue: '', notes: '' });
                     }}
                   >
-                    Cancel editing
+                    {ui("Cancel editing")}
                   </button>
                 )}
               </fieldset>
             </form>
           </details>
-          {!data.length && <p>No references saved yet.</p>}
+          {!data.length && <p>{ui("No references saved yet.")}</p>}
           {data.map((r) => (
             <article className="card" key={r.id}>
               <h3>
@@ -196,8 +195,8 @@ export default function References() {
                 </a>
               </h3>
               <p>
-                Published {String(r.published_on).slice(0, 10)} · Reviewed by {r.reviewer} on{' '}
-                {new Date(r.reviewed_at).toLocaleDateString()}
+                {ui('Published')} {String(r.published_on).slice(0, 10)} · {ui('Reviewed by')} {r.reviewer} {ui('on')}{' '}
+                {new Date(r.reviewed_at).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN')}
               </p>
               <p>{r.notes}</p>
               <button
@@ -217,23 +216,23 @@ export default function References() {
                   }
                 }}
               >
-                Review or edit
+                {ui("Review or edit")}
               </button>{' '}
               <button
                 disabled={busy}
                 onClick={() => {
-                  if (confirm('Remove this reference from the active reading list?'))
+                  if (confirm(ui('Remove this reference from the active reading list?')))
                     void run(async () => {
                       await staff('/staff/workbench/reference-archive', { id: r.id });
                       await load();
                     });
                 }}
               >
-                Remove from reading list
+                {ui("Remove from reading list")}
               </button>
               <p>
-                Review again: {String(r.review_due).slice(0, 10)}
-                {new Date(r.review_due) < new Date() ? ' · Review due' : ''}
+                {ui('Review again:')} {String(r.review_due).slice(0, 10)}
+                {new Date(r.review_due) < new Date() ? ui(' · Review due') : ''}
               </p>
             </article>
           ))}

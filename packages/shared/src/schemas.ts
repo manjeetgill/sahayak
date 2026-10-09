@@ -89,6 +89,7 @@ export const AGENT_NAMES = [
 ] as const;
 export const ClinicSettingsUpdate = z
   .object({
+    workspaceMode: z.enum(['solo', 'full']),
     clinicName: z.string().trim().min(2).max(80),
     reputation: z.object({
       enabled: z.boolean(),

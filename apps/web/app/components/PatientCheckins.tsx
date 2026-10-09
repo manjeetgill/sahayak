@@ -2,7 +2,9 @@
 import { useEffect, useState } from 'react';
 import { FeedbackWorkspace } from './FeedbackWorkspace';
 import { staff } from '../../lib/api';
+import { useStaffLang } from '../../lib/staffText';
 export function PatientCheckins({ patientId, visitId }: { patientId?: string; visitId?: string }) {
+  const { lang, x: ui } = useStaffLang();
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false);
@@ -26,19 +28,15 @@ export function PatientCheckins({ patientId, visitId }: { patientId?: string; vi
   );
   if (!visitId) return <FeedbackWorkspace patientId={patientId} />;
   return (
-    <section aria-label="Patient check-ins">
-      <h3>Patient check-ins</h3>
-      <p className="muted">
-        Plan when the clinic should check how the patient is doing. WhatsApp invitations require
-        delivery setup in Admin → Patient check-in messages. Your automatic check-in settings apply
-        when you finish the visit; use this form only for a different time.
-      </p>
+    <section aria-label={ui("Patient check-ins")}>
+      <h3>{ui("Patient check-ins")}</h3>
+      <p className="muted">{ui("Plan when the clinic should check how the patient is doing. WhatsApp invitations require delivery setup in Admin → Patient check-in messages. Your automatic check-in settings apply when you finish the visit; use this form only for a different time.")}</p>
       {error && (
         <p className="error" role="alert">
           {error}
         </p>
       )}
-      {!data && !error && <p>Loading check-ins…</p>}
+      {!data && !error && <p>{ui("Loading check-ins…")}</p>}
       {visitId && patientId && data && !active && (
         <form
           onSubmit={async (e) => {
@@ -65,7 +63,7 @@ export function PatientCheckins({ patientId, visitId }: { patientId?: string; vi
           }}
         >
           <label>
-            Check-in date and time (your local time)
+            {ui("Check-in date and time (your local time)")}
             <input
               type="datetime-local"
               required
@@ -74,21 +72,21 @@ export function PatientCheckins({ patientId, visitId }: { patientId?: string; vi
             />
           </label>
           <label>
-            Responsible person
+            {ui("Responsible person")}
             <select required value={owner} onChange={(e) => setOwner(e.target.value)}>
-              <option value="">Choose a staff member</option>
+              <option value="">{ui("Choose a staff member")}</option>
               {data.staff.map((u: any) => (
                 <option key={u.id} value={u.id}>
-                  {u.name} — {u.role === 'doctor' ? 'Doctor' : 'Reception'}
+                  {u.name} — {ui(u.role === 'doctor' ? 'Doctor' : 'Reception')}
                 </option>
               ))}
             </select>
           </label>
           <label>
-            Patient’s preferred language
+            {ui("Patient’s preferred language")}
             <select value={language} onChange={(e) => setLanguage(e.target.value)}>
-              <option value="en">English</option>
-              <option value="hi">Hindi</option>
+              <option value="en">{ui("English")}</option>
+              <option value="hi">{ui("Hindi")}</option>
             </select>
           </label>
           <label className="check">
@@ -98,8 +96,7 @@ export function PatientCheckins({ patientId, visitId }: { patientId?: string; vi
               checked={consent}
               onChange={(e) => setConsent(e.target.checked)}
             />
-            The patient agreed to this check-in and knows they can opt out through the clinic or by
-            replying STOP.
+            {ui("The patient agreed to this check-in and knows they can opt out through the clinic or by replying STOP.")}
           </label>
           <label className="check">
             <input
@@ -107,33 +104,33 @@ export function PatientCheckins({ patientId, visitId }: { patientId?: string; vi
               checked={reminder}
               onChange={(e) => setReminder(e.target.checked)}
             />
-            Allow one reminder after two days if there is no response.
+            {ui("Allow one reminder after two days if there is no response.")}
           </label>
-          <button disabled={busy}>{busy ? 'Saving…' : 'Schedule check-in'}</button>
+          <button disabled={busy}>{ui(busy ? 'Saving…' : 'Schedule check-in')}</button>
         </form>
       )}
-      {data?.checkins.length === 0 && <p>No patient check-ins recorded.</p>}
+      {data?.checkins.length === 0 && <p>{ui("No patient check-ins recorded.")}</p>}
       <div className="list">
         {data?.checkins.map((c: any) => (
           <article key={c.id} className="card">
             {!patientId && <a href={`/doctor/patients/${c.patient_id}`}>{c.patient_name}</a>}
             <p>
               <strong>
-                {c.status === 'cancelled'
+                {ui(c.status === 'cancelled'
                   ? 'Cancelled'
                   : c.overdue
                     ? 'Due — needs staff attention'
-                    : 'Scheduled'}
+                    : 'Scheduled')}
               </strong>{' '}
-              · {new Date(c.scheduled_at).toLocaleString()}
+              · {new Date(c.scheduled_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')}
             </p>
             <p>
-              {c.assignee} · {c.language === 'hi' ? 'Hindi' : 'English'}
+              {c.assignee} · {ui(c.language === 'hi' ? 'Hindi' : 'English')}
             </p>
             <p className="muted">
-              Patient agreement recorded {new Date(c.consented_at).toLocaleString()}
+              {ui("Patient agreement recorded")} {new Date(c.consented_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')}
               {c.cancellation_reason === 'consent_withdrawn'
-                ? ' · Messaging permission withdrawn'
+                ? ui(' · Messaging permission withdrawn')
                 : ''}
             </p>
             {c.status === 'scheduled' && (
@@ -152,9 +149,7 @@ export function PatientCheckins({ patientId, visitId }: { patientId?: string; vi
                     setBusy(false);
                   }
                 }}
-              >
-                Cancel check-in
-              </button>
+              >{ui("Cancel check-in")}</button>
             )}
           </article>
         ))}

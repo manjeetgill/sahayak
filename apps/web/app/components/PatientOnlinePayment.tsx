@@ -79,8 +79,8 @@ export function PatientOnlinePayment({
         order_id: order.orderId,
         amount: order.amountPaise,
         currency: order.currency,
-        name: 'Clinic payment',
-        description: 'Consultation fee',
+        name: t('Clinic payment', 'क्लिनिक भुगतान'),
+        description: t('Consultation fee', 'परामर्श शुल्क'),
         modal: { ondismiss: () => setBusy(false) },
         handler: async (result: any) => {
           try {
@@ -127,12 +127,16 @@ export function PatientOnlinePayment({
       });
       checkout.open();
     } catch (e: any) {
-      setError(e.message);
+      setError(
+        e.message === 'Payment screen could not load. Try again or contact reception.'
+          ? t(e.message, 'भुगतान स्क्रीन नहीं खुली। फिर कोशिश करें या रिसेप्शन से संपर्क करें।')
+          : e.message,
+      );
       setBusy(false);
     }
   }
   return (
-    <section aria-label="Online payment">
+    <section aria-label={t('Online payment', 'ऑनलाइन भुगतान')}>
       <h3>{t('Pay online', 'ऑनलाइन भुगतान')}</h3>
       {mode === 'test' && (
         <p>

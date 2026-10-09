@@ -1,4 +1,5 @@
 'use client';
+import { useStaffLang } from '../../lib/staffText';
 import { useCallback, useEffect, useState } from 'react';
 import { staff, useSession } from '../../lib/api';
 
@@ -66,6 +67,7 @@ const genPassword = () =>
 
 /** Guided setup: seven short steps from a new account to a clinic that is ready for patients. */
 export default function Setup() {
+  const { lang, setLang, x: ui } = useStaffLang();
   const s = useSession('admin');
   const [step, setStep] = useState(0);
   const [cfg, setCfg] = useState<any>(null),
@@ -134,25 +136,26 @@ export default function Setup() {
   return (
     <div className="setup-page">
       <div className="topbar">
-        <b>Set up {cfg.clinicName}</b>
+        <button className="ghost" type="button" onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')}>{lang === 'hi' ? 'English' : 'हिन्दी'}</button>
+        <b>{ui('Set up')} {cfg.clinicName}</b>
         <a href={`/c/${status.slug}`} target="_blank" rel="noreferrer">
           <button type="button" className="ghost">
-            See your public page
+            {ui("See your public page")}
           </button>
         </a>
-        <a href="/admin">Skip for now</a>
+        <a href="/admin">{ui("Skip for now")}</a>
       </div>
       <div className="wrap" style={{ maxWidth: 860 }}>
         <header className="screen-heading">
           <span className="eyebrow">
-            Step {step + 1} of {STEPS.length}
+            {ui('Step')} {step + 1} {ui('of')} {STEPS.length}
           </span>
-          <h1>Set up your clinic</h1>
+          <h1>{ui("Set up your clinic")}</h1>
         </header>
         <ol
           className="setup-progress"
           style={{ display: 'flex', gap: 6, padding: 0, listStyle: 'none', flexWrap: 'wrap' }}
-          aria-label="Progress"
+          aria-label={ui('Progress')}
         >
           {STEPS.map((n, i) => (
             <li key={n}>
@@ -162,7 +165,7 @@ export default function Setup() {
                 onClick={() => setStep(i)}
                 aria-current={i === step ? 'step' : undefined}
               >
-                {i + 1}. {n}
+                {i + 1}. {ui(n)}
               </button>
             </li>
           ))}
@@ -180,29 +183,29 @@ export default function Setup() {
 
         {step === 0 && (
           <div className="card">
-            <h2>About your clinic</h2>
+            <h2>{ui("About your clinic")}</h2>
             <p className="muted">
-              Patients ask for these most. The assistant answers only from what you enter here.
+              {ui("Patients ask for these most. The assistant answers only from what you enter here.")}
             </p>
-            <label htmlFor="n">Clinic name</label>
+            <label htmlFor="n">{ui("Clinic name")}</label>
             <input
               id="n"
               value={cfg.clinicName}
               onChange={(e) => set('clinicName', e.target.value)}
             />
-            <label htmlFor="a">Address</label>
+            <label htmlFor="a">{ui("Address")}</label>
             <input
               id="a"
               value={cfg.address ?? ''}
               onChange={(e) => set('address', e.target.value)}
             />
-            <label htmlFor="d">Directions (landmarks, parking)</label>
+            <label htmlFor="d">{ui("Directions (landmarks, parking)")}</label>
             <input
               id="d"
               value={cfg.directions ?? ''}
               onChange={(e) => set('directions', e.target.value)}
             />
-            <label htmlFor="p">Clinic phone</label>
+            <label htmlFor="p">{ui("Clinic phone")}</label>
             <input
               id="p"
               value={cfg.phone ?? ''}
@@ -222,7 +225,7 @@ export default function Setup() {
                   )
                 }
               >
-                Save and continue
+                {ui("Save and continue")}
               </button>
             </p>
           </div>
@@ -230,33 +233,32 @@ export default function Setup() {
 
         {step === 1 && (
           <div className="card">
-            <h2>Opening hours</h2>
+            <h2>{ui("Opening hours")}</h2>
             <p className="muted">
-              Used to offer appointment slots. Write times like 09:00-13:00, 17:00-20:00. Leave a
-              day empty if closed.
+              {ui('Used to offer appointment slots. Write times like 09:00-13:00, 17:00-20:00. Leave a day empty if closed.')}
             </p>
             <button className="ghost small" onClick={() => set('timings', PRESET)}>
-              Use Mon-Sat 9-1 and 5-8
+              {ui("Use Mon-Sat 9-1 and 5-8")}
             </button>
             {DAYS.map((d) => (
               <div key={d} className="row" style={{ margin: '4px 0' }}>
-                <span style={{ width: 40 }}>{d}</span>
+                <span style={{ width: 40 }}>{ui(d)}</span>
                 <input
-                  aria-label={`Hours ${d}`}
+                  aria-label={`${ui('Hours')} ${ui(d)}`}
                   value={cfg.timings?.[d] ?? ''}
                   onChange={(e) => set('timings', { ...cfg.timings, [d]: e.target.value })}
-                  placeholder="Closed"
+                  placeholder={ui('Closed')}
                 />
               </div>
             ))}
-            <label htmlFor="avg">Average time per patient (minutes)</label>
+            <label htmlFor="avg">{ui("Average time per patient (minutes)")}</label>
             <input
               id="avg"
               type="number"
               value={cfg.avgConsultMinutes}
               onChange={(e) => set('avgConsultMinutes', Number(e.target.value))}
             />
-            <p className="muted">Used to estimate waiting time on the TV and in messages.</p>
+            <p className="muted">{ui("Used to estimate waiting time on the TV and in messages.")}</p>
             <p>
               <button
                 onClick={() =>
@@ -270,7 +272,7 @@ export default function Setup() {
                   )
                 }
               >
-                Save and continue
+                {ui("Save and continue")}
               </button>
             </p>
           </div>
@@ -278,10 +280,9 @@ export default function Setup() {
 
         {step === 2 && (
           <div className="card">
-            <h2>Doctors</h2>
+            <h2>{ui("Doctors")}</h2>
             <p className="muted">
-              Each doctor can have their own WhatsApp number: patients who write to it book with
-              that doctor automatically.
+              {ui('Each doctor can have their own WhatsApp number: patients who write to it book with that doctor automatically.')}
             </p>
             <div className="list">
               {docs.map((d) => (
@@ -289,7 +290,7 @@ export default function Setup() {
                   <span>
                     <b>{d.name}</b>{' '}
                     <span className="muted">
-                      {d.speciality ?? ''} · {d.slot_minutes} min slots{' '}
+                      {d.speciality ?? ''} · {d.slot_minutes} {ui('min slots')}{' '}
                       {d.whatsapp_number ? `· ${d.whatsapp_number}` : ''}
                     </span>
                   </span>
@@ -300,30 +301,30 @@ export default function Setup() {
                         go(() => staff(`/staff/doctors/${d.id}`, { active: false }, 'PATCH'), 2)
                       }
                     >
-                      Remove
+                      {ui("Remove")}
                     </button>
                   )}
                 </div>
               ))}
             </div>
-            <h3 style={{ marginTop: '1rem' }}>Add a doctor</h3>
+            <h3 style={{ marginTop: '1rem' }}>{ui("Add a doctor")}</h3>
             <input
-              aria-label="Doctor name"
-              placeholder="Dr. Name"
+              aria-label={ui('Doctor name')}
+              placeholder={ui('Dr. Name')}
               value={nd.name}
               onChange={(e) => setNd({ ...nd, name: e.target.value })}
               style={{ marginBottom: 6 }}
             />
             <input
-              aria-label="Speciality"
-              placeholder="Speciality (optional)"
+              aria-label={ui('Speciality')}
+              placeholder={ui('Speciality (optional)')}
               value={nd.speciality}
               onChange={(e) => setNd({ ...nd, speciality: e.target.value })}
               style={{ marginBottom: 6 }}
             />
             <div className="row" style={{ marginBottom: 6 }}>
               <label htmlFor="sl" style={{ margin: 0 }}>
-                Slot minutes
+                {ui("Slot minutes")}
               </label>
               <input
                 id="sl"
@@ -334,8 +335,8 @@ export default function Setup() {
               />
             </div>
             <input
-              aria-label="Doctor WhatsApp number"
-              placeholder="WhatsApp number, e.g. +919876543210 (optional)"
+              aria-label={ui('Doctor WhatsApp number')}
+              placeholder={ui('WhatsApp number, e.g. +919876543210 (optional)')}
               value={nd.whatsappNumber}
               onChange={(e) => setNd({ ...nd, whatsappNumber: e.target.value })}
             />
@@ -355,25 +356,26 @@ export default function Setup() {
                   }, 2)
                 }
               >
-                Add doctor
+                {ui("Add doctor")}
               </button>
-              <button onClick={() => setStep(3)}>Continue</button>
+              <button onClick={() => setStep(3)}>{ui("Continue")}</button>
             </p>
           </div>
         )}
 
         {step === 3 && (
           <div className="card">
-            <h2>Your receptionist</h2>
+            <h2>{ui(cfg.workspaceMode === 'solo' ? 'Receptionist (optional)' : 'Your receptionist')}</h2>
             <p className="muted">
-              Create a login for the person who supervises the assistant. Tell them the temporary
-              password in person and ask them to keep it private.
+              {cfg.workspaceMode === 'solo'
+                ? ui('You can run a single-doctor clinic without a receptionist. Add one now or later if you need help at the front desk.')
+                : ui('Create a login for the person who supervises the assistant. Tell them the temporary password in person and ask them to keep it private.')}
             </p>
             <div className="list">
               {team.map((m) => (
                 <div key={m.id} className="row between">
                   <span>
-                    <b>{m.name}</b> <span className="tag">{m.role}</span>{' '}
+                    <b>{m.name}</b> <span className="tag">{ui(m.role)}</span>{' '}
                     <span className="muted">{m.email}</span>
                   </span>
                 </div>
@@ -386,33 +388,33 @@ export default function Setup() {
                 role="status"
                 data-testid="created-login"
               >
-                <b>Share these with {created.email} now. The password is not shown again.</b>
+                <b>{ui('Share these with')} {created.email} {ui('now. The password is not shown again.')}</b>
                 <div style={{ fontFamily: 'monospace' }}>
                   {created.email} / {created.password}
                 </div>
               </div>
             )}
-            <p><a href="/admin/team">Create doctor and admin logins in Doctors &amp; team →</a></p>
-            <h3 style={{ marginTop: '1rem' }}>Add a receptionist</h3>
+            <p><a href="/admin/team">{ui("Create doctor and admin logins in Doctors &amp; team →")}</a></p>
+            <h3 style={{ marginTop: '1rem' }}>{ui("Add a receptionist")}</h3>
             <input
-              aria-label="Receptionist name"
-              placeholder="Name"
+              aria-label={ui('Receptionist name')}
+              placeholder={ui('Name')}
               value={nr.name}
               onChange={(e) => setNr({ ...nr, name: e.target.value })}
               style={{ marginBottom: 6 }}
             />
             <input
-              aria-label="Receptionist email"
+              aria-label={ui('Receptionist email')}
               type="email"
-              placeholder="Email"
+              placeholder={ui("Email")}
               value={nr.email}
               onChange={(e) => setNr({ ...nr, email: e.target.value })}
               style={{ marginBottom: 6 }}
             />
             <div className="row">
               <input
-                aria-label="Temporary password"
-                placeholder="Temporary password (10+ characters)"
+                aria-label={ui('Temporary password')}
+                placeholder={ui('Temporary password (10+ characters)')}
                 value={nr.password}
                 onChange={(e) => setNr({ ...nr, password: e.target.value })}
               />
@@ -421,7 +423,7 @@ export default function Setup() {
                 type="button"
                 onClick={() => setNr({ ...nr, password: genPassword() })}
               >
-                Generate
+                {ui("Generate")}
               </button>
             </div>
             <p className="row">
@@ -441,20 +443,21 @@ export default function Setup() {
                   }, 3)
                 }
               >
-                Create login
+                {ui("Create login")}
               </button>
-              <button onClick={() => setStep(4)}>Continue</button>
+              <button onClick={() => setStep(4)}>
+                {ui(cfg.workspaceMode === 'solo' ? 'Continue without receptionist' : 'Continue')}
+              </button>
             </p>
           </div>
         )}
 
         {step === 4 && (
           <div className="card">
-            <h2>Questions and answers</h2>
-            <h3>Intake questions</h3>
+            <h2>{ui("Questions and answers")}</h2>
+            <h3>{ui("Intake questions")}</h3>
             <p className="muted">
-              Asked on WhatsApp while the patient waits; the doctor sees a short summary. Questions
-              only: the assistant never gives advice.
+              {ui('Asked on WhatsApp while the patient waits; the doctor sees a short summary. Questions only: the assistant never gives advice.')}
             </p>
             {INTAKE.map((q) => (
               <label key={q.id} className="check">
@@ -464,16 +467,15 @@ export default function Setup() {
                   onChange={(e) => setIntake({ ...intake, [q.id]: e.target.checked })}
                 />
                 <span>
-                  {q.en}
+                  {ui(q.en)}
                   <br />
                   <span className="muted">{q.hi}</span>
                 </span>
               </label>
             ))}
-            <h3 style={{ marginTop: '1rem' }}>Common questions</h3>
+            <h3 style={{ marginTop: '1rem' }}>{ui("Common questions")}</h3>
             <p className="muted">
-              When a patient's message contains the keyword, the assistant sends your answer. Edit
-              the wording to match your clinic.
+              {ui("When a patient's message contains the keyword, the assistant sends your answer. Edit the wording to match your clinic.")}
             </p>
             {FAQS.map((f) => (
               <div key={f.id} style={{ borderTop: '1px solid var(--line)', paddingTop: 8 }}>
@@ -485,12 +487,12 @@ export default function Setup() {
                       setFaq({ ...faq, [f.id]: { ...faq[f.id], on: e.target.checked } })
                     }
                   />
-                  Answer questions about "{f.keywords[0]}"
+                  {ui('Answer questions about')} "{f.keywords[0]}"
                 </label>
                 {faq[f.id]?.on && (
                   <>
                     <input
-                      aria-label={`${f.id} answer English`}
+                      aria-label={`${f.id} ${ui('answer English')}`}
                       value={faq[f.id].en}
                       onChange={(e) =>
                         setFaq({ ...faq, [f.id]: { ...faq[f.id], en: e.target.value } })
@@ -498,7 +500,7 @@ export default function Setup() {
                       style={{ marginBottom: 4 }}
                     />
                     <input
-                      aria-label={`${f.id} answer Hindi`}
+                      aria-label={`${f.id} ${ui('answer Hindi')}`}
                       value={faq[f.id].hi}
                       onChange={(e) =>
                         setFaq({ ...faq, [f.id]: { ...faq[f.id], hi: e.target.value } })
@@ -524,7 +526,7 @@ export default function Setup() {
                   )
                 }
               >
-                Save and continue
+                {ui("Save and continue")}
               </button>
             </p>
           </div>
@@ -532,43 +534,41 @@ export default function Setup() {
 
         {step === 5 && (
           <div className="card">
-            <h2>Try it</h2>
+            <h2>{ui("Try it")}</h2>
             <p className="muted">
-              Open the WhatsApp practice chat and chat as a patient. Try "what are your timings", "I
-              need an appointment tomorrow evening", and a Hindi message.
+              {ui('Open the WhatsApp practice chat and chat as a patient. Try asking about clinic hours, a visit tomorrow evening, and a Hindi message.')}
             </p>
             <p className="row">
               <a href={`${origin}/c/${status.slug}/sim`} target="_blank" rel="noreferrer">
-                <button type="button">Open WhatsApp practice chat</button>
+                <button type="button">{ui("Open WhatsApp practice chat")}</button>
               </a>
               <a href={`${origin}/c/${status.slug}/checkin`} target="_blank" rel="noreferrer">
                 <button type="button" className="ghost">
-                  Open patient check-in page
+                  {ui("Open patient check-in page")}
                 </button>
               </a>
             </p>
             <p className="muted">
-              The practice chat lets you try the assistant until a real WhatsApp Business number is
-              connected to your account by your Sahayak administrator.
+              {ui('The practice chat lets you try the assistant until a real WhatsApp Business number is connected to your account by your Sahayak administrator.')}
             </p>
             <p>
               <button className="ghost" onClick={() => go(undefined, 5)}>
-                I tried it: refresh checklist
+                {ui("I tried it: refresh checklist")}
               </button>{' '}
-              <button onClick={() => setStep(6)}>Continue</button>
+              <button onClick={() => setStep(6)}>{ui("Continue")}</button>
             </p>
-            <p>{item('tested')?.ok ? '✓ A test chat was received' : 'No test chat yet'}</p>
+            <p>{ui(item('tested')?.ok ? '✓ A test chat was received' : 'No test chat yet')}</p>
           </div>
         )}
 
         {step === 6 && (
           <div className="card">
-            <h2>Ready to go live</h2>
+            <h2>{ui("Ready to go live")}</h2>
             <div className="list" data-testid="checklist">
               {status.items.map((i: any) => (
                 <div key={i.id} className="row" style={{ alignItems: 'flex-start' }}>
                   <span
-                    aria-label={i.ok ? 'done' : 'not done'}
+                    aria-label={ui(i.ok ? 'done' : 'not done')}
                     style={{
                       color: i.ok ? 'var(--ok)' : i.required ? 'var(--danger)' : 'var(--warn)',
                       fontWeight: 800,
@@ -577,28 +577,28 @@ export default function Setup() {
                     {i.ok ? '✓' : i.required ? '!' : '•'}
                   </span>
                   <span>
-                    {i.label}
-                    {!i.required && <span className="muted"> (optional)</span>}
-                    {!i.ok && i.hint && <div className="muted">{i.hint}</div>}
+                    {ui(i.label)}
+                    {!i.required && <span className="muted"> {ui("(optional)")}</span>}
+                    {!i.ok && i.hint && <div className="muted">{ui(i.hint)}</div>}
                   </span>
                 </div>
               ))}
             </div>
             {status.completed ? (
               <div role="status">
-                <h3 style={{ color: 'var(--ok)' }}>Your clinic is live.</h3>
+                <h3 style={{ color: 'var(--ok)' }}>{ui("Your clinic is live.")}</h3>
                 <p className="row" style={{ flexWrap: 'wrap' }}>
                   <a href={`/c/${status.slug}/poster`} target="_blank" rel="noreferrer">
-                    <button type="button">Print the check-in QR poster</button>
+                    <button type="button">{ui("Print the check-in QR poster")}</button>
                   </a>
                   <a href={`/c/${status.slug}/tv`} target="_blank" rel="noreferrer">
                     <button type="button" className="ghost">
-                      Open the waiting-room TV
+                      {ui("Open the waiting-room TV")}
                     </button>
                   </a>
                   <a href="/admin">
                     <button type="button" className="ghost">
-                      Go to the doctor screen
+                      {ui("Go to the doctor screen")}
                     </button>
                   </a>
                 </p>
@@ -610,14 +610,14 @@ export default function Setup() {
                   onClick={() =>
                     go(async () => {
                       await staff('/staff/setup/complete', {});
-                      setMsg('Setup complete');
+                      setMsg(ui('Setup complete'));
                     }, 6)
                   }
                 >
-                  Finish setup
+                  {ui("Finish setup")}
                 </button>
                 {!status.readyToFinish && (
-                  <span className="muted"> Finish the items marked ! first.</span>
+                  <span className="muted"> {ui("Finish the items marked ! first.")}</span>
                 )}
               </p>
             )}

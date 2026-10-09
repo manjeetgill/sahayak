@@ -1,7 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { api } from '../../../../lib/api';
+import { useStaffLang } from '../../../../lib/staffText';
 export default function Feedback({ params }: { params: { slug: string } }) {
+  const { lang: deviceLang } = useStaffLang();
   const [token, setToken] = useState(''),
     [data, setData] = useState<any>(null),
     [error, setError] = useState(''),
@@ -10,6 +12,7 @@ export default function Feedback({ params }: { params: { slug: string } }) {
     [urgent, setUrgent] = useState(false),
     [stopped, setStopped] = useState(false);
   const [recovery, setRecovery] = useState(''),
+    [languageOverride, setLanguageOverride] = useState<'en' | 'hi' | null>(null),
     [help, setHelp] = useState('none'),
     [theme, setTheme] = useState('none'),
     [message, setMessage] = useState(''),
@@ -52,14 +55,15 @@ export default function Feedback({ params }: { params: { slug: string } }) {
       window.removeEventListener('hashchange', open);
     };
   }, [path]);
-  const hi = data?.language === 'hi';
+  const hi = languageOverride ? languageOverride === 'hi' : data?.language ? data.language === 'hi' : deviceLang === 'hi';
   const label = (en: string, hindi: string) => (hi ? hindi : en);
   return (
     <main className="wrap feedback-patient" style={{ maxWidth: 640 }}>
+      <button className="ghost" type="button" onClick={() => setLanguageOverride(hi ? 'en' : 'hi')}>{hi ? 'English' : 'हिन्दी'}</button>
       <a className="auth-brand" href="/">
         ✚ Sahayak
       </a>
-      <h1>{data?.clinic ?? 'Patient check-in'}</h1>
+      <h1>{data?.clinic ?? label('Patient check-in', 'मरीज़ का हालचाल')}</h1>
       <p>
         {label(
           'Your private update helps the clinic understand what you need.',
@@ -74,7 +78,9 @@ export default function Feedback({ params }: { params: { slug: string } }) {
       </p>
       {error && (
         <p className="error" role="alert">
-          {error}
+          {hi && error === 'This private link is incomplete. Please contact the clinic for a new link.'
+            ? 'यह निजी लिंक अधूरा है। नया लिंक लेने के लिए क्लिनिक से संपर्क करें।'
+            : error}
         </p>
       )}
       {stopped ? (

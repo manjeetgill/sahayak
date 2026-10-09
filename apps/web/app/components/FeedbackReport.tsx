@@ -2,7 +2,9 @@
 import { useEffect, useState } from 'react';
 import { staff } from '../../lib/api';
 import { feedbackLabel } from './FeedbackWorkspace';
+import { useStaffLang } from '../../lib/staffText';
 export function FeedbackReport() {
+  const { x, lang } = useStaffLang();
   const [data, setData] = useState<any>(null),
     [team, setTeam] = useState<any[]>([]),
     [error, setError] = useState(''),
@@ -25,10 +27,9 @@ export function FeedbackReport() {
   }, []);
   return (
     <section>
-      <h2>What patients are telling us</h2>
+      <h2>{x('What patients are telling us')}</h2>
       <p>
-        Last 30 days. These are patient-reported experiences, not clinical outcome measures or
-        predictions about whether someone will return.
+        {x('Last 30 days. These are patient-reported experiences, not clinical outcome measures or predictions about whether someone will return.')}
       </p>
       {error && (
         <p className="error" role="alert">
@@ -46,57 +47,57 @@ export function FeedbackReport() {
             ].map(([v, l]) => (
               <div className="card" key={l}>
                 <strong>{v}</strong>
-                <p>{l}</p>
+                <p>{x(l)}</p>
               </div>
             ))}
           </div>
           <p>
-            {data.counts.responded} responses / {data.counts.scheduled} scheduled check-ins
+            {data.counts.responded} {x('responses')} / {data.counts.scheduled} {x('scheduled check-ins')}
             {data.counts.scheduled
               ? ` (${Math.round((100 * data.counts.responded) / data.counts.scheduled)}%)`
               : ''}
-            . Links may be shared manually; a prepared link is not counted as confirmed delivery.
+            . {x('Links may be shared manually; a prepared link is not counted as confirmed delivery.')}
           </p>
           <p>
-            Average time from response to recorded first contact:{' '}
+            {x('Average time from response to recorded first contact:')}{' '}
             {data.counts.hours_to_contact === null
-              ? 'Not enough recorded contacts'
-              : `${data.counts.hours_to_contact} hours`}
+              ? x('Not enough recorded contacts')
+              : `${data.counts.hours_to_contact} ${x('hours')}`}
             .
           </p>
-          <h3>Repeated clinic feedback</h3>
-          {!data.themes.length && <p>No service themes reported yet.</p>}
+          <h3>{x('Repeated clinic feedback')}</h3>
+          {!data.themes.length && <p>{x('No service themes reported yet.')}</p>}
           {data.themes.map((t: any) => (
             <div className="card" key={t.theme}>
               <h4>
-                {feedbackLabel(t.theme)} · {t.count}
+                {x(feedbackLabel(t.theme))} · {t.count}
               </h4>
-              <p>Based on the topic patients selected.</p>
+              <p>{x('Based on the topic patients selected.')}</p>
               <div className="feedback-actions">
                 {t.sources.map((s: any) => (
                   <a key={s.id} href={`/doctor/checkins#case-${s.id}`}>
-                    {s.patient} — original response
+                    {s.patient} — {x('original response')}
                   </a>
                 ))}
               </div>
               <button
                 className="ghost"
                 onClick={() => {
-                  setTitle(`Improve ${feedbackLabel(t.theme).toLowerCase()}`);
+                  setTitle(`${x('Improve')} ${x(feedbackLabel(t.theme))}`);
                   setSource(t.sources[0]?.id ?? '');
                 }}
               >
-                Create improvement from this feedback
+                {x('Create improvement from this feedback')}
               </button>
             </div>
           ))}
-          <h3>Did our response help?</h3>
+          <h3>{x('Did our response help?')}</h3>
           {!data.resolutions.length ? (
-            <p>No patient confirmations yet.</p>
+            <p>{x('No patient confirmations yet.')}</p>
           ) : (
             data.resolutions.map((r: any) => (
               <p key={r.answer}>
-                {feedbackLabel(r.answer)}: {r.count}
+                {x(feedbackLabel(r.answer))}: {r.count}
               </p>
             ))
           )}
@@ -123,9 +124,9 @@ export function FeedbackReport() {
               }
             }}
           >
-            <h3>Make a clinic improvement</h3>
+            <h3>{x('Make a clinic improvement')}</h3>
             <label>
-              What will change?
+              {x('What will change?')}
               <input
                 required
                 minLength={3}
@@ -135,12 +136,12 @@ export function FeedbackReport() {
               />
             </label>
             <p className="muted">
-              Describe a clinic process change. Keep patient details in the linked response.
+              {x('Describe a clinic process change. Keep patient details in the linked response.')}
             </p>
             <label>
-              Responsible person
+              {x('Responsible person')}
               <select required value={owner} onChange={(e) => setOwner(e.target.value)}>
-                <option value="">Choose staff</option>
+                <option value="">{x('Choose staff')}</option>
                 {team
                   .filter((u) => u.role !== 'admin')
                   .map((u) => (
@@ -151,7 +152,7 @@ export function FeedbackReport() {
               </select>
             </label>
             <label>
-              Review date
+              {x('Review date')}
               <input
                 required
                 type="datetime-local"
@@ -159,22 +160,22 @@ export function FeedbackReport() {
                 onChange={(e) => setDue(e.target.value)}
               />
             </label>
-            <button disabled={busy}>Add improvement</button>
+            <button disabled={busy}>{x('Add improvement')}</button>
           </form>
-          <h3>Improvement tasks</h3>
+          <h3>{x('Improvement tasks')}</h3>
           {data.improvements.map((i: any) => (
             <article className="card" key={i.id}>
               <h4>{i.title}</h4>
               <p>
-                {i.assignee} · Review {new Date(i.due_at).toLocaleString()} ·{' '}
+                {i.assignee} · {x('Review')} {new Date(i.due_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')} ·{' '}
                 {i.status === 'done'
-                  ? 'Completed'
+                  ? x('Completed')
                   : new Date(i.due_at) < new Date()
-                    ? 'Overdue'
-                    : 'Open'}
+                    ? x('Overdue')
+                    : x('Open')}
               </p>
               {i.source_checkin_id && (
-                <a href={`/doctor/checkins#case-${i.source_checkin_id}`}>Original feedback</a>
+                <a href={`/doctor/checkins#case-${i.source_checkin_id}`}>{x('Original feedback')}</a>
               )}
               {i.status === 'open' && (
                 <button
@@ -198,7 +199,7 @@ export function FeedbackReport() {
                     }
                   }}
                 >
-                  Mark improvement completed
+                  {x('Mark improvement completed')}
                 </button>
               )}
             </article>

@@ -68,7 +68,7 @@ export default function TV({ params }: { params: { slug: string } }) {
             </div>
             <p style={{ fontSize: '1.6rem', marginTop: '1rem' }}>
               {t('en', 'tv.wait')} / {t('hi', 'tv.wait')}: <b>{d.estimatedWaitMinutes}</b>{' '}
-              {t('en', 'tv.minutes')}
+              {t('en', 'tv.minutes')} / {t('hi', 'tv.minutes')}
             </p>
           </div>
         ))}

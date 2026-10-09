@@ -2,6 +2,7 @@
 import { displayLabel } from '../../lib/labels';
 import { useCallback, useEffect, useState } from 'react';
 import { API, session, staff } from '../../lib/api';
+import { useStaffLang } from '../../lib/staffText';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const plusDays = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
@@ -11,9 +12,12 @@ const LABEL: Record<string, string> = {
   attendance: 'Attendance certificate',
   prescription: 'Prescription',
 };
+type RxItem = { drug: string; strength: string; form: string; dose: string; frequency: string; duration: string; instructions: string };
+const emptyRxItem = (drug: string): RxItem => ({ drug, strength: '', form: '', dose: '', frequency: '', duration: '', instructions: '' });
 
 /** Certificates and prescriptions for one patient: the assistant drafts from the doctor's words, the doctor reviews and signs. */
 export function IssuedDocs({ patientId, onChange }: { patientId: string; onChange?: () => void }) {
+  const { x: ui } = useStaffLang();
   const [docs, setDocs] = useState<any[]>([]);
   const [err, setErr] = useState(''),
     [msg, setMsg] = useState('');
@@ -36,6 +40,12 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
     [ack, setAck] = useState(false);
   const [edit, setEdit] = useState<any>(null);
   const [favs, setFavs] = useState<{ id: string; line: string }[]>([]);
+  const [rxMode, setRxMode] = useState<'pick' | 'write'>('pick');
+  const [rxItems, setRxItems] = useState<RxItem[]>([]);
+  const [rxName, setRxName] = useState('');
+  const [rxAdvice, setRxAdvice] = useState('');
+  const [rxFollowUp, setRxFollowUp] = useState('');
+  const [catalog, setCatalog] = useState<{ starter: string[]; custom: { id: string; name: string }[] }>({ starter: [], custom: [] });
 
   const load = useCallback(async () => {
     setDocs((await staff(`/staff/patients/${patientId}/issued`)).documents);
@@ -48,6 +58,10 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
       .then((r) => setFavs(r.medicines))
       .catch(() => {});
   }, []);
+  const loadCatalog = useCallback(async () => {
+    setCatalog(await staff('/staff/medicine-catalog'));
+  }, []);
+  useEffect(() => { void loadCatalog().catch((e) => setErr(e.message)); }, [loadCatalog]);
   const run = async (fn: () => Promise<unknown>, ok = '') => {
     setErr('');
     setMsg('');
@@ -76,10 +90,15 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
   const create = () =>
     run(async () => {
       if (mode === 'prescription') {
-        const r = await staff(`/staff/patients/${patientId}/prescriptions`, {
-          text: f.text,
-          language: f.language,
-        });
+        const r = await staff(`/staff/patients/${patientId}/prescriptions`, rxMode === 'pick'
+          ? { content: {
+              items: rxItems.map((item) => Object.fromEntries(
+                Object.entries(item).filter(([, value]) => value.trim()),
+              )),
+              advice: rxAdvice.trim() || undefined,
+              follow_up: rxFollowUp.trim() || undefined,
+            }, language: f.language }
+          : { text: f.text, language: f.language });
         if (r.incomplete?.length) setMsg(`Please check: ${r.incomplete.join('; ')}`);
       } else {
         const content: any = { examined_on: today(), remarks: f.remarks || undefined };
@@ -100,6 +119,9 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
       }
       setMode('');
       setF({ ...f, text: '' });
+      setRxItems([]);
+      setRxAdvice('');
+      setRxFollowUp('');
     });
   const openPdf = async (id: string) => {
     const res = await fetch(`${API}/staff/issued/${id}/pdf`, {
@@ -118,17 +140,9 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
 
   return (
     <div className="card" style={{ marginTop: '1rem' }} data-testid="issued-docs">
-      <h2 id="issued-documents">Certificates and prescriptions</h2>
-      <p className="muted">
-        The assistant fills in a fixed template from your details, or copies the medicines you list.
-        It never suggests a medicine, dose or diagnosis. Nothing reaches the patient until you sign.
-      </p>
-      <p className="muted">
-        Prescription warnings check patient-entered allergy words and exact names in doctor-verified
-        medicine/allergy records. They do not check interactions, dose, therapeutic class, brand
-        synonyms, age, pregnancy, kidney/liver function or missing records. No warning does not mean
-        a prescription is safe.
-      </p>
+      <h2 id="issued-documents">{ui("Certificates and prescriptions")}</h2>
+      <p className="muted">{ui("The assistant fills in a fixed template from your details, or copies the medicines you list. It never suggests a medicine, dose or diagnosis. Nothing reaches the patient until you sign.")}</p>
+      <p className="muted">{ui("Prescription warnings check patient-entered allergy words and exact names in doctor-verified medicine/allergy records. They do not check interactions, dose, therapeutic class, brand synonyms, age, pregnancy, kidney/liver function or missing records. No warning does not mean a prescription is safe.")}</p>
       {err && (
         <div className="error" role="alert">
           {err}
@@ -146,7 +160,7 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
             className={mode === m ? '' : 'ghost'}
             onClick={() => setMode(mode === m ? '' : m)}
           >
-            New {LABEL[m].toLowerCase()}
+            {ui("New")} {ui(LABEL[m])}
           </button>
         ))}
       </div>
@@ -157,7 +171,7 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
             <>
               <div className="row">
                 <div style={{ flex: 1 }}>
-                  <label htmlFor="df">From</label>
+                  <label htmlFor="df">{ui("From")}</label>
                   <input
                     id="df"
                     type="date"
@@ -166,7 +180,7 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
                   />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label htmlFor="dt">To</label>
+                  <label htmlFor="dt">{ui("To")}</label>
                   <input
                     id="dt"
                     type="date"
@@ -181,12 +195,11 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
                   checked={f.include_diagnosis}
                   onChange={(e) => setF({ ...f, include_diagnosis: e.target.checked })}
                 />
-                Show the diagnosis on the certificate (off by default, to protect the patient's
-                privacy)
+                {ui("Show the diagnosis on the certificate (off by default, to protect the patient's privacy)")}
               </label>
               {f.include_diagnosis && (
                 <input
-                  aria-label="Diagnosis for certificate"
+                  aria-label={ui("Diagnosis for certificate")}
                   value={f.diagnosis}
                   onChange={(e) => setF({ ...f, diagnosis: e.target.value })}
                 />
@@ -195,7 +208,7 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
           )}
           {mode === 'fitness' && (
             <>
-              <label htmlFor="pp">Fit for (e.g. "to resume work")</label>
+              <label htmlFor="pp">{ui("Fit for (e.g. \"to resume work\")")}</label>
               <input
                 id="pp"
                 value={f.purpose}
@@ -207,13 +220,58 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
                   checked={f.confirm_fit}
                   onChange={(e) => setF({ ...f, confirm_fit: e.target.checked })}
                 />
-                I examined the patient and found them medically fit
+                {ui("I examined the patient and found them medically fit")}
               </label>
             </>
           )}
           {mode === 'prescription' && (
             <>
-              <label htmlFor="rx">Medicines, one per line, as you would dictate them</label>
+              <p className="muted">{ui('Choose medicines yourself and enter every instruction. Symptoms in the visit note do not select a medicine.')}</p>
+              <div className="row">
+                <button type="button" className={rxMode === 'pick' ? '' : 'ghost'} onClick={() => setRxMode('pick')}>{ui('Pick medicines')}</button>
+                <button type="button" className={rxMode === 'write' ? '' : 'ghost'} onClick={() => setRxMode('write')}>{ui('Write medicine lines')}</button>
+              </div>
+              {rxMode === 'pick' ? <>
+                <label htmlFor="rx-medicine-name">{ui('Find a medicine by generic name')}</label>
+                <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+                  <input id="rx-medicine-name" list="rx-medicine-list" value={rxName}
+                    onChange={(e) => setRxName(e.target.value)} placeholder={ui('Search or type a medicine name')} />
+                  <datalist id="rx-medicine-list">
+                    {[...catalog.starter, ...catalog.custom.map((item) => item.name)].map((name) => <option key={name} value={name} />)}
+                  </datalist>
+                  <button type="button" disabled={!rxName.trim() || rxItems.length >= 20}
+                    onClick={() => { setRxItems((items) => [...items, emptyRxItem(rxName.trim())]); setRxName(''); }}>
+                    {ui('Add to draft')}
+                  </button>
+                  <button type="button" className="ghost" disabled={!rxName.trim()}
+                    onClick={() => void run(async () => {
+                      await staff('/staff/medicine-catalog', { name: rxName.trim() });
+                      await loadCatalog();
+                    }, ui('Saved to my medicine list'))}>{ui('Save name to my list')}</button>
+                </div>
+                <p className="muted">{ui('The starter list contains example generic names only. It does not show stock or recommend a medicine, strength or dose.')}{' '}
+                  <a href="https://cdsco.mohfw.gov.in/opencms/opencms/en/consumer/Essential-Medicines/" target="_blank" rel="noreferrer">{ui('India essential medicines source')}</a>
+                </p>
+                {rxItems.map((item, index) => <fieldset key={index} style={{ margin: '10px 0', padding: 12 }}>
+                  <legend>{index + 1}. {item.drug}</legend>
+                  <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+                    {([
+                      ['drug', 'Medicine'], ['strength', 'Strength'], ['form', 'Form'], ['dose', 'Dose'],
+                      ['frequency', 'How often'], ['duration', 'For how long'], ['instructions', 'Additional instructions'],
+                    ] as [keyof RxItem, string][]).map(([key, label]) => <label key={key} style={{ flex: '1 1 145px' }}>
+                      {ui(label)}{(['dose', 'frequency', 'duration'].includes(key) ? ' *' : '')}
+                      <input value={item[key]} onChange={(e) => setRxItems((items) =>
+                        items.map((it, n) => n === index ? { ...it, [key]: e.target.value } : it))} />
+                    </label>)}
+                  </div>
+                  <button type="button" className="small ghost" onClick={() => setRxItems((items) => items.filter((_, n) => n !== index))}>{ui('Remove medicine')}</button>
+                </fieldset>)}
+                <label>{ui('Advice stated by doctor (optional)')}
+                  <textarea rows={2} value={rxAdvice} onChange={(e) => setRxAdvice(e.target.value)} /></label>
+                <label>{ui('Follow-up stated by doctor (optional)')}
+                  <input value={rxFollowUp} onChange={(e) => setRxFollowUp(e.target.value)} /></label>
+              </> : <>
+              <label htmlFor="rx">{ui("Medicines, one per line, as you would dictate them")}</label>
               <textarea
                 id="rx"
                 rows={5}
@@ -224,15 +282,13 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
                 }
               />
               <div className="row" style={{ flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                <button type="button" className="small ghost" onClick={repeatLast}>
-                  Repeat last prescription
-                </button>
+                <button type="button" className="small ghost" onClick={repeatLast}>{ui("Repeat last prescription")}</button>
                 {favs.map((m) => (
                   <button
                     key={m.id}
                     type="button"
                     className="small ghost"
-                    title="Add this line"
+                    title={ui("Add this line")}
                     onClick={() =>
                       setF((cur: any) => ({
                         ...cur,
@@ -244,14 +300,15 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
                   </button>
                 ))}
                 <a href="/doctor/shortcuts" className="muted" style={{ fontSize: '.85rem' }}>
-                  {favs.length ? 'Manage favourites' : 'Save favourite medicines'}
+                  {ui(favs.length ? 'Manage favourites' : 'Save favourite medicines')}
                 </a>
               </div>
+              </>}
             </>
           )}
           {mode !== 'prescription' && (
             <>
-              <label htmlFor="rm">Remarks (optional)</label>
+              <label htmlFor="rm">{ui("Remarks (optional)")}</label>
               <input
                 id="rm"
                 value={f.remarks}
@@ -260,22 +317,20 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
             </>
           )}
           <div className="row" style={{ marginTop: 8 }}>
-            <label htmlFor="lg" style={{ margin: 0 }}>
-              Language
-            </label>
+            <label htmlFor="lg" style={{ margin: 0 }}>{ui("Language")}</label>
             <select
               id="lg"
               value={f.language}
               onChange={(e) => setF({ ...f, language: e.target.value })}
               style={{ width: 'auto' }}
             >
-              <option value="en">English</option>
+              <option value="en">{ui("English")}</option>
               <option value="hi">हिन्दी</option>
-              <option value="both">Both</option>
+              <option value="both">{ui("Both")}</option>
             </select>
-            <button disabled={mode === 'prescription' && !f.text.trim()} onClick={create}>
-              Create draft
-            </button>
+            <button disabled={mode === 'prescription' && (rxMode === 'write' ? !f.text.trim()
+              : !rxItems.length || rxItems.some((item) => !item.drug.trim() || !item.dose.trim() || !item.frequency.trim() || !item.duration.trim()))}
+              onClick={create}>{ui("Create draft")}</button>
           </div>
         </div>
       )}
@@ -285,14 +340,14 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
           <div key={d.id} data-testid={`doc-${d.status}`}>
             <div className="row between">
               <span>
-                <b>{LABEL[d.subtype]}</b>{' '}
+                <b>{ui(LABEL[d.subtype])}</b>{' '}
                 {d.doc_number && <span className="muted">{d.doc_number}</span>}{' '}
                 <span
                   className={`tag ${d.status === 'signed' ? 'called' : d.status === 'void' ? 'done' : 'on_hold'}`}
                 >
                   {displayLabel(d.status)}
                 </span>
-                {d.sent_at && <span className="muted"> · sent on WhatsApp</span>}
+                {d.sent_at && <span className="muted">{ui("· sent on WhatsApp")}</span>}
               </span>
               <span className="row">
                 {d.status === 'draft' && (
@@ -310,27 +365,19 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
                               },
                         )
                       }
-                    >
-                      Edit
-                    </button>
-                    <button className="small" onClick={() => setSigning(d)}>
-                      Review and sign
-                    </button>
+                    >{ui("Edit")}</button>
+                    <button className="small" onClick={() => setSigning(d)}>{ui("Review and sign")}</button>
                     <button
                       className="small ghost"
                       onClick={() =>
                         confirm('Discard this draft?') &&
                         run(() => staff(`/staff/issued/${d.id}`, undefined, 'DELETE'))
                       }
-                    >
-                      Discard
-                    </button>
+                    >{ui("Discard")}</button>
                   </>
                 )}
                 {d.status !== 'draft' && (
-                  <button className="small ghost" onClick={() => openPdf(d.id)}>
-                    PDF
-                  </button>
+                  <button className="small ghost" onClick={() => openPdf(d.id)}>{ui("PDF")}</button>
                 )}
                 {d.status === 'signed' && (
                   <>
@@ -342,18 +389,14 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
                           'Sent to the patient on WhatsApp',
                         )
                       }
-                    >
-                      Send on WhatsApp
-                    </button>
+                    >{ui("Send on WhatsApp")}</button>
                     <button
                       className="small danger"
                       onClick={() => {
                         const r = prompt('Why is this document being withdrawn?');
                         if (r) run(() => staff(`/staff/issued/${d.id}/void`, { reason: r }));
                       }}
-                    >
-                      Withdraw
-                    </button>
+                    >{ui("Withdraw")}</button>
                   </>
                 )}
               </span>
@@ -419,8 +462,8 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
                       </div>
                     ))}
                     <input
-                      aria-label="Advice"
-                      placeholder="Advice"
+                      aria-label={ui("Advice")}
+                      placeholder={ui("Advice")}
                       value={edit.content.advice ?? ''}
                       onChange={(e) =>
                         setEdit({
@@ -431,8 +474,8 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
                       style={{ marginTop: 4 }}
                     />
                     <input
-                      aria-label="Follow-up"
-                      placeholder="Follow-up"
+                      aria-label={ui("Follow-up")}
+                      placeholder={ui("Follow-up")}
                       value={edit.content.follow_up ?? ''}
                       onChange={(e) =>
                         setEdit({
@@ -447,7 +490,7 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
                   <>
                     <div className="row">
                       <input
-                        aria-label="Leave from"
+                        aria-label={ui("Leave from")}
                         type="date"
                         value={edit.content.from_date ?? ''}
                         onChange={(e) =>
@@ -458,7 +501,7 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
                         }
                       />
                       <input
-                        aria-label="Leave to"
+                        aria-label={ui("Leave to")}
                         type="date"
                         value={edit.content.to_date ?? ''}
                         onChange={(e) =>
@@ -470,8 +513,8 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
                       />
                     </div>
                     <input
-                      aria-label="Remarks"
-                      placeholder="Remarks"
+                      aria-label={ui("Remarks")}
+                      placeholder={ui("Remarks")}
                       value={edit.content.remarks ?? ''}
                       onChange={(e) =>
                         setEdit({
@@ -492,15 +535,13 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
                         setEdit(null);
                       }, 'Draft updated')
                     }
-                  >
-                    Save draft
-                  </button>
+                  >{ui("Save draft")}</button>
                 </p>
               </div>
             )}
           </div>
         ))}
-        {!docs.length && <p className="muted">Nothing issued yet.</p>}
+        {!docs.length && <p className="muted">{ui("Nothing issued yet.")}</p>}
       </div>
 
       {signing && (
@@ -515,14 +556,11 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
             boxShadow: '0 10px 40px rgba(0,0,0,.3)',
           }}
           role="dialog"
-          aria-label="Sign document"
+          aria-label={ui("Sign document")}
           data-testid="sign-dialog"
         >
-          <h3>Sign {LABEL[signing.subtype].toLowerCase()}</h3>
-          <p className="muted">
-            Your name and registration number go on the document. After signing it cannot be
-            changed, only withdrawn.
-          </p>
+          <h3>{ui("Sign")} {LABEL[signing.subtype].toLowerCase()}</h3>
+          <p className="muted">{ui("Your name and registration number go on the document. After signing it cannot be changed, only withdrawn.")}</p>
           {signing.warnings?.map((w: string, i: number) => (
             <div key={i} className="banner warn" style={{ margin: '4px 0' }}>
               {w}
@@ -530,11 +568,10 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
           ))}
           {signing.warnings?.length > 0 && (
             <label className="check">
-              <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />I
-              have checked these warnings
+              <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />{ui("I have checked these warnings")}
             </label>
           )}
-          <label htmlFor="spw">Enter your password to sign</label>
+          <label htmlFor="spw">{ui("Enter your password to sign")}</label>
           <input
             id="spw"
             type="password"
@@ -543,18 +580,14 @@ export function IssuedDocs({ patientId, onChange }: { patientId: string; onChang
             autoComplete="current-password"
           />
           <p className="row">
-            <button disabled={!pw || (signing.warnings?.length > 0 && !ack)} onClick={doSign}>
-              Sign
-            </button>
+            <button disabled={!pw || (signing.warnings?.length > 0 && !ack)} onClick={doSign}>{ui("Sign")}</button>
             <button
               className="ghost"
               onClick={() => {
                 setSigning(null);
                 setPw('');
               }}
-            >
-              Cancel
-            </button>
+            >{ui("Cancel")}</button>
           </p>
         </div>
       )}

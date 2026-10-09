@@ -1,12 +1,14 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { staff } from '../../lib/api';
+import { useStaffLang } from '../../lib/staffText';
 
 type Leave = { id: string; startsOn: string; endsOn: string; note: string | null };
 type Affected = { id: string; startsAt: string; patient: string | null; phone: string | null };
 
 /** "I'm away": block new bookings for a date range, then deal with the bookings already in it, one by one. */
 export function AwayManager({ doctorId }: { doctorId?: string }) {
+  const { x: ui } = useStaffLang();
   const [leave, setLeave] = useState<Leave[]>([]);
   const [from, setFrom] = useState(''),
     [to, setTo] = useState(''),
@@ -30,12 +32,8 @@ export function AwayManager({ doctorId }: { doctorId?: string }) {
     new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
   return (
     <div className="card" data-testid="away">
-      <h2>I&apos;m away</h2>
-      <p className="muted">
-        New bookings are blocked on these days, including from the WhatsApp assistant. Patients who
-        already have a booking are listed so you can decide about each one. Nobody is messaged
-        automatically.
-      </p>
+      <h2>{ui("I&apos;m away")}</h2>
+      <p className="muted">{ui("New bookings are blocked on these days, including from the WhatsApp assistant. Patients who already have a booking are listed so you can decide about each one. Nobody is messaged automatically.")}</p>
       <form
         className="row"
         onSubmit={(e) => {
@@ -56,21 +54,19 @@ export function AwayManager({ doctorId }: { doctorId?: string }) {
         }}
       >
         <label>
-          From <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} required />
+          {ui("From")} <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} required />
         </label>
         <label>
           To <input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} />
         </label>
         <input
-          aria-label="Note (optional)"
-          placeholder="Note (optional)"
+          aria-label={ui("Note (optional)")}
+          placeholder={ui("Note (optional)")}
           value={note}
           maxLength={200}
           onChange={(e) => setNote(e.target.value)}
         />
-        <button type="submit" disabled={!from || doctorId === ''}>
-          Mark as away
-        </button>
+        <button type="submit" disabled={!from || doctorId === ''}>{ui("Mark as away")}</button>
       </form>
       {err && (
         <div className="error" role="alert">
@@ -80,12 +76,11 @@ export function AwayManager({ doctorId }: { doctorId?: string }) {
       {affected && (
         <div data-testid="away-affected" style={{ marginTop: '.8rem' }}>
           {affected.length === 0 ? (
-            <p>Saved. Nobody had a booking on those days.</p>
+            <p>{ui("Saved. Nobody had a booking on those days.")}</p>
           ) : (
             <>
               <p>
-                <b>{affected.length}</b> patient(s) already have a booking on these days. Call or
-                message them, then cancel the booking here:
+                <b>{affected.length}</b> {ui("patient(s) already have a booking on these days. Call or message them, then cancel the booking here:")}
               </p>
               <div className="list">
                 {affected.map((a) => (
@@ -102,9 +97,7 @@ export function AwayManager({ doctorId }: { doctorId?: string }) {
                           setAffected((x) => (x ?? []).filter((y) => y.id !== a.id));
                         })
                       }
-                    >
-                      Cancel booking
-                    </button>
+                    >{ui("Cancel booking")}</button>
                   </div>
                 ))}
               </div>
@@ -112,9 +105,9 @@ export function AwayManager({ doctorId }: { doctorId?: string }) {
           )}
         </div>
       )}
-      <h3 style={{ marginTop: '1rem' }}>Planned time away</h3>
+      <h3 style={{ marginTop: '1rem' }}>{ui("Planned time away")}</h3>
       {leave.length === 0 ? (
-        <p className="muted">None.</p>
+        <p className="muted">{ui("None.")}</p>
       ) : (
         <div className="list">
           {leave.map((l) => (
@@ -130,9 +123,7 @@ export function AwayManager({ doctorId }: { doctorId?: string }) {
                     async () => (await staff(`/staff/leave/${l.id}`, undefined, 'DELETE'), load()),
                   )
                 }
-              >
-                Remove
-              </button>
+              >{ui("Remove")}</button>
             </div>
           ))}
         </div>

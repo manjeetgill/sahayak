@@ -89,7 +89,7 @@ afterAll(async () => {
   await pool.end();
   await db.end();
 });
-it('requires admin setup and keeps arrival data away from admin/public users', async () => {
+it('requires admin setup, allows Admin review and keeps arrival data private from public users', async () => {
   expect((await submit(input())).statusCode).toBe(400);
   expect((await req('doctor', 'PUT', '/staff/qr-settings', settings())).statusCode).toBe(403);
   expect(
@@ -104,7 +104,7 @@ it('requires admin setup and keeps arrival data away from admin/public users', a
   ).toBe(400);
   expect((await req('admin', 'PUT', '/staff/qr-settings', settings())).statusCode).toBe(200);
   expect((await req('admin', 'GET', '/staff/qr-settings')).json().enabled).toBe(true);
-  expect((await req('admin', 'GET', '/staff/qr-arrivals')).statusCode).toBe(403);
+  expect((await req('admin', 'GET', '/staff/qr-arrivals')).statusCode).toBe(200);
   expect((await req('', 'GET', '/staff/qr-arrivals')).statusCode).toBe(401);
 });
 it('requires consent, rejects foreign doctors and amount tampering', async () => {

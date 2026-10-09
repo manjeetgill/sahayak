@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { staff } from '../../lib/api';
+import { useStaffLang } from '../../lib/staffText';
 
 type Kind = 'calendar' | 'sheets';
 type Connection = {
@@ -17,6 +18,7 @@ type Connection = {
 const path = '/staff/integrations/google';
 const names = { calendar: 'Google Calendar', sheets: 'Google Sheets' };
 export default function DirectGoogleConnections() {
+  const { x: ui } = useStaffLang();
   const [data, setData] = useState<{ configured: boolean; connections: Connection[] } | null>(null);
   const [error, setError] = useState(''),
     [message, setMessage] = useState('');
@@ -91,67 +93,50 @@ export default function DirectGoogleConnections() {
     }, 'Opening Google sign-in…');
   return (
     <section aria-labelledby="direct-connections-title" className="direct-connections">
-      <h2 id="direct-connections-title">Connect your everyday tools</h2>
-      <p>
-        Keep an appointment calendar or a simple appointment register in Google. Sahayak sends the
-        updates directly. No extra automation software is needed.
-      </p>
-      <p className="muted">
-        Changes flow from Sahayak to Google only. Continue booking and changing visits in Sahayak.
-      </p>
+      <h2 id="direct-connections-title">{ui("Connect your everyday tools")}</h2>
+      <p>{ui("Keep an appointment calendar or a simple appointment register in Google. Sahayak sends the updates directly. No extra automation software is needed.")}</p>
+      <p className="muted">{ui("Changes flow from Sahayak to Google only. Continue booking and changing visits in Sahayak.")}</p>
       {error && (
         <div className="error" role="alert">
           {error}
         </div>
       )}
-      {message && <p role="status">{message}</p>}
+      {message && <p role="status">{ui(message)}</p>}
       <button
         className="ghost"
         disabled={busy}
         onClick={() => run(async () => {}, 'Status refreshed.')}
-      >
-        Refresh status
-      </button>
-      {!data && <p role="status">Loading connections…</p>}
+      >{ui("Refresh status")}</button>
+      {!data && <p role="status">{ui("Loading connections…")}</p>}
       {data && !data.configured && (
         <div className="card" style={{ marginTop: 16 }}>
-          <b>One-time Google setup is needed</b>
-          <p>
-            Your setup team needs to register Sahayak with Google. After that, you can sign in here
-            and choose when to start sharing updates.
-          </p>
-          <details>
-            <summary>Setup details for your technical team</summary>
-            <p>
-              Enable the Google Calendar and Google Sheets APIs, configure the Google consent
-              screen, and create a Web application OAuth client. Save these settings privately on
-              the API server and restart it:
-            </p>
+          <b>{ui("One-time Google setup is needed")}</b>
+          <p>{ui("Your setup team needs to register Sahayak with Google. After that, you can sign in here and choose when to start sharing updates.")}</p>
+          <details open>
+            <summary>{ui("Setup details for your technical team")}</summary>
+            <p>{ui("Enable the Google Calendar and Google Sheets APIs, configure the Google consent screen, and create a Web application OAuth client. Save these settings privately on the API server and restart it:")}</p>
             <ul>
               <li>
-                <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code>
+                <code>{ui("GOOGLE_CLIENT_ID")}</code> {ui("and")} <code>{ui("GOOGLE_CLIENT_SECRET")}</code>
               </li>
               <li>
-                <code>GOOGLE_CONNECTION_ENCRYPTION_KEY</code> — a stable, secret 64-character
-                hexadecimal key
+                <code>{ui("GOOGLE_CONNECTION_ENCRYPTION_KEY")}</code> {ui("— a stable, secret 64-character hexadecimal key")}
               </li>
               <li>
-                <code>GOOGLE_REDIRECT_URI</code> — the API address followed by{' '}
-                <code>/integrations/google/callback</code>
+                <code>{ui("GOOGLE_REDIRECT_URI")}</code> {ui("— the API address followed by")}{' '}
+                <code>{ui("/integrations/google/callback")}</code>
               </li>
               <li>
-                <code>GOOGLE_APP_WEB_URL</code> — the Sahayak website origin
+                <code>{ui("GOOGLE_APP_WEB_URL")}</code> {ui("— the Sahayak website origin")}
               </li>
             </ul>
             <p>
-              Local callback example:{' '}
-              <code>http://localhost:4000/integrations/google/callback</code>. Local website:{' '}
-              <code>http://localhost:3000</code>. Use HTTPS when hosted. Add the exact callback to
-              the Google OAuth client.
+              {ui("Local callback example:")}{' '}
+              <code>{ui("http://localhost:4000/integrations/google/callback")}</code>{ui(". Local website:")}{' '}
+              <code>{ui("http://localhost:3000")}</code>{ui(". Use HTTPS when hosted. Add the exact callback to the Google OAuth client.")}
             </p>
             <p>
-              The repository guide is <code>docs/direct-google-connections.md</code>. Do not enter
-              secrets in patient messages.
+              {ui("The repository guide is")} <code>{ui("docs/direct-google-connections.md")}</code>{ui(". Do not enter secrets in patient messages.")}
             </p>
           </details>
         </div>
@@ -163,38 +148,31 @@ export default function DirectGoogleConnections() {
             kind === 'calendar' ? 'See appointments on a calendar' : 'Keep an appointment register';
           return (
             <article key={kind} className="card direct-connection-card">
-              <span className="eyebrow">{names[kind]}</span>
-              <h3>{title}</h3>
+              <span className="eyebrow">{ui(names[kind])}</span>
+              <h3>{ui(title)}</h3>
               <p>
-                {kind === 'calendar'
+                {ui(kind === 'calendar'
                   ? 'Creates a separate clinic calendar. Bookings and time changes update its entries; cancellations remove them.'
-                  : 'Creates a separate spreadsheet. Each appointment has one row that updates when its time or status changes.'}
+                  : 'Creates a separate spreadsheet. Each appointment has one row that updates when its time or status changes.')}
               </p>
               <b>
-                {!c
+                {ui(!c
                   ? 'Not connected'
                   : !c.target_id
                     ? 'Sign-in complete · setup needed'
                     : c.enabled
                       ? 'Automatic updates on'
-                      : 'Automatic updates paused'}
+                      : 'Automatic updates paused')}
               </b>
               {c?.target_name && <p>{c.target_name}</p>}
-              <p className="muted">
-                Shared: appointment reference, doctor reference, start and end times, and
-                appointment status. Patient names, phone numbers and medical notes are not sent.
-              </p>
+              <p className="muted">{ui("Shared: appointment reference, doctor reference, start and end times, and appointment status. Patient names, phone numbers and medical notes are not sent.")}</p>
               {c?.last_error && (
                 <p className="error" role="alert">
                   {c.last_error}
                 </p>
               )}
               {c && !c.target_id && c.setup_state !== 'ready' && (
-                <p>
-                  Creation has an uncertain or unfinished result. Ask your setup team to check
-                  Google before disconnecting and starting again, so you do not create another
-                  destination.
-                </p>
+                <p>{ui("Creation has an uncertain or unfinished result. Ask your setup team to check Google before disconnecting and starting again, so you do not create another destination.")}</p>
               )}
               {(!c || !c.enabled) && (
                 <label className="check">
@@ -203,10 +181,7 @@ export default function DirectGoogleConnections() {
                     checked={share[kind]}
                     onChange={(e) => setShare({ ...share, [kind]: e.target.checked })}
                   />
-                  <span>
-                    I am allowed to share these appointment details with the clinic’s Google
-                    account.
-                  </span>
+                  <span>{ui("I am allowed to share these appointment details with the clinic’s Google account.")}</span>
                 </label>
               )}
               {c?.target_id && !c.enabled && (
@@ -216,9 +191,7 @@ export default function DirectGoogleConnections() {
                     checked={upcoming[kind]}
                     onChange={(e) => setUpcoming({ ...upcoming, [kind]: e.target.checked })}
                   />
-                  <span>
-                    Also include existing booked and checked-in appointments in the next 90 days.
-                  </span>
+                  <span>{ui("Also include existing booked and checked-in appointments in the next 90 days.")}</span>
                 </label>
               )}
               <div className="row" style={{ flexWrap: 'wrap', marginTop: 16 }}>
@@ -227,7 +200,7 @@ export default function DirectGoogleConnections() {
                     disabled={busy || !data?.configured || !share[kind]}
                     onClick={() => connect(kind)}
                   >
-                    Connect {names[kind]}
+                    {ui("Connect")} {names[kind]}
                   </button>
                 )}
                 {c && !c.target_id && c.setup_state === 'ready' && (
@@ -240,7 +213,7 @@ export default function DirectGoogleConnections() {
                       )
                     }
                   >
-                    Create clinic {kind === 'calendar' ? 'calendar' : 'spreadsheet'}
+                    {ui("Create clinic")} {kind === 'calendar' ? 'calendar' : 'spreadsheet'}
                   </button>
                 )}
                 {c?.target_id && (
@@ -265,7 +238,7 @@ export default function DirectGoogleConnections() {
                         )
                       }
                     >
-                      {c.enabled ? 'Pause updates' : 'Turn on automatic updates'}
+                      {ui(c.enabled ? 'Pause updates' : 'Turn on automatic updates')}
                     </button>
                     <button
                       className="ghost"
@@ -276,9 +249,7 @@ export default function DirectGoogleConnections() {
                           'Google access checked successfully. This does not confirm that an appointment was sent.',
                         )
                       }
-                    >
-                      Check connection
-                    </button>
+                    >{ui("Check connection")}</button>
                     <a
                       href={
                         kind === 'calendar'
@@ -288,7 +259,7 @@ export default function DirectGoogleConnections() {
                       target="_blank"
                       rel="noreferrer"
                     >
-                      Open {names[kind]}
+                      {ui("Open")} {names[kind]}
                     </a>
                   </>
                 )}
@@ -298,9 +269,7 @@ export default function DirectGoogleConnections() {
                       className="ghost"
                       disabled={busy || !data?.configured}
                       onClick={() => connect(kind)}
-                    >
-                      Reconnect Google
-                    </button>
+                    >{ui("Reconnect Google")}</button>
                     <button
                       className="ghost"
                       disabled={busy}
@@ -315,23 +284,21 @@ export default function DirectGoogleConnections() {
                             'Disconnected. Existing Google data is unchanged.',
                           );
                       }}
-                    >
-                      Disconnect
-                    </button>
+                    >{ui("Disconnect")}</button>
                   </>
                 )}
               </div>
               {c?.target_id && (
                 <div style={{ marginTop: 20 }}>
                   <p>
-                    <b>{c.counts.synced}</b> up to date · <b>{c.counts.pending}</b> waiting ·{' '}
-                    <b>{c.counts.failed}</b> need attention
+                    <b>{c.counts.synced}</b> {ui("up to date ·")} <b>{c.counts.pending}</b> {ui("waiting ·")}{' '}
+                    <b>{c.counts.failed}</b> {ui("need attention")}
                   </p>
                   <p className="muted">
-                    Last successful appointment update:{' '}
+                    {ui("Last successful appointment update:")}{' '}
                     {c.last_synced_at
                       ? new Date(c.last_synced_at).toLocaleString()
-                      : 'Not yet sent'}
+                      : ui('Not yet sent')}
                   </p>
                   {(c.counts.pending > 0 || c.counts.failed > 0) && (
                     <button
@@ -343,45 +310,35 @@ export default function DirectGoogleConnections() {
                           'An update attempt has finished. Check the counts and any errors below; remaining updates run in the background.',
                         )
                       }
-                    >
-                      Retry waiting updates
-                    </button>
+                    >{ui("Retry waiting updates")}</button>
                   )}
-                  <details>
-                    <summary>Recent appointment updates</summary>
+                  <details open>
+                    <summary>{ui("Recent appointment updates")}</summary>
                     {c.recent.length ? (
                       <ul>
                         {c.recent.map((item) => (
                           <li key={item.appointment_id}>
-                            Reference {item.appointment_id.slice(0, 8)} ·{' '}
-                            {item.status === 'synced'
+                            {ui("Reference")} {item.appointment_id.slice(0, 8)} ·{' '}
+                            {ui(item.status === 'synced'
                               ? 'Up to date'
                               : item.status === 'pending'
                                 ? 'Waiting'
-                                : 'Needs attention'}
+                                : 'Needs attention')}
                             {item.last_error && <p>{item.last_error}</p>}
                           </li>
                         ))}
                       </ul>
                     ) : (
-                      <p>No appointment updates yet.</p>
+                      <p>{ui("No appointment updates yet.")}</p>
                     )}
                   </details>
                 </div>
               )}
-              <details style={{ marginTop: 16 }}>
-                <summary>What happens when I pause or disconnect?</summary>
-                <p>
-                  Pause stops future delivery and keeps pending changes for when you turn updates
-                  back on. Disconnect removes saved Google credentials and queued updates from
-                  Sahayak. Information already copied to Google remains there; remove it in Google
-                  if needed.
-                </p>
+              <details open style={{ marginTop: 16 }}>
+                <summary>{ui("What happens when I pause or disconnect?")}</summary>
+                <p>{ui("Pause stops future delivery and keeps pending changes for when you turn updates back on. Disconnect removes saved Google credentials and queued updates from Sahayak. Information already copied to Google remains there; remove it in Google if needed.")}</p>
                 {kind === 'sheets' && (
-                  <p>
-                    Keep the Appointments tab and row order unchanged. Use a separate tab for your
-                    own analysis. The register supports 9,999 appointments per connection.
-                  </p>
+                  <p>{ui("Keep the Appointments tab and row order unchanged. Use a separate tab for your own analysis. The register supports 9,999 appointments per connection.")}</p>
                 )}
               </details>
             </article>

@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { staff, useSession } from '../../lib/api';
+import { useStaffLang } from '../../lib/staffText';
 import { Connections } from '../doctor/agents/components/connections';
 
 import DoctorAssistantAccess from './DoctorAssistantAccess';
@@ -34,10 +35,13 @@ type Spec = { trigger: any; audience: any; action: any };
 /** Custom agents: describe an automation in plain words, check what it will do, then approve it. Safety rules are fixed. */
 export default function AssistantsWorkspace({ personal = false }: { personal?: boolean }) {
   const s = useSession();
+  const { x } = useStaffLang();
   const [permitted, setPermitted] = useState(false);
-  const [tab, setTab] = useState<'overview' | 'whatsapp' | 'phone' | 'automations'>('overview');
+  const [tab, setTab] = useState<'all' | 'overview' | 'whatsapp' | 'phone' | 'automations'>(
+    personal ? 'overview' : 'all',
+  );
   const [busy, setBusy] = useState(false);
-  const canManage = s?.user.role === 'admin' || (personal && permitted);
+  const canManage = !!s?.user.clinicAdmin || (personal && permitted);
   const [agents, setAgents] = useState<any[]>([]);
   const [words, setWords] = useState('');
   const [draft, setDraft] = useState<{
@@ -138,7 +142,7 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
         setPreview(null);
         setWords('');
       },
-      activate ? 'Agent is on.' : 'Saved as a draft. Nothing runs until you turn it on.',
+      activate ? x('Assistant is on.') : x('Saved as a draft. Nothing runs until you turn it on.'),
     );
 
   const t = draft?.spec.trigger,
@@ -160,28 +164,29 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
   return (
     <div>
       <div className="topbar">
-        <b>{personal ? 'Help for your day' : 'Clinic assistants'}</b>
-        <a href={personal ? '/doctor' : '/admin'}>← Back</a>
+        <b>{x(personal ? 'Help for your day' : 'Clinic assistants')}</b>
+        <a href={personal ? '/doctor' : '/admin'}>← {x('Back')}</a>
       </div>
       <div className="wrap assistants-page" style={{ maxWidth: 1120 }}>
-        <span className="eyebrow">{personal ? 'YOUR CLINIC HELPERS' : 'Clinic assistants'}</span>
+        <span className="eyebrow">{x(personal ? 'YOUR CLINIC HELPERS' : 'Clinic assistants')}</span>
         <h1>
-          {
+          {x(
             {
+              all: 'All clinic assistants',
               overview: personal ? 'A little help with your busy day' : 'Everyday help',
               whatsapp: 'WhatsApp',
               phone: 'Phone calls',
               automations: 'Reminders and updates',
             }[tab]
-          }
+          )}
         </h1>
         <p>
           {personal
-            ? 'Let your assistants handle routine questions and reminders. Choose the help you want below.'
-            : 'Choose what your clinic needs help with. You stay in control of patient messages and reminders.'}
+            ? x('Let your assistants handle routine questions and reminders. Choose the help you want below.')
+            : x('Choose what your clinic needs help with. You stay in control of patient messages and reminders.')}
         </p>
         <nav
-          aria-label="Clinic assistant sections"
+          aria-label={x('Clinic assistant sections')}
           className="assistant-tabs"
           style={{ flexWrap: 'wrap', marginBottom: 16 }}
         >
@@ -189,7 +194,7 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
             ? permitted
               ? (['overview', 'automations'] as const)
               : (['overview'] as const)
-            : (['overview', 'whatsapp', 'phone', 'automations'] as const)
+            : (['all', 'overview', 'whatsapp', 'phone', 'automations'] as const)
           ).map((value) => (
             <button
               key={value}
@@ -197,18 +202,19 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
               className={tab === value ? '' : 'ghost'}
               onClick={() => setTab(value)}
             >
-              {
+              {x(
                 {
+                  all: 'Show everything',
                   overview: personal ? 'My assistants' : 'Everyday help',
                   whatsapp: 'WhatsApp',
                   phone: 'Phone calls',
                   automations: 'Reminders & updates',
                 }[value]
-              }
+              )}
             </button>
           ))}
         </nav>
-        {(tab === 'overview' || personal) && (
+        {(tab === 'all' || tab === 'overview' || personal) && (
           <div hidden={personal && tab !== 'overview'}>
             <DoctorAssistantAccess
               personal={personal}
@@ -217,22 +223,36 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
             />
           </div>
         )}
-        {!personal && tab !== 'automations' && (
-          <Connections key={tab} canManage={canManage} view={tab} />
-        )}
+        {!personal &&
+          tab !== 'automations' &&
+          (tab === 'all' ? (
+            <>
+              <div id="everyday-help">
+                <Connections canManage={canManage} view="overview" />
+              </div>
+              <div id="whatsapp">
+                <Connections canManage={canManage} view="whatsapp" />
+              </div>
+              <div id="phone">
+                <Connections canManage={canManage} view="phone" />
+              </div>
+            </>
+          ) : (
+            <Connections key={tab} canManage={canManage} view={tab} />
+          ))}
         <div
           className="reminders-workspace"
-          hidden={tab !== 'automations' || (personal && !permitted)}
+          id="automations"
+          hidden={(tab !== 'all' && tab !== 'automations') || (personal && !permitted)}
         >
           <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-            {busy && <p role="status">Checking your reminder or update… Please wait.</p>}
+            {busy && <p role="status">{x('Checking your reminder or update… Please wait.')}</p>}
             <h2 style={{ marginTop: 24 }}>
-              {personal ? 'My reminders & updates' : 'Reminders & updates'}
+              {x(personal ? 'My reminders & updates' : 'Reminders & updates')}
             </h2>
             {personal && (
               <p>
-                Choose a starting point, review the message, then approve it. To start a reminder,
-                turn on “Stay in touch” under My assistants. Summaries go only to you.
+                {x('Choose a starting point, review the message, then approve it. To start a reminder, turn on “Stay in touch” under My assistants. Summaries go only to you.')}
               </p>
             )}
             {err && (
@@ -246,22 +266,18 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
               </div>
             )}
             <p className="muted">
-              Choose an example or describe what you need. First prepare a draft, then review who it
-              reaches, when it happens, and the message. Nothing starts until you approve. Patient
-              safeguards always apply: patients are messaged only if they agreed, never at night,
-              never more than one custom message a week, with no links and no medical advice, and
-              STOP always works.
+              {x('Choose an example or describe what you need. First prepare a draft, then review who it reaches, when it happens, and the message. Nothing starts until you approve. Patient safeguards always apply: patients are messaged only if they agreed, never at night, never more than one custom message a week, with no links and no medical advice, and STOP always works.')}
             </p>
 
             {canManage && !draft && (
               <div className="card" data-testid="agent-builder">
                 <h3>
-                  {personal ? 'What would you like help with?' : 'Set up a reminder or update'}
+                  {x(personal ? 'What would you like help with?' : 'Set up a reminder or update')}
                 </h3>
                 {personal && (
                   <>
                     <p>
-                      Choose an example. You can change the message and timing before approving it.
+                      {x('Choose an example. You can change the message and timing before approving it.')}
                     </p>
                     <div className="assistant-template-grid">
                       {[
@@ -292,41 +308,41 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                             build(example.request);
                           }}
                         >
-                          <b>{example.title}</b>
-                          <span>{example.detail}</span>
-                          <span className="assistant-template-action">Prepare for review →</span>
+                          <b>{x(example.title)}</b>
+                          <span>{x(example.detail)}</span>
+                          <span className="assistant-template-action">{x('Prepare for review →')}</span>
                         </button>
                       ))}
                     </div>
-                    <label htmlFor="assistant-request">Or describe what you need</label>
+                    <label htmlFor="assistant-request">{x('Or describe what you need')}</label>
                   </>
                 )}
                 <textarea
                   id="assistant-request"
-                  aria-label="What would you like help with?"
+                  aria-label={x('What would you like help with?')}
                   rows={3}
                   value={words}
                   onChange={(e) => setWords(e.target.value)}
-                  placeholder={EXAMPLES[0]}
+                  placeholder={x(EXAMPLES[0])}
                 />
                 <p className="row" style={{ flexWrap: 'wrap' }}>
                   <button disabled={busy || words.trim().length < 5} onClick={() => build()}>
-                    Prepare a draft
+                    {x('Prepare a draft')}
                   </button>
                   {!personal && (
                     <span className="muted">
-                      Examples:{' '}
-                      {EXAMPLES.filter((x) => !personal || !x.includes('receptionist')).map((x) => (
+                      {x('Examples:')}{' '}
+                      {EXAMPLES.filter((example) => !personal || !example.includes('receptionist')).map((example) => (
                         <a
-                          key={x}
+                          key={example}
                           href="#"
                           onClick={(e) => {
                             e.preventDefault();
-                            setWords(x);
+                            setWords(example);
                           }}
                           style={{ marginRight: 10 }}
                         >
-                          {x}
+                          {x(example)}
                         </a>
                       ))}
                     </span>
@@ -337,13 +353,13 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
 
             {draft && (
               <div className="card" data-testid="agent-draft">
-                <h2>{draft.id ? 'Edit reminder or update' : 'Review before turning on'}</h2>
+                <h2>{x(draft.id ? 'Edit reminder or update' : 'Review before turning on')}</h2>
                 {draft.notes.map((n, i) => (
                   <div key={i} className="banner warn" style={{ margin: '4px 0' }} role="status">
                     {n}
                   </div>
                 ))}
-                <label htmlFor="an">Name</label>
+                <label htmlFor="an">{x('Name')}</label>
                 <input
                   id="an"
                   value={draft.name}
@@ -357,39 +373,39 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                     setPreview(null);
                   }}
                 />
-                <label htmlFor="when">When</label>
+                <label htmlFor="when">{x('When')}</label>
                 <div className="row">
                   <select
                     id="when"
-                    aria-label="When"
+                    aria-label={x('When')}
                     value={scheduleKind}
                     onChange={(e) => setTrigger(e.target.value)}
                     style={{ width: 'auto' }}
                   >
-                    <option value="day">Every day</option>
-                    <option value="week">Every week</option>
-                    <option value="month">Every month</option>
-                    <option value="event">When something happens</option>
+                    <option value="day">{x('Every day')}</option>
+                    <option value="week">{x('Every week')}</option>
+                    <option value="month">{x('Every month')}</option>
+                    <option value="event">{x('When something happens')}</option>
                   </select>
                   {t?.every === 'week' && (
                     <select
-                      aria-label="Weekday"
+                      aria-label={x('Weekday')}
                       value={t.weekday}
                       onChange={(e) => set({ trigger: { ...t, weekday: Number(e.target.value) } })}
                       style={{ width: 'auto' }}
                     >
                       {WEEKDAYS.map((d, i) => (
                         <option key={d} value={i}>
-                          {d}
+                          {x(d)}
                         </option>
                       ))}
                     </select>
                   )}
                   {t?.every === 'month' && (
                     <>
-                      <span>on day</span>
+                      <span>{x('on day')}</span>
                       <input
-                        aria-label="Day of month"
+                        aria-label={x('Day of month')}
                         type="number"
                         min={1}
                         max={28}
@@ -403,9 +419,9 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                   )}
                   {t?.type === 'schedule' && (
                     <>
-                      <span>at</span>
+                      <span>{x('at')}</span>
                       <input
-                        aria-label="Time"
+                        aria-label={x('Time')}
                         type="time"
                         value={t.at}
                         onChange={(e) => set({ trigger: { ...t, at: e.target.value } })}
@@ -416,20 +432,20 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                   {t?.type === 'event' && (
                     <>
                       <select
-                        aria-label="Event"
+                        aria-label={x('Event')}
                         value={t.event}
                         onChange={(e) => set({ trigger: { ...t, event: e.target.value } })}
                         style={{ width: 'auto' }}
                       >
                         {EVENTS.map(([v, l]) => (
                           <option key={v} value={v}>
-                            {l.replaceAll('custom-agent message', 'scheduled message')}
+                            {x(l.replaceAll('custom-agent message', 'scheduled message'))}
                           </option>
                         ))}
                       </select>
-                      <span>wait</span>
+                      <span>{x('wait')}</span>
                       <input
-                        aria-label="Delay hours"
+                        aria-label={x('Delay hours')}
                         type="number"
                         min={0}
                         max={168}
@@ -439,17 +455,17 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                         }
                         style={{ width: 70 }}
                       />
-                      <span>hours</span>
+                      <span>{x('hours')}</span>
                     </>
                   )}
                 </div>
                 {ac?.type === 'message_patients' && (
                   <>
-                    <label>Who gets it</label>
+                    <label>{x('Who gets it')}</label>
                     <div className="row" style={{ flexWrap: 'wrap' }}>
                       <input
-                        aria-label="Patient labels"
-                        placeholder="labels, e.g. diabetes, bp"
+                        aria-label={x('Patient labels')}
+                        placeholder={x('labels, e.g. diabetes, bp')}
                         value={(au.tags ?? []).join(', ')}
                         onChange={(e) =>
                           set({
@@ -464,12 +480,12 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                         }
                         style={{ flex: 1 }}
                       />
-                      <span>not visited for</span>
+                      <span>{x('not visited for')}</span>
                       <input
-                        aria-label="Days since last visit"
+                        aria-label={x('Days since last visit')}
                         type="number"
                         min={7}
-                        placeholder="days"
+                        placeholder={x('days')}
                         value={au.lastVisitOlderThanDays ?? ''}
                         onChange={(e) =>
                           set({
@@ -485,14 +501,13 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                       />
                     </div>
                     <p className="muted" style={{ fontSize: '.8rem' }}>
-                      Only patients who agreed to messages and reminders are ever included. Add
-                      labels to patients on their record.
+                      {x('Only patients who agreed to messages and reminders are ever included. Add labels to patients on their record.')}
                     </p>
                   </>
                 )}
-                <label>What it does</label>
+                <label>{x('What it does')}</label>
                 <select
-                  aria-label="Action"
+                  aria-label={x('Action')}
                   value={ac?.type}
                   onChange={(e) =>
                     set({
@@ -513,28 +528,28 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                   }
                   style={{ width: 'auto' }}
                 >
-                  <option value="message_patients">Send patients a WhatsApp message</option>
+                  <option value="message_patients">{x('Send patients a WhatsApp message')}</option>
                   <option value="notify_staff">
-                    {personal ? 'Notify me on WhatsApp' : 'Tell the doctor or receptionist'}
+                    {x(personal ? 'Notify me on WhatsApp' : 'Tell the doctor or receptionist')}
                   </option>
-                  <option value="summary">Send me a summary of numbers</option>
+                  <option value="summary">{x('Send me a summary of numbers')}</option>
                 </select>
                 {(ac?.type === 'message_patients' || ac?.type === 'notify_staff') && (
                   <>
                     {ac.type === 'notify_staff' && (
                       <select
-                        aria-label="Tell"
+                        aria-label={x('Tell')}
                         value={ac.to}
                         onChange={(e) => set({ action: { ...ac, to: e.target.value } })}
                         style={{ width: 'auto', marginTop: 6 }}
                       >
-                        {!personal && <option value="receptionist">the receptionist</option>}
-                        <option value="doctor">{personal ? 'me' : 'the doctor'}</option>
-                        {!personal && <option value="both">both</option>}
+                        {!personal && <option value="receptionist">{x('the receptionist')}</option>}
+                        <option value="doctor">{x(personal ? 'me' : 'the doctor')}</option>
+                        {!personal && <option value="both">{x('both')}</option>}
                       </select>
                     )}
                     <label htmlFor="txt">
-                      Message (English). Use {'{name}'} and {'{clinic}'}
+                      {x('Message (English). Use')} {'{name}'} {x('and')} {'{clinic}'}
                     </label>
                     <textarea
                       id="txt"
@@ -545,7 +560,7 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                       }
                     />
                     <label htmlFor="txthi">
-                      Message (हिन्दी, optional: Hindi-speaking patients get English if empty)
+                      {x('Message (हिन्दी, optional: Hindi-speaking patients get English if empty)')}
                     </label>
                     <textarea
                       id="txthi"
@@ -581,7 +596,7 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                             })
                           }
                         />
-                        {l.replaceAll('custom-agent message', 'scheduled message')}
+                        {x(l.replaceAll('custom-agent message', 'scheduled message'))}
                       </label>
                     ))}
                   </div>
@@ -589,7 +604,7 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
 
                 <p>
                   <button className="ghost" onClick={doPreview}>
-                    Check what it will do
+                    {x('Check what it will do')}
                   </button>
                 </p>
                 {preview &&
@@ -599,40 +614,40 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                       style={{ background: '#f0fdf4' }}
                       data-testid="agent-preview"
                     >
-                      <h3>Before you approve</h3>
-                      <p>This preview sends nothing. Counts can change before this runs.</p>
+                      <h3>{x('Before you approve')}</h3>
+                      <p>{x('This preview sends nothing. Counts can change before this runs.')}</p>
                       {preview.nextRun && (
                         <p>
-                          <b>Next scheduled time:</b>{' '}
+                          <b>{x('Next scheduled time:')}</b>{' '}
                           {new Date(preview.nextRun).toLocaleString('en-IN')}
                         </p>
                       )}
                       {preview.audience?.cappedAt && (
-                        <p>At most {preview.audience.cappedAt} patients per run.</p>
+                        <p>{x('At most')} {preview.audience.cappedAt} {x('patients per run.')}</p>
                       )}
                       <p>
-                        <b>When:</b>{' '}
+                        <b>{x('When:')}</b>{' '}
                         {t?.type === 'event'
                           ? `After ${EVENTS.find(([key]) => key === t.event)?.[1] ?? 'a clinic event'}, wait ${t.delayHours ?? 0} hour(s)`
                           : `Every ${t?.every} at ${t?.at} (clinic time)`}
                       </p>
                       <p>
-                        <b>Who:</b>{' '}
+                        <b>{x('Who:')}</b>{' '}
                         {ac?.type === 'message_patients'
                           ? `${preview.audience?.count ?? 0} eligible patients currently`
                           : ac?.type === 'notify_staff'
                             ? ac.to
-                            : 'Clinic staff summary'}
+                            : x('Clinic staff summary')}
                       </p>
-                      <b>What it does:</b>
+                      <b>{x('What it does:')}</b>
                       {preview.explain.map((l: string, i: number) => (
                         <div key={i}>
-                          {l.replaceAll('custom-agent message', 'scheduled message')}
+                          {x(l.replaceAll('custom-agent message', 'scheduled message'))}
                         </div>
                       ))}
                       {preview.audience && (
                         <p style={{ marginTop: 8 }}>
-                          <b>Right now it would reach {preview.audience.count} patient(s)</b>
+                          <b>{x('Right now it would reach')} {preview.audience.count} {x('patient(s)')}</b>
                           {preview.audience.sample.length
                             ? ` (for example ${preview.audience.sample.join(', ')})`
                             : ''}
@@ -661,10 +676,10 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                   ))}
                 <p className="row">
                   <button disabled={!preview?.valid} onClick={() => save(true)}>
-                    Approve and turn on
+                    {x('Approve and turn on')}
                   </button>
                   <button className="ghost" onClick={() => save(false)} disabled={!preview?.valid}>
-                    Save as draft
+                    {x('Save as draft')}
                   </button>
                   <button
                     className="ghost"
@@ -673,16 +688,16 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                       setPreview(null);
                     }}
                   >
-                    Cancel
+                    {x('Cancel')}
                   </button>
                 </p>
               </div>
             )}
 
-            <h2 style={{ marginTop: '1.2rem' }}>Your reminders and updates</h2>
+            <h2 style={{ marginTop: '1.2rem' }}>{x('Your reminders and updates')}</h2>
             {!agents.length && (
               <p className="muted">
-                No reminders or updates set up yet. Choose an example above to get started.
+                {x('No reminders or updates set up yet. Choose an example above to get started.')}
               </p>
             )}
             <div className="list" data-testid="agent-list">
@@ -691,19 +706,19 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                   <div className="row between">
                     <b>{a.name}</b>
                     {!personal && (
-                      <span className="muted"> · {a.doctorName ?? 'Whole clinic'}</span>
+                      <span className="muted"> · {a.doctorName ?? x('Whole clinic')}</span>
                     )}
                     <span
                       className={`tag ${a.status === 'active' ? 'called' : a.status === 'paused' ? 'on_hold' : ''}`}
                     >
-                      {a.status === 'active' ? 'On' : a.status === 'paused' ? 'Paused' : 'Draft'}
+                      {x(a.status === 'active' ? 'On' : a.status === 'paused' ? 'Paused' : 'Draft')}
                     </span>
                   </div>
-                  <details>
-                    <summary>Setup details</summary>
+                  <details open={!personal}>
+                    <summary>{x('Setup details')}</summary>
                     {a.platform_draft_id
                       ? `AI-Agent-Platform · version ${a.platform_version}`
-                      : 'Prepared in Sahayak'}
+                      : x('Prepared in Sahayak')}
                   </details>
                   {a.explain.map((l: string, i: number) => (
                     <div key={i} className="muted" style={{ fontSize: '.9rem' }}>
@@ -714,7 +729,7 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                     {a.next_run_at
                       ? `Next scheduled time: ${new Date(a.next_run_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })} · `
                       : ''}
-                    {a.run_count} time(s) processed
+                    {a.run_count} {x("time(s) processed")}
                     {a.runs[0]
                       ? ` · last: ${a.runs[0].status}${a.runs[0].result?.sent !== undefined ? `, ${a.runs[0].result.sent} sent` : ''}`
                       : ''}
@@ -727,7 +742,7 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                           run(() => staff(`/staff/agents/${a.id}/pause`, {}), 'Paused')
                         }
                       >
-                        Pause
+                        {x('Pause')}
                       </button>
                     )}
                     {canManage && a.status === 'paused' && (
@@ -737,7 +752,7 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                           run(() => staff(`/staff/agents/${a.id}/resume`, {}), 'Resumed')
                         }
                       >
-                        Resume
+                        {x('Resume')}
                       </button>
                     )}
                     {canManage && a.status === 'draft' && (
@@ -755,7 +770,7 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                           window.scrollTo(0, 0);
                         }}
                       >
-                        Review and turn on
+                        {x('Review and turn on')}
                       </button>
                     )}
                     {canManage && (
@@ -775,18 +790,18 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
                           window.scrollTo(0, 0);
                         }}
                       >
-                        Edit
+                        {x('Edit')}
                       </button>
                     )}
                     {canManage && (
                       <button
                         className="small danger"
                         onClick={() =>
-                          confirm(`Delete "${a.name}"?`) &&
+                          confirm(`${x('Delete')} "${a.name}"?`) &&
                           run(() => staff(`/staff/agents/${a.id}`, undefined, 'DELETE'))
                         }
                       >
-                        Delete
+                        {x('Delete')}
                       </button>
                     )}
                   </p>
@@ -796,8 +811,9 @@ export default function AssistantsWorkspace({ personal = false }: { personal?: b
           </fieldset>
         </div>
         <p className="banner warn">
-          Before using live messages or calls, check their connection status in the tabs below.
-          Preparing or approving a reminder does not connect delivery.
+          {x(personal
+            ? 'Before using live messages or calls, check connections in Clinic setup. Preparing or approving a reminder does not connect delivery.'
+            : 'Before using live messages or calls, check their connection status in the tabs below. Preparing or approving a reminder does not connect delivery.')}
         </p>
       </div>
     </div>

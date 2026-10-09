@@ -1,3 +1,4 @@
+import { ADMIN_REVIEW_TOOLS } from '../admin-review';
 import type pg from 'pg';
 import { z } from 'zod';
 import { withClinic, type Db } from '@sahayak/db';
@@ -10,6 +11,7 @@ export type Actor =
       role: 'admin' | 'doctor' | 'receptionist';
       userId: string;
       doctorId?: string | null;
+      clinicAdmin?: boolean;
     }
   | { kind: 'agent'; agent: string }
   | { kind: 'api'; keyId: string; scopes: string[] }
@@ -136,7 +138,16 @@ export async function callTool(
 ): Promise<any> {
   const tool = registry.get(name);
   if (!tool) throw new ToolError('unknown_tool', `Unknown tool ${name}`, 404);
-  if (!tool.allow.includes(actorKey(ctx.actor))) {
+  if (
+    !tool.allow.includes(actorKey(ctx.actor)) &&
+    !(ctx.actor.kind === 'staff' && ctx.actor.role === 'admin' && ADMIN_REVIEW_TOOLS.has(name)) &&
+    !(
+      ctx.actor.kind === 'staff' &&
+      ctx.actor.role === 'doctor' &&
+      ctx.actor.clinicAdmin === true &&
+      (tool.allow.includes('staff:admin') || tool.allow.includes('staff:receptionist'))
+    )
+  ) {
     await audit(rt, ctx, name, rawInput, { error: 'permission_denied' }, false);
     throw new ToolError('forbidden', `${actorKey(ctx.actor)} may not call ${name}`, 403);
   }

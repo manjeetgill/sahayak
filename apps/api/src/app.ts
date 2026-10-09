@@ -1,3 +1,4 @@
+import { isAdminReviewRequest } from './admin-review';
 import { installGoogleConnections } from './google-connections';
 import type { GoogleOptions } from './google-provider';
 import { installOutboundCalls } from './outbound-calls';
@@ -13,7 +14,7 @@ import {
   type WhatsAppBridgeOptions,
 } from './whatsapp-bridge';
 import { whatsappPlatform, type WhatsAppPlatformOptions } from './whatsapp-platform';
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import cors from '@fastify/cors';
@@ -28,6 +29,7 @@ import {
   handleInbound,
   handleInboundMedia,
   structureNote,
+  structureConversation,
   translateInstructions,
   parseLateRequest,
   startIntakeFor,
@@ -90,6 +92,7 @@ type Claims = {
   role: 'admin' | 'doctor' | 'receptionist';
   doctorId: string | null;
   name: string;
+  clinicAdmin?: boolean;
 };
 
 export async function buildApp(deps: AppDeps) {
@@ -152,10 +155,18 @@ export async function buildApp(deps: AppDeps) {
       pool,
       c.clinicId,
       async (db) =>
-        (await db.query('SELECT role, doctor_id FROM staff_users WHERE id=$1', [c.uid])).rows[0],
+        (
+          await db.query(
+            `SELECT s.role,s.doctor_id,s.solo_owner,cs.workspace_mode
+             FROM staff_users s JOIN clinic_settings cs ON cs.clinic_id=s.clinic_id WHERE s.id=$1`,
+            [c.uid],
+          )
+        ).rows[0],
     );
     if (!account || account.role !== c.role || (account.doctor_id ?? null) !== (c.doctorId ?? null))
       throw new ToolError('unauthorized', 'Your sign-in has changed. Please sign in again.', 401);
+    const soloOwner = c.role === 'doctor' && account.solo_owner === true;
+    const clinicAdmin = c.role === 'admin' || soloOwner;
     const route = req.routeOptions.url ?? '';
     const adminRoute =
       /^\/staff\/(agents(?:\/|$)|integrations(?:\/|$)|setup(?:\/|$)|team(?:\/|$)|settings(?:\/|$)|doctors(?:\/|$))/.test(
@@ -164,6 +175,7 @@ export async function buildApp(deps: AppDeps) {
       [
         '/me',
         '/staff/status',
+        '/staff/solo/availability',
         '/staff/qr-settings',
         '/staff/payments',
         '/staff/payments/setup',
@@ -173,15 +185,27 @@ export async function buildApp(deps: AppDeps) {
         '/staff/feedback/delivery-refresh',
         '/staff/feedback/delivery-evidence',
       ].includes(route);
-    if (c.role === 'admin' && !adminRoute)
-      throw new ToolError('forbidden', 'This workspace is for patient care staff', 403);
-    if (roles && !roles.includes(c.role))
+    const adminReview = c.role === 'admin' && isAdminReviewRequest(req.method, route);
+    if (c.role === 'admin' && !adminRoute && !adminReview)
+      throw new ToolError(
+        'forbidden',
+        'Admin can review this workspace. Sign in as the responsible care staff member to make this change.',
+        403,
+      );
+    if (
+      roles &&
+      !roles.includes(c.role) &&
+      !(soloOwner && (roles.includes('admin') || roles.includes('receptionist'))) &&
+      !adminReview
+    )
       throw new ToolError('forbidden', 'Not allowed for your role', 403);
-    return c;
+    return { ...c, clinicAdmin };
   };
   const staffCtx = (c: Claims): ToolContext => ({
     clinicId: c.clinicId,
-    actor: { kind: 'staff', role: c.role, userId: c.uid, doctorId: c.doctorId } as Actor,
+    actor: {
+      kind: 'staff', role: c.role, userId: c.uid, doctorId: c.doctorId, clinicAdmin: c.clinicAdmin,
+    } as Actor,
   });
   const clinicBySlug = async (slug: string) => {
     const r = await pool.query('SELECT id, name, default_language FROM clinics WHERE slug=$1', [
@@ -210,6 +234,111 @@ export async function buildApp(deps: AppDeps) {
 
   app.get('/health', async () => ({ ok: true }));
 
+  const patientLink = async (slug: string, token: string) => {
+    const clinic = await clinicBySlug(slug);
+    const hash = createHash('sha256').update(token).digest('hex');
+    const link = await read(clinic.id, async (db) => (
+      await db.query(
+        `SELECT l.patient_id,p.name FROM patient_access_links l JOIN patients p ON p.id=l.patient_id
+         WHERE l.token_hash=$1 AND l.expires_at>now() AND l.revoked_at IS NULL
+           AND p.name<>'Erased patient' AND EXISTS
+             (SELECT 1 FROM consents c WHERE c.patient_id=p.id AND c.purpose='visit_data'
+              AND c.withdrawn_at IS NULL)`, [hash],
+      )).rows[0]);
+    if (!link) throw new ToolError('link_expired', 'This private link has expired. Ask the clinic for a new one.', 404);
+    return { clinic, patientId: link.patient_id as string, patientName: link.name as string };
+  };
+
+  app.post('/staff/patients/:id/access-link', async (req) => {
+    const c = await claims(req, ['doctor']);
+    const patientId = idParam(req);
+    const token = randomBytes(32).toString('base64url');
+    const hash = createHash('sha256').update(token).digest('hex');
+    const slug = await read(c.clinicId, async (db) => {
+      const patient = (await db.query(
+        `SELECT p.id FROM patients p WHERE p.id=$1 AND p.name<>'Erased patient' AND EXISTS
+         (SELECT 1 FROM consents x WHERE x.patient_id=p.id AND x.purpose='visit_data'
+          AND x.withdrawn_at IS NULL)`, [patientId],
+      )).rows[0];
+      if (!patient) throw new ToolError('consent_required', 'Patient visit-data permission is required', 409);
+      await db.query(
+        'UPDATE patient_access_links SET revoked_at=now() WHERE patient_id=$1 AND revoked_at IS NULL',
+        [patientId],
+      );
+      await db.query(
+        `INSERT INTO patient_access_links(clinic_id,patient_id,token_hash,created_by,expires_at)
+         VALUES ($1,$2,$3,$4,now()+interval '7 days')`,
+        [c.clinicId, patientId, hash, c.uid],
+      );
+      return (await db.query('SELECT slug FROM clinics WHERE id=$1', [c.clinicId])).rows[0].slug as string;
+    });
+    return { path: `/c/${slug}/my-visit#${token}`, expiresInDays: 7 };
+  });
+
+  app.post('/public/:slug/my-visit', async (req, reply) => {
+    const b = z.object({ token: z.string().min(40).max(100) }).parse(req.body);
+    const { clinic, patientId, patientName } = await patientLink((req.params as any).slug, b.token);
+    reply.header('cache-control', 'no-store').header('referrer-policy', 'no-referrer');
+    return read(clinic.id, async (db) => {
+      const appointments = await db.query(`SELECT a.id,a.doctor_id,d.name AS doctor,a.starts_at,a.status FROM appointments a
+          JOIN doctors d ON d.id=a.doctor_id WHERE a.patient_id=$1 AND a.starts_at>now()-interval '1 day'
+          AND a.status IN ('booked','checked_in','needs_rebooking') ORDER BY a.starts_at LIMIT 10`, [patientId]);
+      const queue = await db.query(`SELECT token_number,status,queue_date FROM queue_entries
+          WHERE patient_id=$1 AND queue_date=(now() AT TIME ZONE (SELECT timezone FROM clinics WHERE id=$2))::date
+          ORDER BY checked_in_at DESC LIMIT 1`, [patientId, clinic.id]);
+      const arrival = await db.query(`SELECT a.id,a.status,a.amount_paise,o.state AS online_state FROM qr_arrivals a
+          LEFT JOIN qr_payment_orders o ON o.arrival_id=a.id WHERE a.patient_id=$1
+          ORDER BY a.created_at DESC LIMIT 1`, [patientId]);
+      const doctors = await db.query('SELECT id,name FROM doctors WHERE active ORDER BY name');
+      const reportRequests = await db.query("SELECT id,title,due_at FROM care_tasks WHERE patient_id=$1 AND kind='report' AND status='requested' ORDER BY due_at LIMIT 20", [patientId]);
+      const careSteps = await db.query(
+        `SELECT s.id,s.title,s.message,s.due_at,s.status FROM care_plan_steps s
+         JOIN care_plans p ON p.id=s.plan_id WHERE s.patient_id=$1 AND p.status='active'
+         AND s.status IN ('pending','contacted','no_response','needs_review')
+         ORDER BY s.due_at LIMIT 20`, [patientId],
+      );
+      return { clinic: clinic.name, patientName, appointments: appointments.rows,
+        queue: queue.rows[0] ?? null, arrival: arrival.rows[0] ?? null,
+        doctors: doctors.rows, reportRequests: reportRequests.rows, careSteps: careSteps.rows };
+    });
+  });
+  app.post('/public/:slug/my-visit/slots', async (req) => {
+    const b = z.object({ token: z.string().min(40).max(100), doctorId: z.string().uuid(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }).parse(req.body);
+    const { clinic, patientId } = await patientLink((req.params as any).slug, b.token);
+    return callTool(rt, { clinicId: clinic.id, actor: { kind: 'patient' }, patientId },
+      'list_free_slots', { doctorId: b.doctorId, date: b.date, count: 12 });
+  });
+  app.post('/public/:slug/my-visit/book', async (req) => {
+    const b = z.object({ token: z.string().min(40).max(100), doctorId: z.string().uuid(), startsAt: z.string().datetime(), reason: z.string().trim().max(200).optional() }).parse(req.body);
+    const { clinic, patientId } = await patientLink((req.params as any).slug, b.token);
+    return callTool(rt, { clinicId: clinic.id, actor: { kind: 'patient' }, patientId },
+      'book_appointment', { doctorId: b.doctorId, patientId, startsAt: b.startsAt, reason: b.reason, source: 'patient_web' });
+  });
+  app.post('/public/:slug/my-visit/cancel', async (req) => {
+    const b = z.object({ token: z.string().min(40).max(100), appointmentId: z.string().uuid() }).parse(req.body);
+    const { clinic, patientId } = await patientLink((req.params as any).slug, b.token);
+    return callTool(rt, { clinicId: clinic.id, actor: { kind: 'patient' }, patientId },
+      'cancel_appointment', { appointmentId: b.appointmentId });
+  });
+  app.post('/public/:slug/my-visit/reschedule', async (req) => {
+    const b = z.object({ token: z.string().min(40).max(100), appointmentId: z.string().uuid(), newStartsAt: z.string().datetime() }).parse(req.body);
+    const { clinic, patientId } = await patientLink((req.params as any).slug, b.token);
+    return callTool(rt, { clinicId: clinic.id, actor: { kind: 'patient' }, patientId },
+      'reschedule_appointment', { appointmentId: b.appointmentId, newStartsAt: b.newStartsAt });
+  });
+  app.post('/public/:slug/my-visit/document', async (req) => {
+    const b = z.object({ token: z.string().min(40).max(100), filename: z.string().min(1).max(120), base64: z.string().min(8).max(12_000_000), caption: z.string().max(200).optional(), careTaskId: z.string().uuid().optional() }).parse(req.body);
+    const { clinic, patientId } = await patientLink((req.params as any).slug, b.token);
+    return callTool(rt, { clinicId: clinic.id, actor: { kind: 'patient' }, patientId },
+      'store_patient_document', { patientId, filename: b.filename, base64: b.base64, caption: b.caption, kind: 'report', careTaskId: b.careTaskId });
+  });
+  app.post('/public/:slug/my-visit/follow-up-reply', async (req) => {
+    const b = z.object({ token: z.string().min(40).max(100), stepId: z.string().uuid(), response: z.string().trim().min(1).max(2000) }).parse(req.body);
+    const { clinic, patientId } = await patientLink((req.params as any).slug, b.token);
+    return callTool(rt, { clinicId: clinic.id, actor: { kind: 'patient' }, patientId },
+      'submit_patient_care_reply', { stepId: b.stepId, response: b.response });
+  });
+
   // ---- auth ----
   app.post('/auth/login', async (req) => {
     const i = LoginInput.parse(req.body);
@@ -224,6 +353,16 @@ export async function buildApp(deps: AppDeps) {
       doctorId: u.doctor_id,
       name: u.name,
     };
+    const access = await withClinic(pool, c.clinicId, async (db) =>
+      (
+        await db.query(
+          `SELECT s.solo_owner,cs.workspace_mode FROM staff_users s
+           JOIN clinic_settings cs ON cs.clinic_id=s.clinic_id WHERE s.id=$1`,
+          [c.uid],
+        )
+      ).rows[0],
+    );
+    c.clinicAdmin = c.role === 'admin' || (c.role === 'doctor' && access?.solo_owner === true);
     return { token: app.jwt.sign(c, { expiresIn: '12h' }), user: c };
   });
   app.get('/me', async (req) => claims(req));
@@ -401,7 +540,6 @@ export async function buildApp(deps: AppDeps) {
       async (db) => (await db.query('SELECT role FROM staff_users WHERE id=$1', [c.uid])).rows[0],
     );
     if (!account || account.role !== c.role) return socket.close(1008, 'Sign in again');
-    if (c.role === 'admin') return socket.close(1008, 'Patient updates are for care staff');
     activeClinics.add(c.clinicId);
     sendSocket(socket, c.clinicId, () => true);
     socket.send(
@@ -502,6 +640,22 @@ export async function buildApp(deps: AppDeps) {
     const c = await claims(req, ['doctor']);
     return callTool(rt, staffCtx(c), 'get_doctor_inbox', req.query ?? {});
   });
+  app.get('/staff/solo/availability', async (req) => {
+    const c = await claims(req, ['doctor', 'admin']);
+    return callTool(rt, staffCtx(c), 'get_solo_availability', {});
+  });
+  app.put('/staff/solo/availability', async (req) => {
+    const c = await claims(req, ['admin']);
+    return callTool(rt, staffCtx(c), 'set_solo_availability', req.body);
+  });
+  app.get('/staff/solo/closeout', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'get_solo_closeout', {});
+  });
+  app.post('/staff/solo/closeout', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'record_solo_closeout', req.body);
+  });
   app.get('/staff/inbox/conversations/:id', async (req) => {
     const c = await claims(req, ['doctor']);
     return callTool(rt, staffCtx(c), 'get_inbox_conversation', { conversationId: idParam(req) });
@@ -529,7 +683,7 @@ export async function buildApp(deps: AppDeps) {
       );
       return rows.map((r) => ({
         ...r,
-        phone: c.role === 'receptionist' ? ph.get(r.patient_id)?.phone : undefined,
+        phone: c.role === 'receptionist' || c.clinicAdmin ? ph.get(r.patient_id)?.phone : undefined,
         age: ph.get(r.patient_id)?.year_of_birth
           ? new Date().getFullYear() - ph.get(r.patient_id).year_of_birth
           : null,
@@ -600,7 +754,7 @@ export async function buildApp(deps: AppDeps) {
   });
 
   app.post('/staff/checkin', async (req) => {
-    const c = await claims(req, ['receptionist']);
+    const c = await claims(req, ['doctor', 'receptionist']);
     const input = CheckinInput.parse(req.body);
     const out = await callTool(rt, staffCtx(c), 'check_in_patient', input);
     if (out.messaged)
@@ -710,6 +864,18 @@ export async function buildApp(deps: AppDeps) {
     const c = await claims(req, ['doctor']);
     return callTool(rt, staffCtx(c), 'get_previsit_brief', { patientId: idParam(req) });
   });
+  app.get('/staff/patient-checkins/preferences/all', async (req) => {
+    const c = await claims(req, ['admin']);
+    return read(c.clinicId, async (db) => ({
+      doctors: (
+        await db.query(`SELECT d.id,d.name,coalesce(p.enabled,false) AS enabled,
+        coalesce(p.delay_days,1) AS delay_days,coalesce(p.send_time,'18:00'::time)::text AS send_time,
+        coalesce(p.reminder_enabled,false) AS reminder_enabled,u.name AS assigned_name
+        FROM doctors d LEFT JOIN doctor_feedback_preferences p ON p.doctor_id=d.id
+        LEFT JOIN staff_users u ON u.id=p.assigned_to ORDER BY d.name`)
+      ).rows,
+    }));
+  });
   app.get('/staff/patient-checkins/preferences', async (req) => {
     const c = await claims(req, ['doctor']);
     return callTool(rt, staffCtx(c), 'get_feedback_preferences', {});
@@ -769,6 +935,14 @@ export async function buildApp(deps: AppDeps) {
     const c = await claims(req, ['doctor']);
     return callTool(rt, staffCtx(c), 'get_patient_record', { patientId: idParam(req) });
   });
+  app.post('/staff/patients/:id/conversation-capture', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'start_conversation_capture', { patientId: idParam(req) });
+  });
+  app.post('/staff/conversation-capture/:id/stop', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'stop_conversation_capture', { consentId: idParam(req) });
+  });
   app.put('/staff/patients/:id/tags', async (req) => {
     const c = await claims(req, ['doctor']);
     return callTool(rt, staffCtx(c), 'set_patient_tags', {
@@ -782,7 +956,8 @@ export async function buildApp(deps: AppDeps) {
       .object({
         patientId: z.string().uuid(),
         transcript: z.string().trim().min(1).max(12000),
-        source: z.enum(['typed', 'dictated']).default('typed'),
+        source: z.enum(['typed', 'dictated', 'conversation']).default('typed'),
+        captureConsentId: z.string().uuid().optional(),
         queueEntryId: z.string().uuid().optional(),
       })
       .parse(req.body);
@@ -798,7 +973,9 @@ export async function buildApp(deps: AppDeps) {
             ).rows[0],
         )
       )?.ai_features?.scribe === true;
-    const s = await structureNote(gate, b.transcript, aiOn);
+    const s = b.source === 'conversation'
+      ? structureConversation(b.transcript)
+      : await structureNote(gate, b.transcript, aiOn);
     const out = await callTool(rt, staffCtx(c), 'save_visit_note_draft', {
       ...b,
       note: s.note,
@@ -918,6 +1095,18 @@ export async function buildApp(deps: AppDeps) {
   app.get('/staff/shortcuts', async (req) => {
     const c = await claims(req, ['doctor']);
     return callTool(rt, staffCtx(c), 'list_visit_shortcuts', {});
+  });
+  app.get('/staff/medicine-catalog', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'list_medicine_catalog', {});
+  });
+  app.post('/staff/medicine-catalog', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'add_medicine_name', req.body);
+  });
+  app.delete('/staff/medicine-catalog/:id', async (req) => {
+    const c = await claims(req, ['doctor']);
+    return callTool(rt, staffCtx(c), 'remove_medicine_name', { id: idParam(req) });
   });
   app.post('/staff/shortcuts/templates', async (req) => {
     const c = await claims(req, ['doctor']);
@@ -1476,7 +1665,7 @@ export async function buildApp(deps: AppDeps) {
   app.post('/staff/agents/interpret', async (req) => {
     const c = await claims(req, ['admin', 'doctor']);
     const { text } = z.object({ text: z.string().trim().min(5).max(500) }).parse(req.body);
-    if (deps.agentPlatform && c.role === 'admin')
+    if (deps.agentPlatform && c.clinicAdmin)
       return draftFromPlatform(deps.agentPlatform, c.clinicId, text);
     const out = await callTool(rt, staffCtx(c), 'interpret_agent_request', { text });
     if (out.understood) return out;
@@ -1618,6 +1807,10 @@ export async function buildApp(deps: AppDeps) {
   app.post('/staff/team', async (req) => {
     const c = await claims(req, ['admin']);
     return callTool(rt, staffCtx(c), 'add_staff', req.body);
+  });
+  app.put('/staff/team/solo-owner', async (req) => {
+    const c = await claims(req, ['admin']);
+    return callTool(rt, staffCtx(c), 'set_solo_owner', req.body);
   });
   app.delete('/staff/team/:id', async (req) => {
     const c = await claims(req, ['admin']);

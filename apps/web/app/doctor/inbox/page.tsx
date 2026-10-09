@@ -1,9 +1,11 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { staff, useLive, useSession } from '../../../lib/api';
+import { useStaffLang } from '../../../lib/staffText';
 
 export default function Inbox() {
   const session = useSession('doctor');
+  const { x, lang } = useStaffLang();
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
@@ -12,6 +14,11 @@ export default function Inbox() {
     [busy, setBusy] = useState(false);
   const [thread, setThread] = useState<any>(null);
   const [loadingThread, setLoadingThread] = useState(false);
+  useEffect(() => {
+    const category = new URLSearchParams(location.search).get('category');
+    if (category && ['urgent','payment','messages','draft','followup','report','task','checkin','result','insurance'].includes(category))
+      setFilter(category);
+  }, []);
   const load = useCallback(async () => {
     try {
       setData(await staff(`/staff/inbox?page=${page}&view=${view}&category=${filter}`));
@@ -57,11 +64,10 @@ export default function Inbox() {
   if (!session) return null;
   return (
     <main className="wrap attention-page" style={{ maxWidth: 960 }}>
-      <a href="/doctor">← Today’s clinic</a>
-      <h1>Needs my attention</h1>
+      <a href="/doctor">← {x('Today’s clinic')}</a>
+      <h1>{x('Needs my attention')}</h1>
       <p>
-        Open alerts, reports and care tasks across your clinic, plus your own unsigned drafts.
-        Priorities use recorded urgency and due dates.
+        {x('Open alerts, reports and care tasks across your clinic, plus your own unsigned drafts. Priorities use recorded urgency and due dates.')}
       </p>
       {error && (
         <p className="error" role="alert">
@@ -69,17 +75,17 @@ export default function Inbox() {
         </p>
       )}
       <button className="ghost" onClick={() => void load()}>
-        Refresh list
+        {x('Refresh list')}
       </button>
-      {!data && !error && <p role="status">Loading clinic work…</p>}
+      {!data && !error && <p role="status">{x('Loading clinic work…')}</p>}
       {data && (
         <>
           <p role="status">
-            <b>{data.total} outstanding items</b> · {data.urgent} urgent · {data.overdue} overdue
+            <b>{data.total} {x('outstanding items')}</b> · {data.urgent} {x('urgent')} · {data.overdue} {x('overdue')}
           </p>
           {data.urgent > 0 && (
             <p className="banner urgent">
-              {data.urgent} urgent conversation(s) need review.{' '}
+              {data.urgent} {x('urgent conversation(s) need review.')}{' '}
               <button
                 onClick={() => {
                   setView('all');
@@ -87,13 +93,13 @@ export default function Inbox() {
                   setFilter('urgent');
                 }}
               >
-                Show urgent items
+                {x('Show urgent items')}
               </button>
             </p>
           )}
           <div className="attention-filters">
             <label>
-              Work list
+              {x('Work list')}
               <select
                 value={view}
                 onChange={(e) => {
@@ -101,13 +107,13 @@ export default function Inbox() {
                   setPage(0);
                 }}
               >
-                <option value="all">All clinic work</option>
-                <option value="mine">Assigned to me</option>
-                <option value="later">Remind me later ({data.later})</option>
+                <option value="all">{x('All clinic work')}</option>
+                <option value="mine">{x('Assigned to me')}</option>
+                <option value="later">{x('Remind me later')} ({data.later})</option>
               </select>
             </label>
             <label>
-              Show{' '}
+              {x('Show')}{' '}
               <select
                 value={filter}
                 onChange={(e) => {
@@ -115,27 +121,27 @@ export default function Inbox() {
                   setPage(0);
                 }}
               >
-                <option value="all">All outstanding work</option>
-                <option value="checkin">Patient check-ins</option>
-                <option value="urgent">Urgent alerts</option>
-                <option value="task">Care tasks</option>
-                <option value="result">Test results needing review</option>
-                <option value="insurance">Insurance paperwork</option>
-                <option value="followup">Follow-up plans</option>
-                <option value="report">New reports and photos</option>
-                <option value="draft">My unsigned drafts</option>
-                <option value="messages">Patient messages and alerts</option>
+                <option value="all">{x('All outstanding work')}</option>
+                <option value="checkin">{x('Patient check-ins')}</option>
+                <option value="urgent">{x('Urgent alerts')}</option>
+                <option value="task">{x('Care tasks')}</option>
+                <option value="result">{x('Test results needing review')}</option>
+                <option value="payment">{x('Payment problems')}</option>
+                <option value="insurance">{x('Insurance paperwork')}</option>
+                <option value="followup">{x('Follow-up plans')}</option>
+                <option value="report">{x('New reports and photos')}</option>
+                <option value="draft">{x('My unsigned drafts')}</option>
+                <option value="messages">{x('Patient messages and alerts')}</option>
               </select>
             </label>
           </div>
           {data.total > data.items.length && (
             <p>
-              Showing page {page + 1}, with up to 50 items. Category filters apply across all
-              recorded work.
+              {x('Showing page')} {page + 1}, {x('with up to 50 items. Category filters apply across all recorded work.')}
             </p>
           )}
           {data.total === 0 && (
-            <p>No outstanding items recorded. New work will appear here as it arrives.</p>
+            <p>{x('No outstanding items recorded. New work will appear here as it arrives.')}</p>
           )}
           {data.items.map((i: any) => (
             <article
@@ -146,16 +152,16 @@ export default function Inbox() {
             >
               <span className="tag">
                 {i.priority === 0
-                  ? 'Urgent'
+                  ? x('Urgent')
                   : i.priority === 1
-                    ? 'Overdue'
+                    ? x('Overdue')
                     : i.priority === 3
-                      ? 'Waiting for completion'
-                      : 'Needs review'}
+                      ? x('Waiting for completion')
+                      : x('Needs review')}
               </span>
               <h2>{i.title}</h2>
               <p>
-                <b>{i.patient_name || 'Patient not yet identified'}</b>
+                <b>{i.patient_name || x('Patient not yet identified')}</b>
               </p>
               <p>{i.reason}</p>
               {i.alerts.map((a: any) => (
@@ -167,25 +173,25 @@ export default function Inbox() {
                   : i.assignee
                     ? `Responsible: ${i.assignee}`
                     : 'No responsible person recorded'}{' '}
-                · Added {new Date(i.happened_at).toLocaleString()}
-                {i.due_at && <> · Due {new Date(i.due_at).toLocaleString()}</>}
+                {x("· Added")} {new Date(i.happened_at).toLocaleString()}
+                {i.due_at && <> {x("· Due")} {new Date(i.due_at).toLocaleString()}</>}
               </p>
               <p>
                 {i.review?.acknowledged_at
-                  ? `Acknowledged ${new Date(i.review.acknowledged_at).toLocaleString()}`
+                  ? `${x('Acknowledged')} ${new Date(i.review.acknowledged_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')}`
                   : i.priority === 0 && Date.now() - Date.parse(i.happened_at) > 15 * 60000
-                    ? 'Urgent alert awaiting acknowledgement for over 15 minutes.'
-                    : 'Not yet acknowledged'}
+                    ? x('Urgent alert awaiting acknowledgement for over 15 minutes.')
+                    : x('Not yet acknowledged')}
               </p>
               <fieldset disabled={busy}>
-                <legend>Who will handle this?</legend>
+                <legend>{x('Who will handle this?')}</legend>
                 <select
-                  aria-label="Assign inbox owner"
+                  aria-label={x('Assign inbox owner')}
                   value={i.review?.assigned_to ?? ''}
                   onChange={(e) => review(i.key, 'assign', { assignedTo: e.target.value })}
                 >
                   <option value="" disabled>
-                    Choose doctor
+                    {x('Choose doctor')}
                   </option>
                   {data.staff.map((u: any) => (
                     <option key={u.id} value={u.id}>
@@ -193,74 +199,72 @@ export default function Inbox() {
                     </option>
                   ))}
                 </select>
-                <button onClick={() => review(i.key, 'acknowledge')}>Acknowledge</button>{' '}
+                <button onClick={() => review(i.key, 'acknowledge')}>{x('Acknowledge')}</button>{' '}
                 {view === 'later' ? (
-                  <button onClick={() => review(i.key, 'restore')}>Bring back now</button>
+                  <button onClick={() => review(i.key, 'restore')}>{x('Bring back now')}</button>
                 ) : (
                   <button
                     disabled={i.priority === 0}
-                    title={i.priority === 0 ? 'Urgent alerts stay visible' : ''}
+                    title={i.priority === 0 ? x('Urgent alerts stay visible') : ''}
                     onClick={() =>
                       review(i.key, 'later', {
                         until: new Date(Date.now() + 86400000).toISOString(),
                       })
                     }
                   >
-                    Remind me tomorrow
+                    {x('Remind me tomorrow')}
                   </button>
                 )}
                 {['alert', 'conversation'].includes(i.kind) && (
                   <button
                     onClick={() => {
                       const reason = prompt(
-                        'What action did you take? Record why this item is handled.',
+                        x('What action did you take? Record why this item is handled.'),
                       );
                       if (reason?.trim()) void review(i.key, 'handled', { reason });
                     }}
                   >
-                    Mark handled
+                    {x('Mark handled')}
                   </button>
                 )}
               </fieldset>
               <div className="row">
-                {i.path && <a href={i.path}>Review the original record</a>}
+                {i.path && <a href={i.path}>{x('Review the original record')}</a>}
                 {i.conversation_id && (
                   <button disabled={loadingThread} onClick={() => void openConversation(i)}>
-                    Read conversation
+                    {x('Read conversation')}
                   </button>
                 )}
-                {i.patient_id && <a href={`/doctor/patients/${i.patient_id}`}>Open patient</a>}
+                {i.patient_id && <a href={`/doctor/patients/${i.patient_id}`}>{x('Open patient')}</a>}
               </div>
             </article>
           ))}
           <p>
             <button disabled={page === 0} onClick={() => setPage(page - 1)}>
-              Previous page
+              {x('Previous page')}
             </button>{' '}
             <button disabled={(page + 1) * 50 >= data.total} onClick={() => setPage(page + 1)}>
-              Next page
+              {x('Next page')}
             </button>
           </p>
           <p className="muted">
-            Finish the work in its original record, then refresh this list. Reading an item does not
-            mark it handled.
+            {x('Finish the work in its original record, then refresh this list. Reading an item does not mark it handled.')}
           </p>
         </>
       )}
-      {loadingThread && <p role="status">Opening conversation…</p>}
+      {loadingThread && <p role="status">{x('Opening conversation…')}</p>}
       {thread && (
-        <section className="card" aria-label="Source conversation" style={{ marginTop: 20 }}>
-          <h2>Conversation: {thread.item.patient_name || 'Unregistered patient'}</h2>
+        <section className="card" aria-label={x('Source conversation')} style={{ marginTop: 20 }}>
+          <h2>{x('Conversation:')} {thread.item.patient_name || x('Unregistered patient')}</h2>
           <p>
-            Latest 100 messages. Your reception team handles replies. Reading here does not close
-            the alert.
+            {x('Latest 100 messages. Reading here does not close the alert. Please reply from the appropriate conversation screen.')}
           </p>
-          <button onClick={() => setThread(null)}>Close conversation</button>
-          {thread.messages.length === 0 && <p>No messages recorded.</p>}
+          <button onClick={() => setThread(null)}>{x('Close conversation')}</button>
+          {thread.messages.length === 0 && <p>{x('No messages recorded.')}</p>}
           {thread.messages.map((m: any, n: number) => (
             <p key={n}>
-              <b>{m.direction === 'in' ? 'Patient' : 'Clinic'}</b> ·{' '}
-              {new Date(m.created_at).toLocaleString()}
+              <b>{x(m.direction === 'in' ? 'Patient' : 'Clinic')}</b> ·{' '}
+              {new Date(m.created_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')}
               <br />
               {m.body}
             </p>

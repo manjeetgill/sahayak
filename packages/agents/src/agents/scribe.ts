@@ -87,6 +87,46 @@ export function structureDeterministic(transcript: string): Structured {
   return { note: note as NoteContent, flags, usedAi: false };
 }
 
+/** Browser speech recognition has no reliable speaker identification. The doctor labels each turn.
+ * Keep patient words separate from doctor statements; never turn patient speech into findings or a plan.
+ */
+export function structureConversation(transcript: string): Structured {
+  const patient: string[] = [];
+  const doctor: string[] = [];
+  const unlabeled: string[] = [];
+  for (const line of transcript.split(/\n+/).map((part) => part.trim()).filter(Boolean)) {
+    if (/^Patient:\s*/i.test(line)) patient.push(line.replace(/^Patient:\s*/i, ''));
+    else if (/^Doctor:\s*/i.test(line)) doctor.push(line.replace(/^Doctor:\s*/i, ''));
+    else unlabeled.push(line);
+  }
+  const note: Record<string, string> = {};
+  const doctorFlags: string[] = [];
+  for (const utterance of doctor) {
+    const arranged = structureDeterministic(utterance);
+    for (const [field, value] of Object.entries(arranged.note)) {
+      if (value) note[field] = note[field] ? `${note[field]}\n${value}` : value;
+    }
+    doctorFlags.push(...arranged.flags);
+  }
+  if (patient.length) {
+    const reported = patient.map((part) => `Patient said: ${part}`).join('\n');
+    note.complaint = note.complaint ? `${note.complaint}\n${reported}` : reported;
+  }
+  if (unlabeled.length) {
+    const other = unlabeled.join('\n');
+    note.history = note.history ? `${note.history}\n${other}` : other;
+  }
+  return {
+    note: note as NoteContent,
+    flags: [
+      'Speaker labels are set by the doctor, not detected by the microphone. Check every statement against the transcript before signing.',
+      ...new Set(doctorFlags),
+      ...(unlabeled.length ? ['Unlabelled speech was placed under History.'] : []),
+    ],
+    usedAi: false,
+  };
+}
+
 // Compare complete source segments, retaining short words, numbers and negation.
 // A word-overlap score could accept changed doses or a dropped "no".
 const canonical = (s: string) =>

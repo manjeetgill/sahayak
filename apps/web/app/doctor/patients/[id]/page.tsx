@@ -9,6 +9,10 @@ import { CareTasks } from '../../../components/CareTasks';
 import { useSection } from '../../../components/useSection';
 import { VisitChecklist } from '../../../components/VisitChecklist';
 import { IssuedDocs } from '../../../components/IssuedDocs';
+import { QuickFollowupPlan } from '../../../components/QuickFollowupPlan';
+import { useStaffLang } from '../../../../lib/staffText';
+import { SymptomPicker } from '../../../components/SymptomPicker';
+import { ConversationCapture } from '../../../components/ConversationCapture';
 
 function patientSection(hash: string) {
   if (hash === 'note-composer' || hash.startsWith('note-')) return 'visit';
@@ -47,8 +51,10 @@ const fileToBase64 = (f: File) =>
 
 /** One patient's record: notes the scribe drafts and the doctor signs, uploaded reports, visits. Doctor only; every opening is logged. */
 export default function PatientRecord({ params }: { params: { id: string } }) {
+  const { x, lang: uiLang } = useStaffLang();
   const s = useSession('doctor');
-  const activeSection = useSection(patientSection, 'overview');
+  const selectedSection = useSection(patientSection, 'overview');
+  const activeSection = s?.user.role === 'admin' ? 'all' : selectedSection;
   const [careVersion, setCareVersion] = useState(0);
   const [rec, setRec] = useState<any>(null),
     [err, setErr] = useState(''),
@@ -56,7 +62,9 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
   const [text, setText] = useState(''),
     [lang, setLang] = useState<'en-IN' | 'hi-IN'>('en-IN'),
     [listening, setListening] = useState(false),
-    [source, setSource] = useState<'typed' | 'dictated'>('typed');
+    [source, setSource] = useState<'typed' | 'dictated' | 'conversation'>('typed');
+  const [captureConsentId, setCaptureConsentId] = useState('');
+  const [capturing, setCapturing] = useState(false);
   const [draft, setDraft] = useState<{
     id: string;
     note: Record<string, string>;
@@ -64,6 +72,8 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
     transcript?: string;
   } | null>(null);
   const [tags, setTags] = useState('');
+  const [patientLink, setPatientLink] = useState('');
+  useEffect(() => setPatientLink(''), [params.id]);
   const [busy, setBusy] = useState(false);
   const recog = useRef<any>(null);
   const [shortcuts, setShortcuts] = useState<{
@@ -178,6 +188,7 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
         patientId: params.id,
         transcript: text,
         source,
+        captureConsentId: source === 'conversation' ? captureConsentId : undefined,
         queueEntryId: rec.visits.find(
           (v: any) =>
             v.doctor_id === s.user.doctorId && ['called', 'in_consultation'].includes(v.status),
@@ -185,6 +196,8 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
       });
       setDraft({ id: out.noteId, note: out.note, flags: out.flags, transcript: text });
       setText('');
+      setSource('typed');
+      setCaptureConsentId('');
     });
   const openDoc = async (id: string) => {
     const res = await fetch(`${API}/staff/documents/${id}`, {
@@ -211,7 +224,7 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
     <div className="patient-page" data-patient-view={activeSection}>
       <div className="topbar">
         <b>{p.name}</b>
-        <a href="/doctor">← Back to doctor screen</a>
+        <a href="/doctor">{x("← Back to doctor screen")}</a>
       </div>
       <div className="wrap" style={{ maxWidth: 860 }}>
         {err && (
@@ -229,29 +242,27 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
             <div>
               <h2 style={{ margin: 0 }}>{p.name}</h2>
               <span className="muted">
-                {p.age ? `${p.age} years · ` : ''}
+                {p.age ? `${p.age} ${x('years')} · ` : ''}
                 {p.phone}
               </span>
             </div>
-            <a className="button-link primary" href="#note-composer">
-              Continue visit
-            </a>
+            <a className="button-link primary" href="#note-composer">{x("Continue visit")}</a>
           </div>
           {p.clinical_hold_until && (
             <p className="banner warn" style={{ margin: '8px 0' }}>
-              Erasure was requested. Signed records are kept until{' '}
-              {String(p.clinical_hold_until).slice(0, 10)}, then deleted automatically.
+              {x('Erasure was requested. Signed records are kept until')}{' '}
+              {String(p.clinical_hold_until).slice(0, 10)}, {x('then deleted automatically.')}
             </p>
           )}
-          <details className="patient-groups">
-            <summary>Patient groups and reminders</summary>
-            <label htmlFor="tags">Patient groups (for reminders, e.g. diabetes)</label>
+          <details open={activeSection === 'all'} className="patient-groups">
+            <summary>{x("Patient groups and reminders")}</summary>
+            <label htmlFor="tags">{x("Patient groups (for reminders, e.g. diabetes)")}</label>
             <div className="row">
               <input
                 id="tags"
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
-                placeholder="diabetes, bp"
+                placeholder={x('diabetes, bp')}
               />
               <button
                 className="ghost"
@@ -268,51 +279,57 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
                         },
                         'PUT',
                       ),
-                    'Labels saved',
+                    x('Labels saved'),
                   )
                 }
-              >
-                Save
-              </button>
+              >{x("Save")}</button>
             </div>
           </details>
           {rec.upcoming.length > 0 && (
             <p className="muted">
-              Next appointment:{' '}
-              {new Date(rec.upcoming[0].starts_at).toLocaleString('en-IN', {
+              {x('Next appointment:')}{' '}
+              {new Date(rec.upcoming[0].starts_at).toLocaleString(uiLang === 'hi' ? 'hi-IN' : 'en-IN', {
                 dateStyle: 'medium',
                 timeStyle: 'short',
               })}
             </p>
           )}
+          {s.user.role === 'doctor' && <details>
+            <summary>{x("Give patient a private self-service link")}</summary>
+            <p className="muted">{x("The patient can see their appointments and queue status, change a future visit, and upload a report. This link works for seven days. Creating another link cancels the previous one.")}</p>
+            <button className="ghost" disabled={busy} onClick={() => void run(async () => {
+              const result = await staff<{ path: string }>(`/staff/patients/${params.id}/access-link`, {});
+              setPatientLink(`${location.origin}${result.path}`);
+            })}>{x("Create private link")}</button>
+            {patientLink && <div><label htmlFor="patient-private-link">{x("Give this link to the patient privately")}</label>
+              <input id="patient-private-link" readOnly value={patientLink} onFocus={(e) => e.currentTarget.select()} />
+              <button className="ghost small" onClick={() => void navigator.clipboard.writeText(patientLink)}>{x("Copy link")}</button>
+            </div>}
+          </details>}
         </div>
 
-        <nav className="patient-section-tabs" aria-label="Patient record sections">
+        <nav className="patient-section-tabs" aria-label={x('Patient record sections')}>
           <a
             href="#patient-overview"
             aria-current={activeSection === 'overview' ? 'page' : undefined}
-          >
-            Overview
-          </a>
-          <a href="#note-composer" aria-current={activeSection === 'visit' ? 'page' : undefined}>
-            Visit
-          </a>
-          <a href="#care-workspace" aria-current={activeSection === 'care' ? 'page' : undefined}>
-            Care plan
-          </a>
-          <a href="#documents" aria-current={activeSection === 'records' ? 'page' : undefined}>
-            Records
-          </a>
+          >{x("Overview")}</a>
+          <a href="#note-composer" aria-current={activeSection === 'visit' ? 'page' : undefined}>{x("Visit")}</a>
+          <a href="#care-workspace" aria-current={activeSection === 'care' ? 'page' : undefined}>{x("Care plan")}</a>
+          <a href="#documents" aria-current={activeSection === 'records' ? 'page' : undefined}>{x("Records")}</a>
           <a
             href="#patient-administration"
             aria-current={activeSection === 'admin' ? 'page' : undefined}
-          >
-            Documents & billing
-          </a>
+          >{x("Documents & billing")}</a>
         </nav>
 
         <div className="patient-panels">
-          <section id="patient-overview" hidden={activeSection !== 'overview'}>
+          <section
+            id="patient-overview"
+            hidden={activeSection !== 'all' && activeSection !== 'overview'}
+          >
+            {s.user.clinicAdmin && s.user.role === 'doctor' &&
+              <QuickFollowupPlan patientId={params.id} doctorUserId={s.user.uid}
+                onSaved={() => setCareVersion((value) => value + 1)} />}
             <PrevisitBrief
               patientId={params.id}
               onDocument={openDoc}
@@ -321,41 +338,38 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
             />
             <section className="card recent-history">
               <div className="panel-heading">
-                <h2>Recent history</h2>
-                <a className="button-link" href="#documents">
-                  Find in record
-                </a>
+                <h2>{x("Recent history")}</h2>
+                <a className="button-link" href="#documents">{x("Find in record")}</a>
               </div>
               {signed.slice(0, 3).map((n: any) => (
                 <div className="prototype-task-row" key={n.id}>
                   <span className="task-signal" />
                   <div>
-                    <strong>Signed visit note</strong>
+                    <strong>{x("Signed visit note")}</strong>
                     <small>
-                      {new Date(n.signed_at).toLocaleDateString()} · {n.doctor}
+                      {new Date(n.signed_at).toLocaleDateString(uiLang === 'hi' ? 'hi-IN' : 'en-IN')} · {n.doctor}
                     </small>
                   </div>
-                  <a className="button-link" href={`#note-${n.id}`}>
-                    Open
-                  </a>
+                  <a className="button-link" href={`#note-${n.id}`}>{x("Open")}</a>
                 </div>
               ))}
-              {!signed.length && <p className="muted">No signed visit notes recorded.</p>}
+              {!signed.length && <p className="muted">{x("No signed visit notes recorded.")}</p>}
               {rec.documents.slice(0, 2).map((d: any) => (
                 <div className="prototype-task-row" key={d.id}>
                   <span className="task-signal" />
                   <div>
                     <strong>{d.filename}</strong>
-                    <small>{new Date(d.created_at).toLocaleDateString()}</small>
+                    <small>{new Date(d.created_at).toLocaleDateString(uiLang === 'hi' ? 'hi-IN' : 'en-IN')}</small>
                   </div>
-                  <button className="ghost small" onClick={() => void openDoc(d.id)}>
-                    View report
-                  </button>
+                  <button className="ghost small" onClick={() => void openDoc(d.id)}>{x("View report")}</button>
                 </div>
               ))}
             </section>
           </section>
-          <section id="patient-follow-through" hidden={activeSection !== 'care'}>
+          <section
+            id="patient-follow-through"
+            hidden={activeSection !== 'all' && activeSection !== 'care'}
+          >
             <CareTasks
               patientId={params.id}
               documents={rec.documents}
@@ -372,32 +386,26 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
           <div
             className="card"
             style={{ marginTop: '1rem' }}
-            hidden={activeSection !== 'visit'}
+            hidden={activeSection !== 'all' && activeSection !== 'visit'}
             id="note-composer"
             data-testid="note-composer"
           >
             <fieldset disabled={busy} style={{ border: 0, padding: 0, minWidth: 0 }}>
-              <h2>{draft ? 'Draft note' : 'New visit note'}</h2>
-              {busy && <p role="status">Saving or arranging your note…</p>}
+              <h2>{x(draft ? 'Draft note' : 'New visit note')}</h2>
+              {busy && <p role="status">{x("Saving or arranging your note…")}</p>}
               {!draft && (
                 <>
-                  <p className="muted">
-                    Say or type what you found and decided. Headings help ("Complaint: … Diagnosis:
-                    … Plan: …"). The assistant only arranges your words; you review and sign.
-                  </p>
+                  <p className="muted">{x("Say or type what you found and decided. Headings help (\"Complaint: … Diagnosis: … Plan: …\"). The assistant only arranges your words; you review and sign.")}</p>
+                  {source === 'conversation' && <p className="banner warn">{x('The microphone cannot identify speakers. Check the Doctor and Patient labels and correct the transcript before arranging it. Only your signed note becomes final.')}</p>}
                   <details className="muted note-safety-detail">
-                    <summary>How your note is handled</summary>
-                    <p>
-                      The assistant only arranges your words under headings and never adds anything.
-                      The draft is stored for review. Verify every section against your source
-                      before signing; unsigned drafts are not final clinical notes.
-                    </p>
+                    <summary>{x("How your note is handled")}</summary>
+                    <p>{x("The assistant only arranges your words under headings and never adds anything. The draft is stored for review. Verify every section against your source before signing; unsigned drafts are not final clinical notes.")}</p>
                   </details>
                   <div
                     className="template-chips row"
                     style={{ flexWrap: 'wrap', gap: 6, margin: '6px 0' }}
                   >
-                    <span className="muted">Start from:</span>
+                    <span className="muted">{x("Start from:")}</span>
                     {shortcuts?.templates.map((t) => (
                       <button
                         key={t.id}
@@ -411,12 +419,26 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
                       </button>
                     ))}
                     <a href="/doctor/shortcuts" className="muted" style={{ fontSize: '.85rem' }}>
-                      {shortcuts?.templates.length ? 'Manage' : 'Set up shortcuts'}
+                      {x(shortcuts?.templates.length ? 'Manage' : 'Set up shortcuts')}
                     </a>
                   </div>
+                  <SymptomPicker onAdd={(symptoms) => setText((current) => {
+                    const line = source === 'conversation'
+                      ? `Doctor: ${uiLang === 'hi' ? 'शिकायत: बताए गए लक्षण' : 'Complaint: Reported symptoms'}: ${symptoms.join(', ')}`
+                      : `${uiLang === 'hi' ? 'शिकायत' : 'Complaint'}: ${symptoms.join(', ')}`;
+                    return current.trim() ? `${current.trim()}\n${line}` : line;
+                  })} />
+                  <ConversationCapture patientId={params.id} canStart={!text.trim() && !draft}
+                    onBegin={(id) => { setCaptureConsentId(id); setSource('conversation'); }}
+                    onSegment={(speaker, words) => setText((current) =>
+                      current.trim() ? `${current.trim()}\n${speaker}: ${words}` : `${speaker}: ${words}`)}
+                    onRecordingChange={setCapturing}
+                    onFinish={(hasTranscript) => { if (!hasTranscript) {
+                      setSource('typed'); setCaptureConsentId('');
+                    } }} />
                   {restored && (
                     <p className="muted" role="status">
-                      Restored what you had typed before.{' '}
+                      {x('Restored what you had typed before.')}{' '}
                       <button
                         type="button"
                         className="small ghost"
@@ -424,59 +446,53 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
                           setText('');
                           setRestored(false);
                         }}
-                      >
-                        Discard it
-                      </button>
+                      >{x("Discard it")}</button>
                     </p>
                   )}
                   <textarea
-                    aria-label="Dictation"
+                    aria-label={x('Dictation')}
                     rows={5}
                     value={text}
                     onChange={(e) => {
                       setText(e.target.value);
-                      if (!listening) setSource('typed');
+                      if (!listening && source !== 'conversation') setSource('typed');
                     }}
-                    placeholder="Complaint: fever for 3 days. Diagnosis: viral fever. Plan: rest, fluids. Follow up: 1 week"
+                    placeholder={x('Complaint: fever for 3 days. Diagnosis: viral fever. Plan: rest, fluids. Follow up: 1 week')}
                   />
                   <p className="row">
-                    <button className={text.trim() ? 'ghost' : ''} type="button" onClick={dictate}>
-                      {listening ? '■ Stop' : '🎤 Dictate'}
+                    <button className={text.trim() ? 'ghost' : ''} type="button" onClick={dictate}
+                      disabled={capturing || source === 'conversation'}>
+                      {x(listening ? '■ Stop' : '🎤 Dictate')}
                     </button>
                     <select
-                      aria-label="Dictation language"
+                      aria-label={x('Dictation language')}
                       value={lang}
                       onChange={(e) => setLang(e.target.value as any)}
                       style={{ width: 'auto' }}
                     >
-                      <option value="en-IN">English</option>
+                      <option value="en-IN">{x("English")}</option>
                       <option value="hi-IN">हिन्दी</option>
                     </select>
                     <button
                       className={text.trim() ? '' : 'ghost'}
-                      disabled={!text.trim() || listening}
+                      disabled={!text.trim() || listening || capturing}
                       onClick={arrange}
-                    >
-                      Arrange note
-                    </button>
+                    >{x("Arrange note")}</button>
                   </p>
                 </>
               )}
               {draft && (
                 <div className="note-review-grid">
                   <details open className="note-original">
-                    <summary>Your original spoken or typed note</summary>
+                    <summary>{x("Original source transcript")}</summary>
                     <pre style={{ whiteSpace: 'pre-wrap' }}>
                       {draft.transcript ||
                         rec.notes.find((n: any) => n.id === draft.id)?.transcript ||
-                        'Source not available'}
+                        x('Source not available')}
                     </pre>
                   </details>
                   <div className="note-structured">
-                    <p className="muted">
-                      Check negation, measurements, doses you dictated, and section placement. Empty
-                      sections mean not stated. This does not create a prescription.
-                    </p>
+                    <p className="muted">{x("Check negation, measurements, doses you dictated, and section placement. Empty sections mean not stated. This does not create a prescription.")}</p>
                     {draft.flags.map((f, i) => (
                       <div
                         key={i}
@@ -489,7 +505,7 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
                     ))}
                     {FIELDS.map(([k, label]) => (
                       <div key={k}>
-                        <label htmlFor={`f-${k}`}>{label}</label>
+                        <label htmlFor={`f-${k}`}>{x(label)}</label>
                         <textarea
                           id={`f-${k}`}
                           rows={2}
@@ -507,40 +523,34 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
                             await staff(`/staff/notes/${draft.id}`, { note: draft.note }, 'PATCH');
                             if (
                               confirm(
-                                'Sign this note? After signing it cannot be edited, only amended.',
+                                x('Sign this note? After signing it cannot be edited, only amended.'),
                               )
                             ) {
                               await staff(`/staff/notes/${draft.id}/sign`, {});
                               setDraft(null);
                             }
-                          }, 'Saved')
+                          }, x('Saved'))
                         }
-                      >
-                        Save and sign
-                      </button>
+                      >{x("Save and sign")}</button>
                       <button
                         className="ghost"
                         onClick={() =>
                           run(
                             () => staff(`/staff/notes/${draft.id}`, { note: draft.note }, 'PATCH'),
-                            'Draft saved',
+                            x('Draft saved'),
                           )
                         }
-                      >
-                        Save draft
-                      </button>
+                      >{x("Save draft")}</button>
                       <button
                         className="ghost"
                         onClick={() =>
-                          confirm('Discard this draft?') &&
+                          confirm(x('Discard this draft?')) &&
                           run(async () => {
                             await staff(`/staff/notes/${draft.id}`, undefined, 'DELETE');
                             setDraft(null);
                           })
                         }
-                      >
-                        Discard
-                      </button>
+                      >{x("Discard")}</button>
                     </p>
                   </div>
                 </div>
@@ -548,37 +558,41 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
             </fieldset>
           </div>
 
-          <div className="card" hidden={activeSection !== 'visit'} style={{ marginTop: '1rem' }}>
-            <h2>Notes</h2>
-            {!signed.length && <p className="muted">No signed notes yet.</p>}
+          <div
+            className="card"
+            hidden={activeSection !== 'all' && activeSection !== 'visit'}
+            style={{ marginTop: '1rem' }}
+          >
+            <h2>{x("Notes")}</h2>
+            {!signed.length && <p className="muted">{x("No signed notes yet.")}</p>}
             <div className="list" data-testid="signed-notes">
               {signed.map((n: any) => (
                 <div key={n.id} id={`note-${n.id}`}>
                   <div className="row between">
                     <b>
-                      {new Date(n.signed_at).toLocaleString('en-IN', {
+                      {new Date(n.signed_at).toLocaleString(uiLang === 'hi' ? 'hi-IN' : 'en-IN', {
                         dateStyle: 'medium',
                         timeStyle: 'short',
                       })}
                     </b>
                     <span className="muted">
                       {n.doctor}
-                      {n.amends_note_id ? ' · amends an earlier note' : ''}
+                      {n.amends_note_id ? ` · ${x('amends an earlier note')}` : ''}
                     </span>
                   </div>
                   {FIELDS.filter(([k]) => n.note[k]).map(([k, label]) => (
                     <div key={k}>
-                      <span className="muted">{label}: </span>
+                      <span className="muted">{x(label)}: </span>
                       {n.note[k]}
                     </div>
                   ))}
                   {n.amend_reason && (
-                    <div className="muted">Reason for amendment: {n.amend_reason}</div>
+                    <div className="muted">{x('Reason for amendment:')} {n.amend_reason}</div>
                   )}
                   <button
                     className="small ghost"
                     onClick={() => {
-                      const reason = prompt('Why is this note being corrected?');
+                      const reason = prompt(x('Why is this note being corrected?'));
                       if (reason)
                         run(async () => {
                           const a = await staff(`/staff/notes/${n.id}/amend`, { reason });
@@ -586,9 +600,7 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
                           location.hash = 'note-composer';
                         });
                     }}
-                  >
-                    Amend
-                  </button>
+                  >{x("Amend")}</button>
                 </div>
               ))}
             </div>
@@ -596,7 +608,7 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
 
           <section
             id="patient-administration"
-            hidden={activeSection !== 'admin' && activeSection !== 'visit'}
+            hidden={!['all', 'admin', 'visit'].includes(activeSection)}
           >
             <IssuedDocs patientId={params.id} />
           </section>
@@ -606,10 +618,10 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
             style={{ marginTop: '1rem' }}
             id="documents"
             data-testid="documents"
-            hidden={activeSection !== 'records'}
+            hidden={activeSection !== 'all' && activeSection !== 'records'}
           >
             <div className="row between">
-              <h2>Reports and photos</h2>
+              <h2>{x("Reports and photos")}</h2>
               <label
                 className="ghost"
                 style={{
@@ -620,7 +632,7 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
                   borderRadius: 10,
                 }}
               >
-                Upload / take photo
+                {x('Upload / take photo')}
                 <input
                   type="file"
                   accept="image/*,application/pdf"
@@ -631,21 +643,19 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
               </label>
             </div>
             {!rec.documents.length && (
-              <p className="muted">Nothing uploaded. Patients can also send reports on WhatsApp.</p>
+              <p className="muted">{x("Nothing uploaded. Patients can also send reports on WhatsApp.")}</p>
             )}
             <div className="list">
               {rec.documents.map((d: any) => (
                 <div key={d.id} className="row between">
                   <span>
-                    {d.filename} {d.status === 'new' && <span className="tag called">New</span>}{' '}
+                    {d.filename} {d.status === 'new' && <span className="tag called">{x("New")}</span>}{' '}
                     <span className="muted">
-                      · {d.uploaded_via} · {new Date(d.created_at).toLocaleDateString()}
+                      · {x(displayLabel(d.uploaded_via))} · {new Date(d.created_at).toLocaleDateString(uiLang === 'hi' ? 'hi-IN' : 'en-IN')}
                       {d.caption ? ` · ${d.caption}` : ''}
                     </span>
                   </span>
-                  <button className="small" onClick={() => openDoc(d.id)}>
-                    Open
-                  </button>
+                  <button className="small" onClick={() => openDoc(d.id)}>{x("Open")}</button>
                 </div>
               ))}
             </div>
@@ -659,24 +669,28 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
             documents={rec.documents}
             onDocument={openDoc}
           />
-          <div className="card" hidden={activeSection !== 'records'} style={{ marginTop: '1rem' }}>
-            <h2>Visits</h2>
+          <div
+            className="card"
+            hidden={activeSection !== 'all' && activeSection !== 'records'}
+            style={{ marginTop: '1rem' }}
+          >
+            <h2>{x("Visits")}</h2>
             <div className="list">
               {rec.visits.map((v: any, i: number) => (
                 <div key={i} id={`visit-${v.id}`}>
-                  {String(v.queue_date).slice(0, 10)} · token {v.token_number} ·{' '}
-                  {displayLabel(v.status)}
+                  {String(v.queue_date).slice(0, 10)} · {x('token')} {v.token_number} ·{' '}
+                  {x(displayLabel(v.status))}
                 </div>
               ))}
-              {!rec.visits.length && <p className="muted">No visits yet.</p>}
+              {!rec.visits.length && <p className="muted">{x("No visits yet.")}</p>}
             </div>
             {rec.intake.length > 0 && (
               <>
-                <h3 style={{ marginTop: '1rem' }}>Before-visit answers</h3>
+                <h3 style={{ marginTop: '1rem' }}>{x("Before-visit answers")}</h3>
                 <div className="list">
                   {rec.intake.map((i: any, n: number) => (
                     <div key={n} id={`intake-${i.id}`}>
-                      <span className="muted">{new Date(i.created_at).toLocaleDateString()}: </span>
+                      <span className="muted">{new Date(i.created_at).toLocaleDateString(uiLang === 'hi' ? 'hi-IN' : 'en-IN')}: </span>
                       {i.summary}
                       {(i.answers ?? []).map((a: any, index: number) => (
                         <p key={index}>
@@ -693,7 +707,7 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
         <aside className="patient-tools workspace-stack">
           {activeSection === 'visit' ? (
             <details className="card checkin-responses-collapsed">
-              <summary>Earlier check-in responses</summary>
+              <summary>{x("Earlier check-in responses")}</summary>
               <PatientCheckins patientId={params.id} />
             </details>
           ) : (
@@ -702,7 +716,7 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
             </section>
           )}
           <section className="card">
-            <h2>{activeSection === 'visit' ? 'Finish this visit' : 'Visit checklist'}</h2>
+            <h2>{x(activeSection === 'visit' ? 'Finish this visit' : 'Visit checklist')}</h2>
             {rec.visits.find(
               (v: any) =>
                 v.doctor_id === s.user.doctorId && ['called', 'in_consultation'].includes(v.status),
@@ -718,18 +732,16 @@ export default function PatientRecord({ params }: { params: { id: string } }) {
                 onFinished={() => void load()}
               />
             ) : (
-              <p className="muted">
-                No active consultation recorded. Start the consultation from Today.
-              </p>
+              <p className="muted">{x("No active consultation recorded. Start the consultation from Today.")}</p>
             )}
           </section>
           <section className="card">
-            <h2>Quick actions</h2>
+            <h2>{x("Quick actions")}</h2>
             <nav className="action-links">
-              <a href="#note-composer">Write or review note</a>
-              <a href="#documents">Upload report</a>
-              <a href="#care-workspace">Create follow-up plan</a>
-              <a href="#patient-administration">Documents & billing</a>
+              <a href="#note-composer">{x("Write or review note")}</a>
+              <a href="#documents">{x("Upload report")}</a>
+              <a href="#care-workspace">{x("Create follow-up plan")}</a>
+              <a href="#patient-administration">{x("Documents & billing")}</a>
             </nav>
           </section>
         </aside>

@@ -1,9 +1,11 @@
 'use client';
+import { useStaffLang } from '../../lib/staffText';
 import { useState } from 'react';
 import { api, session } from '../../lib/api';
 
 /** Create a clinic (invite only). Leads straight into the guided setup. */
 export default function Signup() {
+  const { lang, setLang, x: ui } = useStaffLang();
   const [f, setF] = useState({
     inviteCode: '',
     clinicName: '',
@@ -30,46 +32,47 @@ export default function Signup() {
   };
   return (
     <div className="wrap auth-page">
+      <button className="ghost" type="button" onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')}>{lang === 'hi' ? 'English' : 'हिन्दी'}</button>
       <a className="auth-brand" href="/">
         <span className="clinic-brand-mark" aria-hidden="true">
           ✚
         </span>{' '}
-        Sahayak
+        {ui("Sahayak")}
       </a>
-      <h1>Set up your clinic</h1>
+      <h1>{ui("Set up your clinic")}</h1>
       <p className="muted">
-        Takes about 10 minutes. You will need your clinic address and opening hours.
+        {ui("Takes about 10 minutes. You will need your clinic address and opening hours.")}
       </p>
       <form className="card" onSubmit={submit}>
-        <label htmlFor="invite">Invite code</label>
+        <label htmlFor="invite">{ui("Invite code")}</label>
         <input
           id="invite"
           value={f.inviteCode}
           onChange={(e) => set('inviteCode', e.target.value)}
           required
         />
-        <label htmlFor="cn">Clinic name</label>
+        <label htmlFor="cn">{ui("Clinic name")}</label>
         <input
           id="cn"
           value={f.clinicName}
           onChange={(e) => set('clinicName', e.target.value)}
           required
         />
-        <label htmlFor="admin-name">Your name (clinic admin)</label>
+        <label htmlFor="admin-name">{ui("Your name (clinic admin)")}</label>
         <input
           id="admin-name"
           value={f.adminName}
           onChange={(e) => set('adminName', e.target.value)}
           required
         />
-        <label htmlFor="dn">First doctor’s name</label>
+        <label htmlFor="dn">{ui("First doctor’s name")}</label>
         <input
           id="dn"
           value={f.doctorName}
           onChange={(e) => set('doctorName', e.target.value)}
           required
         />
-        <label htmlFor="em">Email (used to sign in)</label>
+        <label htmlFor="em">{ui("Email (used to sign in)")}</label>
         <input
           id="em"
           type="email"
@@ -78,7 +81,7 @@ export default function Signup() {
           autoComplete="username"
           required
         />
-        <label htmlFor="pw">Password (at least 10 characters)</label>
+        <label htmlFor="pw">{ui("Password (at least 10 characters)")}</label>
         <input
           id="pw"
           type="password"
@@ -95,11 +98,11 @@ export default function Signup() {
         )}
         <p>
           <button type="submit" disabled={busy}>
-            Create my clinic
+            {ui("Create my clinic")}
           </button>
         </p>
         <p className="muted">
-          Already have an account? <a href="/login">Sign in</a>
+          {ui("Already have an account?")} <a href="/login">{ui("Sign in")}</a>
         </p>
       </form>
     </div>

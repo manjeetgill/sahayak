@@ -2,6 +2,7 @@
 import { displayLabel } from '../../lib/labels';
 import { useCallback, useEffect, useState } from 'react';
 import { staff } from '../../lib/api';
+import { useStaffLang } from '../../lib/staffText';
 export function CareTasks({
   patientId,
   queueEntryId,
@@ -13,6 +14,7 @@ export function CareTasks({
   documents?: any[];
   onDocument?: (id: string) => void;
 }) {
+  const { x, lang } = useStaffLang();
   const [data, setData] = useState<any>(null),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
@@ -46,10 +48,9 @@ export function CareTasks({
   };
   return (
     <section className="card" style={{ marginTop: 16 }} id="care-tasks">
-      <h2>Reports, referrals and follow-through</h2>
+      <h2>{x('Reports, referrals and follow-through')}</h2>
       <p>
-        Requested → received / prepared → doctor reviewed → patient informed. “Patient informed”
-        records a communication you have completed; it does not send a message.
+        {x('Requested → received / prepared → doctor reviewed → patient informed. “Patient informed” records a communication you have completed; it does not send a message.')}
       </p>
       {error && (
         <p role="alert" className="error">
@@ -57,32 +58,32 @@ export function CareTasks({
         </p>
       )}
       <button className="ghost small" disabled={busy} onClick={() => run(load)}>
-        Refresh tasks
+        {x('Refresh tasks')}
       </button>
       {patientId && (
         <fieldset disabled={busy}>
-          <legend>New task</legend>
+          <legend>{x('New task')}</legend>
           <label>
-            Task type
-            <select aria-label="Task type" value={kind} onChange={(e) => setKind(e.target.value)}>
+            {x('Task type')}
+            <select aria-label={x('Task type')} value={kind} onChange={(e) => setKind(e.target.value)}>
               {['report', 'referral', 'document', 'followup', 'instructions'].map((k) => (
-                <option key={k} value={k}>{displayLabel(k)}</option>
+                <option key={k} value={k}>{x(displayLabel(k))}</option>
               ))}
             </select>
           </label>
           <label>
-            Requested item
+            {x('Requested item')}
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={200}
-              placeholder="e.g. Obtain the report requested by the doctor"
+              placeholder={x('e.g. Obtain the report requested by the doctor')}
             />
           </label>
           <label>
-            Responsible doctor
+            {x('Responsible doctor')}
             <select
-              aria-label="Responsible doctor"
+              aria-label={x('Responsible doctor')}
               value={assignee}
               onChange={(e) => setAssignee(e.target.value)}
             >
@@ -94,7 +95,7 @@ export function CareTasks({
             </select>
           </label>
           <label>
-            Due date and time (your device time)
+            {x('Due date and time (your device time)')}
             <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} />
           </label>
           <button
@@ -113,11 +114,11 @@ export function CareTasks({
               })
             }
           >
-            Create task
+            {x('Create task')}
           </button>
         </fieldset>
       )}
-      {data?.tasks.length === 0 && <p>No tasks recorded.</p>}
+      {data?.tasks.length === 0 && <p>{x('No tasks recorded.')}</p>}
       {data?.tasks.map((task: any) => {
         const next = (
           { requested: 'received', received: 'reviewed', reviewed: 'informed' } as Record<
@@ -130,24 +131,24 @@ export function CareTasks({
             key={task.id}
             style={{ borderTop: '1px solid var(--line)', marginTop: 12, paddingTop: 12 }}
           >
-            <b>{task.title}</b> <span className="tag">{displayLabel(task.status)}</span>
-            {task.overdue && <strong className="error"> Overdue</strong>}
+            <b>{task.title}</b> <span className="tag">{x(displayLabel(task.status))}</span>
+            {task.overdue && <strong className="error"> {x('Overdue')}</strong>}
             <p>
               <a href={`/doctor/patients/${task.patient_id}#care-tasks`}>{task.patient_name}</a> ·{' '}
-              {displayLabel(task.kind)} · {task.assignee || 'Unassigned'} · due{' '}
-              {new Date(task.due_at).toLocaleString()}
+              {x(displayLabel(task.kind))} · {task.assignee || x('Unassigned')} · {x('due')}{' '}
+              {new Date(task.due_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')}
             </p>
             {task.document_id && onDocument && (
               <p>
                 <button className="small ghost" onClick={() => onDocument(task.document_id)}>
-                  Open source report
+                  {x('Open source report')}
                 </button>
               </p>
             )}
             {patientId && next && (
               <>
                 <label>
-                  Reassign
+                  {x('Reassign')}
                   <select
                     disabled={busy}
                     value={task.assigned_to ?? ''}
@@ -162,7 +163,7 @@ export function CareTasks({
                     }
                   >
                     <option value="" disabled>
-                      Unassigned
+                      {x('Unassigned')}
                     </option>
                     {data.staff.map((s: any) => (
                       <option value={s.id} key={s.id}>
@@ -173,14 +174,14 @@ export function CareTasks({
                 </label>
                 {task.kind === 'report' && task.status === 'requested' && (
                   <label>
-                    Source report
+                    {x('Source report')}
                     <select
                       value={attachments[task.id] ?? ''}
                       onChange={(e) =>
                         setAttachments({ ...attachments, [task.id]: e.target.value })
                       }
                     >
-                      <option value="">Select uploaded report</option>
+                      <option value="">{x('Select uploaded report')}</option>
                       {documents.map((d) => (
                         <option key={d.id} value={d.id}>
                           {d.filename}
@@ -205,10 +206,10 @@ export function CareTasks({
                   }
                 >
                   {next === 'received'
-                    ? 'Mark received / prepared'
+                    ? x('Mark received / prepared')
                     : next === 'reviewed'
-                      ? 'Confirm doctor review'
-                      : 'Confirm patient was informed'}
+                      ? x('Confirm doctor review')
+                      : x('Confirm patient was informed')}
                 </button>{' '}
                 <button
                   className="ghost"
@@ -219,7 +220,7 @@ export function CareTasks({
                     )
                   }
                 >
-                  Cancel task
+                  {x('Cancel task')}
                 </button>
               </>
             )}

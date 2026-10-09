@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { staff, useSession } from '../../lib/api';
+import { useStaffLang } from '../../lib/staffText';
 const words: Record<string, string> = {
   planned: 'Waiting for a response',
   patient_response: 'Patient replied',
@@ -42,8 +43,10 @@ const words: Record<string, string> = {
 };
 export const feedbackLabel = (s: string) => words[s] ?? s.replaceAll('_', ' ');
 export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
+  const { x, lang } = useStaffLang();
   const session = useSession();
   const doctor = session?.user.role === 'doctor';
+  const canViewRecord = doctor || session?.user.role === 'admin';
   const [data, setData] = useState<any>(null),
     [filter, setFilter] = useState('all'),
     [error, setError] = useState(''),
@@ -97,18 +100,18 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
       setLinks((l) => ({ ...l, [c.id]: location.origin + result.path }));
     });
   return (
-    <section aria-label="Patient feedback work">
+    <section aria-label={x('Patient feedback work')}>
       <div className="feedback-heading">
         <div>
-          <h2>{patientId ? 'Check-in responses' : 'Patients who need a reply'}</h2>
-          <p className="muted">Read what the patient said, make contact, and record what helped.</p>
+          <h2>{x(patientId ? 'Check-in responses' : 'Patients who need a reply')}</h2>
+          <p className="muted">{x('Read what the patient said, make contact, and record what helped.')}</p>
         </div>
         <button className="ghost" onClick={() => void load()}>
-          Refresh
+          {x('Refresh')}
         </button>
       </div>
       <label>
-        Show
+        {x('Show')}
         <select value={filter} onChange={(e) => setFilter(e.target.value)}>
           {[
             ['all', 'All check-ins'],
@@ -121,7 +124,7 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
             ['closed', 'Closed'],
           ].map(([v, l]) => (
             <option key={v} value={v}>
-              {l}
+              {x(l)}
             </option>
           ))}
         </select>
@@ -131,13 +134,12 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
           {error}
         </p>
       )}
-      {!data && !error && <p>Loading patient check-ins…</p>}
+      {!data && !error && <p>{x('Loading patient check-ins…')}</p>}
       {data?.cases.length === 0 && (
         <div className="card">
-          <h3>No check-ins in this view</h3>
+          <h3>{x('No check-ins in this view')}</h3>
           <p>
-            Schedule a check-in from the visit completion checklist. Patient replies will appear
-            here.
+            {x('Schedule a check-in from the visit completion checklist. Patient replies will appear here.')}
           </p>
         </div>
       )}
@@ -146,25 +148,25 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
           <article className="card" id={`case-${c.id}`} key={c.id}>
             <div className="feedback-heading">
               <div>
-                <h3>{patientId ? 'Patient check-in' : c.patient_name}</h3>
+                <h3>{patientId ? x('Patient check-in') : c.patient_name}</h3>
                 <p className="muted">
-                  {c.assignee} · {new Date(c.scheduled_at).toLocaleString()}
+                  {c.assignee} · {new Date(c.scheduled_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')}
                 </p>
               </div>
               <strong className={c.urgent ? 'error' : ''}>
                 {c.status === 'cancelled'
-                  ? 'Cancelled'
+                  ? x('Cancelled')
                   : c.urgent
-                    ? 'Urgent review'
-                    : feedbackLabel(c.work_status)}
+                    ? x('Urgent review')
+                    : x(feedbackLabel(c.work_status))}
               </strong>
             </div>
             {c.recovery && (
               <p>
-                <b>{feedbackLabel(c.recovery)}</b> · {feedbackLabel(c.category)}
+                <b>{x(feedbackLabel(c.recovery))}</b> · {x(feedbackLabel(c.category))}
                 {c.work_status !== 'closed' &&
                 new Date(c.response_due_at ?? c.scheduled_at) < new Date()
-                  ? ' · Needs attention'
+                  ? ` · ${x('Needs attention')}`
                   : ''}
               </p>
             )}
@@ -179,49 +181,47 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                 setAction('contacted');
               }}
             >
-              {selected === c.id ? 'Hide details' : 'Review check-in'}
+              {x(selected === c.id ? 'Hide details' : 'Review check-in')}
             </button>
             {selected === c.id && (
               <div className="workspace-stack feedback-detail">
                 <div className="feedback-actions">
-                  {doctor && (
-                    <a href={`/doctor/patients/${c.patient_id}`}>Open patient and visit</a>
+                  {canViewRecord && (
+                    <a href={`/doctor/patients/${c.patient_id}`}>{x('Open patient and visit')}</a>
                   )}
-                  <a href={`tel:${c.phone}`}>Call patient</a>
-                  {doctor && (
+                  <a href={`tel:${c.phone}`}>{x('Call patient')}</a>
+                  {canViewRecord && (
                     <a href={`/doctor/patients/${c.patient_id}#care-workspace`}>
-                      Arrange follow-up
+                      {x('Arrange follow-up')}
                     </a>
                   )}
                 </div>
                 {c.urgent && (
                   <p className="banner urgent">
-                    Potential urgent symptoms were reported. Review the original response promptly.
-                    The patient form advises immediate emergency help.
+                    {x('Potential urgent symptoms were reported. Review the original response promptly. The patient form advises immediate emergency help.')}
                   </p>
                 )}
                 {c.message !== null && c.message !== undefined ? (
-                  <section aria-label="Original patient response">
-                    <h4>Original patient response</h4>
+                  <section aria-label={x('Original patient response')}>
+                    <h4>{x('Original patient response')}</h4>
                     <p>
-                      Help requested: {feedbackLabel(c.help)} · Clinic feedback:{' '}
-                      {feedbackLabel(c.theme)}
+                      {x('Help requested:')} {x(feedbackLabel(c.help))} · {x('Clinic feedback:')}{' '}
+                      {x(feedbackLabel(c.theme))}
                     </p>
                     <blockquote style={{ whiteSpace: 'pre-wrap' }}>
-                      {c.message || 'No written comment added.'}
+                      {c.message || x('No written comment added.')}
                     </blockquote>
-                    <small>{new Date(c.responded_at).toLocaleString()}</small>
+                    <small>{new Date(c.responded_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')}</small>
                   </section>
                 ) : (
                   <p>
-                    No response yet. Silence does not mean the patient is satisfied or has left the
-                    clinic.
+                    {x('No response yet. Silence does not mean the patient is satisfied or has left the clinic.')}
                   </p>
                 )}
                 {!!c.resolutions?.length && (
                   <p>
-                    Latest patient confirmation:{' '}
-                    <b>{feedbackLabel(c.resolutions[c.resolutions.length - 1].answer)}</b>
+                    {x('Latest patient confirmation:')}{' '}
+                    <b>{x(feedbackLabel(c.resolutions[c.resolutions.length - 1].answer))}</b>
                   </p>
                 )}
                 {c.status === 'scheduled' &&
@@ -237,21 +237,20 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                         }
                       >
                         {c.work_status === 'action_taken'
-                          ? 'Prepare resolution link'
-                          : 'Prepare patient form link'}
+                          ? x('Prepare resolution link')
+                          : x('Prepare patient form link')}
                       </button>
                       <p className="muted">
-                        Private link, valid for seven days. Only share with this patient. Preparing
-                        a link does not send a message.
+                        {x('Private link, valid for seven days. Only share with this patient. Preparing a link does not send a message.')}
                       </p>
                     </div>
                   )}
                 {links[c.id] && (
                   <p>
                     <a href={links[c.id]} target="_blank" rel="noreferrer">
-                      Open private patient form
+                      {x('Open private patient form')}
                     </a>
-                    <input aria-label="Private patient form link" readOnly value={links[c.id]} />
+                    <input aria-label={x('Private patient form link')} readOnly value={links[c.id]} />
                   </p>
                 )}
                 {doctor && c.responded_at && (
@@ -264,29 +263,29 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                       })
                     }
                   >
-                    Prepare reading assistance
+                    {x('Prepare reading assistance')}
                   </button>
                 )}
                 {c.analysis && (
                   <section className="banner">
                     <h4>
                       {c.analysis.usedAi
-                        ? 'AI-assisted reading — verify against the original'
-                        : 'Reading assistance — staff review needed'}
+                        ? x('AI-assisted reading — verify against the original')
+                        : x('Reading assistance — staff review needed')}
                     </h4>
                     <p>
-                      Suggested category: {feedbackLabel(c.analysis.category)} ·{' '}
-                      {c.analysis.uncertain ? 'Needs human interpretation' : 'Verify before acting'}
+                      {x('Suggested category:')} {x(feedbackLabel(c.analysis.category))} ·{' '}
+                      {x(c.analysis.uncertain ? 'Needs human interpretation' : 'Verify before acting')}
                     </p>
                     {c.analysis.quotes.map((q: string, n: number) => (
                       <blockquote key={n}>{q}</blockquote>
                     ))}
                     <p>
-                      <b>Acknowledgement draft — not sent</b>
+                      <b>{x('Acknowledgement draft — not sent')}</b>
                     </p>
                     <p>{c.analysis.draft}</p>
                     <p className="muted">
-                      No treatment advice is generated. Record your own reviewed action below.
+                      {x('No treatment advice is generated. Record your own reviewed action below.')}
                     </p>
                   </section>
                 )}
@@ -309,9 +308,9 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                       });
                     }}
                   >
-                    <h4>Record the next action</h4>
+                    <h4>{x('Record the next action')}</h4>
                     <label>
-                      Action
+                      {x('Action')}
                       <select value={action} onChange={(e) => setAction(e.target.value)}>
                         {[
                           ['assign', 'Assign responsibility'],
@@ -322,16 +321,16 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                           ['note', 'Add staff note'],
                         ].map(([v, l]) => (
                           <option key={v} value={v}>
-                            {l}
+                            {x(l)}
                           </option>
                         ))}
                       </select>
                     </label>
                     {action === 'assign' && (
                       <label>
-                        Responsible person
+                        {x('Responsible person')}
                         <select required value={owner} onChange={(e) => setOwner(e.target.value)}>
-                          <option value="">Choose staff</option>
+                          <option value="">{x('Choose staff')}</option>
                           {data.staff.map((u: any) => (
                             <option key={u.id} value={u.id}>
                               {u.name}
@@ -341,7 +340,7 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                       </label>
                     )}
                     <label>
-                      Next review due (optional, your local time)
+                      {x('Next review due (optional, your local time)')}
                       <input
                         type="datetime-local"
                         value={due}
@@ -349,32 +348,31 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                       />
                     </label>
                     <label>
-                      What did the clinic do?
+                      {x('What did the clinic do?')}
                       <textarea
                         required
                         minLength={3}
                         maxLength={2000}
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
-                        placeholder="Record the contact, explanation or agreed next step. Do not imply contact happened unless it did."
+                        placeholder={x('Record the contact, explanation or agreed next step. Do not imply contact happened unless it did.')}
                       />
                     </label>
-                    <button disabled={busy}>Save action</button>
+                    <button disabled={busy}>{x('Save action')}</button>
                     <p className="muted">
-                      Clinical concerns need a doctor’s review before action or closure. Saving a
-                      note does not send it to the patient.
+                      {x('Clinical concerns need a doctor’s review before action or closure. Saving a note does not send it to the patient.')}
                     </p>
                   </form>
                 )}
                 <section>
-                  <h4>Contact and delivery history</h4>
-                  {!c.delivery?.length && <p>No WhatsApp delivery recorded.</p>}
+                  <h4>{x('Contact and delivery history')}</h4>
+                  {!c.delivery?.length && <p>{x('No WhatsApp delivery recorded.')}</p>}
                   {c.delivery?.map((d: any) => (
                     <p key={d.id}>
-                      {d.kind === 'initial' ? 'Initial check-in' : 'One reminder'}:{' '}
-                      <b>{feedbackLabel(d.state)}</b>
+                      {x(d.kind === 'initial' ? 'Initial check-in' : 'One reminder')}:{' '}
+                      <b>{x(feedbackLabel(d.state))}</b>
                       {d.delivered_at
-                        ? ` · Delivered ${new Date(d.delivered_at).toLocaleString()}`
+                        ? ` · ${x('Delivered')} ${new Date(d.delivered_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')}`
                         : ''}
                       {d.detail ? ` · ${d.detail}` : ''}
                     </p>
@@ -382,7 +380,7 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                   <ul>
                     {c.history?.map((h: any) => (
                       <li key={h.id}>
-                        <b>{feedbackLabel(h.kind)}</b> · {new Date(h.created_at).toLocaleString()}
+                        <b>{x(feedbackLabel(h.kind))}</b> · {new Date(h.created_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')}
                         {h.note && <p style={{ whiteSpace: 'pre-wrap' }}>{h.note}</p>}
                       </li>
                     ))}

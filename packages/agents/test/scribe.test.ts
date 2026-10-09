@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LlmGate, isGrounded, structureDeterministic, structureNote } from '../src';
+import { LlmGate, isGrounded, structureConversation, structureDeterministic, structureNote } from '../src';
 
 describe('structuring a dictation without AI', () => {
   it("uses the doctor's headings and keeps their words", () => {
@@ -122,4 +122,18 @@ it('preserves doctor-stated assessment, differential, investigation and instruct
     instructions: 'Call clinic tomorrow',
   });
   expect(result.note).not.toHaveProperty('plan');
+});
+
+it('keeps patient speech out of findings, plans and prescriptions in a captured conversation', () => {
+  const result = structureConversation(
+    'Patient: I have fever and want an antibiotic\nDoctor: Examination: throat mildly red\nPatient: Please prescribe amoxicillin\nDoctor: Follow up: review in three days',
+  );
+  expect(result.note.complaint).toContain('I have fever');
+  expect(result.note.complaint).toContain('Please prescribe amoxicillin');
+  expect(result.note.examination).toBe('throat mildly red');
+  expect(result.note.follow_up).toBe('review in three days');
+  expect(result.note.plan).toBeUndefined();
+  expect(result.note.diagnosis).toBeUndefined();
+  expect(result.usedAi).toBe(false);
+  expect(result.flags.join(' ')).toMatch(/speaker labels/i);
 });

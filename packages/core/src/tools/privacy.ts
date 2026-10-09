@@ -104,6 +104,7 @@ export async function erasePatient(
       [patientId],
     );
     await db.query('DELETE FROM inbox_reviews WHERE patient_id=$1', [patientId]);
+    await db.query('DELETE FROM patient_access_links WHERE patient_id=$1', [patientId]);
     await db.query('DELETE FROM insurance_cases WHERE patient_id=$1', [patientId]);
     await db.query('DELETE FROM care_plans WHERE patient_id=$1', [patientId]);
     await db.query("DELETE FROM patient_instructions WHERE patient_id=$1 AND status='draft'", [
@@ -124,6 +125,11 @@ export async function erasePatient(
     );
     if (partial) {
       await db.query(
+        `DELETE FROM consultation_capture_consents c WHERE c.patient_id=$1
+         AND NOT EXISTS (SELECT 1 FROM visit_notes n WHERE n.capture_consent_id=c.id AND n.status='signed')`,
+        [patientId],
+      );
+      await db.query(
         'UPDATE patients SET tags=$2, clinical_hold_until=$3, erasure_requested_at=now() WHERE id=$1',
         [patientId, [], holdUntil],
       );
@@ -131,6 +137,7 @@ export async function erasePatient(
       await db.query('DELETE FROM clinical_entries WHERE patient_id=$1', [patientId]);
       await db.query('DELETE FROM patient_instructions WHERE patient_id=$1', [patientId]);
       await db.query('SELECT purge_patient_clinical($1,$2)', [ctx.clinicId, patientId]);
+      await db.query('DELETE FROM consultation_capture_consents WHERE patient_id=$1', [patientId]);
       await db.query('DELETE FROM intake_summaries WHERE patient_id=$1', [patientId]);
       await db.query('UPDATE appointments SET reason=NULL WHERE patient_id=$1', [patientId]);
       await db.query(
@@ -225,8 +232,14 @@ export const exportPatientData = defineTool({
       ),
       exportedAt: new Date().toISOString(),
       patient: p,
+      privateLinks: await rows(
+        'SELECT created_at,expires_at,revoked_at FROM patient_access_links WHERE patient_id=$1 ORDER BY created_at',
+      ),
       consents: await rows(
         'SELECT purpose, notice_version, granted_at, withdrawn_at FROM consents WHERE patient_id=$1 ORDER BY granted_at',
+      ),
+      conversationCaptureConsents: await rows(
+        'SELECT id,doctor_id,agreed_at,ended_at,method FROM consultation_capture_consents WHERE patient_id=$1 ORDER BY agreed_at',
       ),
       appointments: await rows(
         'SELECT starts_at, status, reason, source FROM appointments WHERE patient_id=$1 ORDER BY starts_at',
@@ -241,7 +254,7 @@ export const exportPatientData = defineTool({
         'SELECT m.created_at, m.direction, m.sender, m.body FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE c.patient_id=$1 ORDER BY m.created_at',
       ),
       visitNotes: await rows(
-        "SELECT created_at, signed_at, status, note FROM visit_notes WHERE patient_id=$1 AND status='signed' ORDER BY created_at",
+        "SELECT created_at, signed_at, status, source, transcript, note, capture_consent_id FROM visit_notes WHERE patient_id=$1 AND status='signed' ORDER BY created_at",
       ),
       issuedDocuments: await rows(
         "SELECT doc_number, kind, subtype, status, signed_at FROM issued_documents WHERE patient_id=$1 AND status IN ('signed','void') ORDER BY signed_at",
@@ -371,6 +384,7 @@ export const applyRetention = defineTool({
       'DELETE FROM conversations c WHERE NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id=c.id) AND c.updated_at < now() - make_interval(days => $1)',
       [rules.messages_days ?? 180],
     );
+    await db.query("DELETE FROM patient_access_links WHERE expires_at<now()-interval '7 days'");
     const intake = await db.query(
       'DELETE FROM intake_summaries WHERE created_at < now() - make_interval(days => $1)',
       [rules.intake_days ?? 365],

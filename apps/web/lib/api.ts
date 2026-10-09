@@ -15,6 +15,7 @@ export type User = {
   role: 'admin' | 'doctor' | 'receptionist';
   doctorId: string | null;
   name: string;
+  clinicAdmin?: boolean;
 };
 export const roleHome = (role: User['role']) =>
   role === 'admin' ? '/admin' : role === 'doctor' ? '/doctor' : '/console';
@@ -119,12 +120,50 @@ export function useSession(role?: 'admin' | 'doctor' | 'receptionist') {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const cur = session.get();
-    if (!cur || (role && cur.user.role !== role)) {
-      location.href = cur ? roleHome(cur.user.role) : '/login';
+    if (!cur) {
+      location.href = '/login';
       return;
     }
-    setS(cur);
-    setReady(true);
+    let active = true;
+    api<User>('/me', { auth: true })
+      .then((user) => {
+        if (!active) return;
+        const allowed =
+          !role ||
+          user.role === role ||
+          (user.role === 'admin' && role !== 'admin') ||
+          (user.role === 'doctor' && user.clinicAdmin && role !== 'doctor');
+        if (!allowed) {
+          location.href = roleHome(user.role);
+          return;
+        }
+        const updated = { ...cur, user };
+        session.set(updated);
+        setS(updated);
+        setReady(true);
+      })
+      .catch((error) => {
+        if (!active) return;
+        if (error instanceof ApiError && error.status === 401) return;
+        if (error instanceof ApiError && error.status === 403) {
+          location.href = roleHome(cur.user.role);
+          return;
+        }
+        const allowed =
+          !role ||
+          cur.user.role === role ||
+          (cur.user.role === 'admin' && role !== 'admin') ||
+          (cur.user.role === 'doctor' && cur.user.clinicAdmin && role !== 'doctor');
+        if (!allowed) {
+          location.href = roleHome(cur.user.role);
+          return;
+        }
+        setS(cur);
+        setReady(true);
+      });
+    return () => {
+      active = false;
+    };
   }, [role]);
   return ready ? s : null;
 }
