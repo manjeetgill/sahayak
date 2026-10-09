@@ -1,4 +1,5 @@
 'use client';
+import { AppointmentList } from '../components/AppointmentList';
 import { useSection } from '../components/useSection';
 import { AttentionSummary } from '../components/AttentionSummary';
 import { VisitChecklist } from '../components/VisitChecklist';
@@ -52,6 +53,13 @@ export default function Doctor() {
     if (['queue_changed', 'flag_raised', 'flag_resolved', 'schedule_proposal'].includes(e.type))
       load().catch(() => {});
   });
+  useEffect(() => {
+    if (!s || !summary?.counts?.queued) return;
+    const timer = setInterval(() => {
+      void load().catch(() => {});
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [s, summary?.counts?.queued, load]);
   if (!s) return null;
   const current = queue.find((q) => q.status === 'called' || q.status === 'in_consultation');
   const waiting = queue.filter((q) => q.status === 'waiting');
@@ -102,6 +110,7 @@ export default function Doctor() {
           </button>
         </div>
       </header>
+      <AppointmentList token={s.token} />
       {!setupDone && (
         <div className="banner warn" role="status">
           {x('Your clinic setup is not finished. Ask your clinic admin to complete it.')}
@@ -342,6 +351,7 @@ export default function Doctor() {
                 </b>
                 <div className="muted">
                   {summary.counts.notified}/{summary.counts.affected} {x('notified')} ·{' '}
+                  {summary.counts.queued ?? 0} {x('queued for sending')} ·{' '}
                   {summary.counts.keptNewTime} {x('kept new time')} · {summary.counts.rebooked}{' '}
                   {x('rebooked')} · {summary.counts.waitingForReply} {x('waiting for reply')}
                   {summary.counts.needsCall

@@ -182,6 +182,7 @@ export default function AgentShowcase() {
   const ready = !!snapshot;
   return (
     <main className={`wrap ${styles.page}`}>
+      <Link href="/demo/journey">Follow one patient from booking to feedback →</Link>
       <Link href="/demo">← Full clinic walkthrough</Link>
       <div className={styles.hero}>
         <p className={styles.eyebrow}>AGENT CAPABILITIES · PRACTICE ONLY</p>

@@ -16,6 +16,7 @@ const reads = new Set([
   '/staff/inbox/conversations/:id',
   '/staff/queue',
   '/staff/today',
+  '/staff/appointments',
   '/staff/flags',
   '/staff/conversations',
   '/staff/conversations/:id',

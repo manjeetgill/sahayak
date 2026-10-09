@@ -48,6 +48,8 @@ export interface ToolRuntime {
   channel?: import('../channels').MessagingChannel;
   /** A live platform owns delivery; never treat the practice channel as a real send. */
   requireLiveChannel?: boolean;
+  /** Clinics whose confirmed schedule notices can use platform delivery. */
+  platformClinics?: string[];
 }
 export interface ToolRun {
   db: Db;

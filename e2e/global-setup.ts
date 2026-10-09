@@ -13,4 +13,5 @@ export default async function setup() {
       throw new Error('Browser tests require an isolated database. Run pnpm e2e.');
   }
   execSync('pnpm db:reset', { stdio: 'inherit', env });
+  execSync('pnpm demo:seed', { stdio: 'inherit', env });
 }

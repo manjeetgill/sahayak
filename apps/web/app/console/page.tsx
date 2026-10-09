@@ -1,4 +1,5 @@
 'use client';
+import { AppointmentList } from '../components/AppointmentList';
 import { useSection } from '../components/useSection';
 import { displayLabel } from '../../lib/labels';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -116,6 +117,7 @@ export default function Console() {
           </button>
         )}
       </header>
+      {section === 'today' && <AppointmentList token={s.token} />}
       {llmDown && (
         <div className="banner warn" role="status">
           {t(lang, 'console.llm_down')}

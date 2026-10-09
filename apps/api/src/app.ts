@@ -6,6 +6,8 @@ import { installOnlinePayments } from './online-payments';
 import type { RazorpayOptions } from './razorpay';
 import { installPatientFeedback } from './patient-feedback';
 import { installEveningDelivery } from './evening-delivery';
+import { installScheduleDelivery } from './schedule-delivery';
+import { installDemoJourney } from './demo-journey';
 import { callingStatus, callingRequest } from './calling-status';
 import { installCallingBridge, type CallingBridgeOptions } from './calling-bridge';
 import {
@@ -104,6 +106,7 @@ export async function buildApp(deps: AppDeps) {
     bus,
     channel: deps.whatsapp?.messaging,
     requireLiveChannel: deps.liveChannelOwner === 'platform',
+    platformClinics: Object.values(deps.whatsappBridge ?? {}).map((b) => b.clinicId),
   };
   const stt = deps.stt ?? new MockSpeechToText();
   const tts = deps.tts ?? new MockTextToSpeech();
@@ -241,6 +244,8 @@ export async function buildApp(deps: AppDeps) {
 
   await installPatientFeedback(app, deps, async (req, roles) => staffCtx(await claims(req, roles)));
   await installEveningDelivery(app, deps, async (req, roles) => staffCtx(await claims(req, roles)));
+  installScheduleDelivery(app, deps);
+  installDemoJourney(app, deps, async (req) => staffCtx(await claims(req, ['doctor'])));
   await installOutboundCalls(app, deps, async (req, roles) => staffCtx(await claims(req, roles)));
   await installGoogleConnections(app, deps, async (req, roles) =>
     staffCtx(await claims(req, roles)),
@@ -854,6 +859,32 @@ export async function buildApp(deps: AppDeps) {
         intake_summary: intake.get(r.id) ?? null,
         waiting_answer: waiting.get(r.id) ?? null,
       }));
+    });
+  });
+  app.get('/staff/appointments', async (req) => {
+    const c = await claims(req);
+    const { date } = z.object({ date: z.string().date().optional() }).parse(req.query);
+    return read(c.clinicId, async (db) => {
+      const clinic = (await db.query('SELECT timezone,name FROM clinics WHERE id=$1', [c.clinicId]))
+        .rows[0];
+      const timezone = clinic.timezone;
+      const rows = (
+        await db.query(
+          `SELECT a.id,a.starts_at,a.status,a.source,a.patient_id,d.name AS doctor,p.name AS patient
+         FROM appointments a JOIN doctors d ON d.id=a.doctor_id LEFT JOIN patients p ON p.id=a.patient_id
+         WHERE ($1::uuid IS NULL OR a.doctor_id=$1)
+           AND (($2::date IS NOT NULL AND (a.starts_at AT TIME ZONE $3)::date=$2::date)
+             OR ($2::date IS NULL AND a.status IN ('booked','checked_in','needs_rebooking') AND a.starts_at>=now()))
+         ORDER BY a.starts_at,a.id LIMIT 101`,
+          [c.role === 'doctor' ? c.doctorId : null, date ?? null, timezone],
+        )
+      ).rows;
+      return {
+        appointments: rows.slice(0, 100),
+        hasMore: rows.length > 100,
+        timezone,
+        clinic: clinic.name,
+      };
     });
   });
   app.get('/staff/today', async (req) => {

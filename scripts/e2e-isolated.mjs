@@ -30,7 +30,8 @@ try {
       E2E_ISOLATED: '1', E2E_API_PORT: '4100', E2E_WEB_PORT: '3100',
       LLM_PROVIDER: 'offline', LLM_API_KEY: '', TOGETHER_API_KEY: '', AGENT_PLATFORM_URL: '', AGENT_PLATFORM_KEY: '',
       WHATSAPP_PROVIDER: '', CHANNEL_PLUGIN_URL: '',
-      JOBS_ENABLED: 'false',
+      JOBS_ENABLED: 'false', PATIENT_MESSAGES_JOBS_ENABLED: 'false',
+      AGENT_CHANNEL_BRIDGE_BINDINGS: '', AGENT_CHANNEL_PLATFORM_URL: '', AGENT_CHANNEL_CREDENTIALS: '', LIVE_CHANNEL_OWNER: 'local',
     },
   });
   process.exitCode = await new Promise((resolve, reject) => {

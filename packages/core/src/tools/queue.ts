@@ -13,6 +13,13 @@ async function lockDay(r: ToolRun) {
   await r.db.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`${r.ctx.clinicId}:${date}`]);
   return date;
 }
+async function completeAppointment(r: ToolRun, queueEntryId: string) {
+  await r.db.query(
+    `UPDATE appointments a SET status='completed' FROM queue_entries q
+    WHERE q.id=$1 AND q.appointment_id=a.id AND a.status IN ('booked','checked_in')`,
+    [queueEntryId],
+  );
+}
 function doctorFor(r: ToolRun, given?: string): string {
   const a = r.ctx.actor;
   const d = a.kind === 'staff' && a.role === 'doctor' && a.doctorId ? a.doctorId : given;
@@ -36,6 +43,7 @@ export const callNextPatient = defineTool({
       [doctorId, date],
     );
     for (const f of finished.rows) {
+      await completeAppointment(r, f.id);
       await planFollowups(r, 'finished', f.patient_id, undefined, f.id);
       await scheduleFinishedVisitFeedback(r, f.id);
       await emitWebhook(
@@ -113,6 +121,7 @@ export const finishVisit = defineTool({
       [queueEntryId],
     );
     if (!u.rowCount) throw new ToolError('not_found', 'No active visit with that id', 404);
+    await completeAppointment(r, queueEntryId);
     await planFollowups(r, 'finished', u.rows[0].patient_id, undefined, queueEntryId);
     const feedback = await scheduleFinishedVisitFeedback(r, queueEntryId);
     await emitWebhook(

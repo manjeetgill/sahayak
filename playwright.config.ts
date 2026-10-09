@@ -39,7 +39,7 @@ export default defineConfig({
       reuseExistingServer: false,
       gracefulShutdown: { signal: 'SIGTERM', timeout: 5000 },
       timeout: 90_000,
-      env: { NEXT_PUBLIC_API_URL: apiURL, NEXT_DIST_DIR: '.next-e2e' },
+      env: { NEXT_PUBLIC_API_URL: apiURL, INTERNAL_API_URL: apiURL, NEXT_DIST_DIR: '.next-e2e' },
     },
   ],
 });

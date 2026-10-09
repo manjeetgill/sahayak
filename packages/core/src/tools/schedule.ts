@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Lang } from '@sahayak/shared';
+import { t, type Lang, type MessageKey } from '@sahayak/shared';
 import { defineTool, ToolError, type ToolRun } from './registry';
 import { emitWebhook } from '../webhooks';
 import { fmtTime, getSettings, hasConsent, notifyPatient } from './common';
@@ -128,6 +128,7 @@ export const confirmScheduleShift = defineTool({
       )
     ).rows; // latest first so shifted slots never collide
     let notified = 0,
+      queued = 0,
       notMessaged = 0,
       noConsent = 0;
     for (const it of items) {
@@ -147,18 +148,49 @@ export const confirmScheduleShift = defineTool({
         language: it.language as Lang,
       };
       let sent = false;
+      let queuedItem = false;
+      const notify = async (
+        key: MessageKey,
+        vars: Record<string, string | number>,
+        nextState: object,
+      ) => {
+        if (
+          r.rt.requireLiveChannel &&
+          !r.rt.channel &&
+          r.rt.platformClinics?.includes(ctx.clinicId)
+        ) {
+          if (!(await hasConsent(db, patient.id, 'whatsapp_messaging'))) return false;
+          await db.query(
+            'INSERT INTO schedule_message_delivery(clinic_id,item_id,patient_id,body,next_state) VALUES($1,$2,$3,$4,$5) ON CONFLICT(item_id) DO NOTHING',
+            [
+              ctx.clinicId,
+              it.id,
+              patient.id,
+              t(patient.language, key, vars),
+              JSON.stringify(nextState),
+            ],
+          );
+          queuedItem = true;
+          return false;
+        }
+        return notifyPatient(r, patient, key, vars, { sender: 'agent:schedule' });
+      };
       if (it.needs_rebooking) {
         const options = await nextFreeSlots(db, ctx.clinicId, p.doctor_id, 3);
-        sent = await notifyPatient(
-          r,
-          patient,
+        sent = await notify(
           'msg.rebook_needed',
           {
             options: options
               .map((o, n) => `${n + 1}) ${fmtTime(o, s.timezone, patient.language)}`)
               .join('; '),
           },
-          { sender: 'agent:schedule' },
+          {
+            flow: 'pick_slot',
+            doctorId: p.doctor_id,
+            doctorName: doc,
+            slots: options,
+            rescheduleId: it.appointment_id,
+          },
         );
         if (sent)
           await db.query('UPDATE conversations SET state=$2 WHERE clinic_id=$1 AND contact=$3', [
@@ -173,16 +205,21 @@ export const confirmScheduleShift = defineTool({
             patient.phone,
           ]);
       } else {
-        sent = await notifyPatient(
-          r,
-          patient,
+        sent = await notify(
           'msg.late_notice',
           {
             doctor: doc,
             minutes: p.minutes,
             when: fmtTime(it.new_start, s.timezone, patient.language),
           },
-          { sender: 'agent:schedule' },
+          {
+            flow: 'late_notice',
+            appointmentId: it.appointment_id,
+            itemId: it.id,
+            doctorId: p.doctor_id,
+            doctorName: doc,
+            newStart: it.new_start,
+          },
         );
         if (sent)
           await db.query('UPDATE conversations SET state=$2 WHERE clinic_id=$1 AND contact=$3', [
@@ -201,9 +238,10 @@ export const confirmScheduleShift = defineTool({
       await db.query('UPDATE schedule_shift_items SET notified=$2, response=$3 WHERE id=$1', [
         it.id,
         sent,
-        sent ? 'pending' : 'no_consent',
+        sent || queuedItem ? 'pending' : 'no_consent',
       ]);
       if (sent) notified++;
+      else if (queuedItem) queued++;
       else {
         notMessaged++;
         if (!(await hasConsent(db, patient.id, 'whatsapp_messaging'))) noConsent++;
@@ -232,7 +270,7 @@ export const confirmScheduleShift = defineTool({
       moved: items.length,
       notified,
     });
-    return { ok: true, moved: items.length, notified, noConsent, notMessaged };
+    return { ok: true, moved: items.length, notified, queued, noConsent, notMessaged };
   },
 });
 
@@ -292,8 +330,8 @@ export const getShiftSummary = defineTool({
     if (!p) return { proposal: null };
     const items = (
       await db.query(
-        `SELECT i.id, i.notified, i.response, i.needs_rebooking, i.new_start, ap.starts_at AS current_start, ap.status AS appt_status, pt.name
-         FROM schedule_shift_items i JOIN appointments ap ON ap.id=i.appointment_id LEFT JOIN patients pt ON pt.id=i.patient_id WHERE i.proposal_id=$1 ORDER BY i.old_start`,
+        `SELECT i.id, i.notified, i.response, i.needs_rebooking, i.new_start, ap.starts_at AS current_start, ap.status AS appt_status, pt.name, d.state delivery_state,d.detail delivery_detail
+         FROM schedule_shift_items i JOIN appointments ap ON ap.id=i.appointment_id LEFT JOIN patients pt ON pt.id=i.patient_id LEFT JOIN schedule_message_delivery d ON d.item_id=i.id WHERE i.proposal_id=$1 ORDER BY i.old_start`,
         [p.id],
       )
     ).rows;
@@ -306,6 +344,9 @@ export const getShiftSummary = defineTool({
       counts: {
         affected: items.length,
         notified: items.filter((x) => x.notified).length,
+        queued: items.filter((x) =>
+          ['pending', 'draft', 'queued', 'accepted'].includes(x.delivery_state),
+        ).length,
         keptNewTime: items.filter((x) => x.response === 'kept').length,
         rebooked: items.filter(rebooked).length,
         waitingForReply: items.filter(
@@ -322,6 +363,8 @@ export const getShiftSummary = defineTool({
         name: x.name ?? 'Walk-in',
         response: rebooked(x) ? 'rebooked' : x.response,
         notified: x.notified,
+        deliveryState: x.delivery_state ?? null,
+        deliveryDetail: x.delivery_detail ?? null,
       })),
     };
   },

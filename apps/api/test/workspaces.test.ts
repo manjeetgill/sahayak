@@ -119,25 +119,35 @@ it('single-doctor view lets a doctor check in only to their own queue', async ()
     });
   expect((await request('doctor', 'GET', '/staff/settings')).json().workspaceMode).toBe('full');
   expect((await checkin(clinic.doctorIds[0], '+919900001111')).statusCode).toBe(403);
-  expect((await request('admin', 'PUT', '/staff/settings', { workspaceMode: 'solo' })).statusCode).toBe(200);
+  expect(
+    (await request('admin', 'PUT', '/staff/settings', { workspaceMode: 'solo' })).statusCode,
+  ).toBe(200);
   expect((await request('doctor', 'GET', '/staff/settings')).json().workspaceMode).toBe('solo');
   expect(
-    (await request('admin', 'GET', '/staff/setup')).json().items.find((item: any) => item.id === 'receptionist').required,
+    (await request('admin', 'GET', '/staff/setup'))
+      .json()
+      .items.find((item: any) => item.id === 'receptionist').required,
   ).toBe(false);
   expect((await checkin(clinic.doctorIds[1], '+919900001112')).statusCode).toBe(403);
   const added = await checkin(clinic.doctorIds[0], '+919900001113');
   expect(added.statusCode).toBe(200);
   expect(added.json().token).toBeGreaterThan(0);
-  expect((await request('admin', 'PUT', '/staff/settings', { workspaceMode: 'full' })).statusCode).toBe(200);
   expect(
-    (await request('admin', 'GET', '/staff/setup')).json().items.find((item: any) => item.id === 'receptionist').required,
+    (await request('admin', 'PUT', '/staff/settings', { workspaceMode: 'full' })).statusCode,
+  ).toBe(200);
+  expect(
+    (await request('admin', 'GET', '/staff/setup'))
+      .json()
+      .items.find((item: any) => item.id === 'receptionist').required,
   ).toBe(true);
   expect((await checkin(clinic.doctorIds[0], '+919900001114')).statusCode).toBe(403);
 });
 it('a selected doctor keeps clinical identity while managing solo clinic setup', async () => {
   expect((await request('doctor', 'GET', '/staff/integrations')).statusCode).toBe(403);
   expect((await request('doctor', 'GET', '/staff/conversations')).statusCode).toBe(403);
-  expect((await request('admin', 'PUT', '/staff/settings', { workspaceMode: 'solo' })).statusCode).toBe(200);
+  expect(
+    (await request('admin', 'PUT', '/staff/settings', { workspaceMode: 'solo' })).statusCode,
+  ).toBe(200);
   expect(
     (await request('admin', 'PUT', '/staff/team/solo-owner', { userId: ids.doctor })).statusCode,
   ).toBe(200);
@@ -145,7 +155,12 @@ it('a selected doctor keeps clinical identity while managing solo clinic setup',
   expect((await request('doctor', 'GET', '/staff/integrations')).statusCode).toBe(200);
   expect((await request('doctor', 'GET', '/staff/conversations')).statusCode).toBe(200);
   expect(
-    (await request('doctor', 'PUT', '/staff/agents/preferences', { kind: 'reminders', enabled: false })).statusCode,
+    (
+      await request('doctor', 'PUT', '/staff/agents/preferences', {
+        kind: 'reminders',
+        enabled: false,
+      })
+    ).statusCode,
   ).toBe(200);
   expect((await request('doctor', 'GET', '/staff/team')).statusCode).toBe(200);
   expect(
@@ -157,7 +172,9 @@ it('a selected doctor keeps clinical identity while managing solo clinic setup',
   expect((await request('doctor', 'GET', '/me')).json().clinicAdmin).toBe(false);
   expect((await request('doctor', 'GET', '/staff/integrations')).statusCode).toBe(403);
   expect((await request('doctor', 'GET', '/staff/conversations')).statusCode).toBe(403);
-  expect((await request('admin', 'PUT', '/staff/settings', { workspaceMode: 'full' })).statusCode).toBe(200);
+  expect(
+    (await request('admin', 'PUT', '/staff/settings', { workspaceMode: 'full' })).statusCode,
+  ).toBe(200);
 });
 it('admin creates all role types and refuses linking a doctor from another clinic', async () => {
   for (const role of ['admin', 'doctor', 'receptionist']) {
@@ -326,4 +343,35 @@ it('Admin review is clinic-scoped and cannot sign a note or confirm a payment', 
     (await request('admin', 'POST', '/staff/workbench/record-search', { patientId: foreign }))
       .statusCode,
   ).toBe(404);
+});
+
+it('lists future bookings immediately and scopes them to the logged-in clinic and doctor', async () => {
+  const patient = await addPatient(db, clinic.clinicId, 'Visibility Test', '+919899998891');
+  const otherPatient = await addPatient(db, other.clinicId, 'Other Test', '+919899998892');
+  const insert = async (cid: string, did: string, pid: string) =>
+    (
+      await db.query(
+        `INSERT INTO appointments(clinic_id,doctor_id,patient_id,starts_at,ends_at,source)
+     VALUES($1,$2,$3,now()+interval '3 days',now()+interval '3 days 15 minutes','whatsapp') RETURNING id`,
+        [cid, did, pid],
+      )
+    ).rows[0].id;
+  const own = await insert(clinic.clinicId, clinic.doctorIds[0], patient);
+  const colleague = await insert(clinic.clinicId, clinic.doctorIds[1], patient);
+  const foreign = await insert(other.clinicId, other.doctorIds[0], otherPatient);
+  const doctor = await request('doctor', 'GET', '/staff/appointments');
+  expect(doctor.statusCode).toBe(200);
+  expect(doctor.json().appointments.map((a: any) => a.id)).toContain(own);
+  expect(doctor.json().appointments.map((a: any) => a.id)).not.toContain(colleague);
+  expect(doctor.json().appointments.map((a: any) => a.id)).not.toContain(foreign);
+  for (const role of ['admin', 'receptionist']) {
+    const rows = (await request(role, 'GET', '/staff/appointments')).json().appointments;
+    expect(rows.map((a: any) => a.id)).toEqual(expect.arrayContaining([own, colleague]));
+    expect(rows.map((a: any) => a.id)).not.toContain(foreign);
+    expect(rows.find((a: any) => a.id === own).source).toBe('whatsapp');
+  }
+  expect((await request('doctor', 'GET', '/staff/appointments?date=invalid')).statusCode).toBe(400);
+  expect(
+    (await request('doctor', 'GET', '/staff/appointments?date=2000-01-01')).json().appointments,
+  ).toEqual([]);
 });

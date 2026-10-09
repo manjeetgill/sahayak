@@ -64,3 +64,43 @@ The [in-app walkthrough](http://localhost:3000/demo) contains direct links for e
 - All seeded names, phone numbers, documents, messages, payments, and reports are fictional. No actual WhatsApp message, phone call, external software sync, or online payment occurs. A live channel requires its own real connection and verification.
 
 The demo data should never be mixed with real patient records. `pnpm demo:reset` should be used only when the fictional work can be discarded.
+
+## One patient from booking to feedback
+
+Open `/demo/journey` and choose **Single doctor** or **Clinic or small hospital**.
+The guided rehearsal creates one fictional patient, books through the actual chat rules,
+records QR arrival and practice cash payment, issues the queue token, opens the consultation,
+saves a doctor-entered draft, requires review/signing and instruction approval, finishes the visit,
+and schedules feedback using the doctor's preference. Complete the embedded private feedback
+form, refresh the response, and assign follow-up to the doctor. The same patient record is used
+throughout. These are saved database transitions, not a video or animated simulation.
+
+This route is restricted to the two named fictional clinics, with no live WhatsApp binding or
+Razorpay credentials. It is unavailable in production. It sends no real messages or payments.
+In the hospital rehearsal the fictional receptionist records payment; the doctor signs the note.
+Starting a rehearsal extends only the fictional clinic's hours for evening practice. Other waiting
+or called practice patients go on hold when this patient is called; an active consultation is never
+silently finished. Completed rehearsals remain in the fictional clinic's records.
+
+## Where a real WhatsApp booking appears
+
+Doctor and reception home screens now show **Upcoming appointments** with the clinic-local
+date/time, doctor, booking source and status. Use the date picker for a particular day. These
+lists refresh on booking events, window focus and a 30-second visible-page fallback. A booking
+for tomorrow is not part of today's consultation queue. QR arrival/check-in adds the patient to
+the queue. The connected Dr. Sharma clinic is separate from both fictional demo clinics.
+
+## Doctor-running-late notices
+
+A doctor must preview and confirm appointment changes. When the clinic uses the agent platform,
+Sahayak saves a durable notice and the patient-message worker prepares and approves one
+idempotent session message. A recent patient-initiated WhatsApp conversation, messaging consent,
+verified connection, enabled channel and no human handoff are required. The platform checks the
+conversation window again before dispatch. Notices expire after an hour; an uncertain send is
+not retried. Changed/cancelled appointments and withdrawn consent stop dispatch from Sahayak.
+
+The UI distinguishes queued notices from delivered notices. Provider acceptance alone does not
+count as delivery; a delivery/read receipt does. Patients who cannot be reached are flagged for
+staff contact. This session-message path does not bypass approval for proactive feedback or
+nightly templates outside the active conversation window. Live phone calls and online payments
+still require their own configured services and successful live tests.
