@@ -55,13 +55,18 @@ export async function installEveningDelivery(
         `/v1/whatsapp/channels/${channel}/send-setup`,
         setupSchema,
       );
+      const invitations = upstream.templates.filter(
+        (t) => /\bBETTER\b/i.test(t.text) && /\bWORSE\b/i.test(t.text),
+      );
       return {
         settings: { ...settings, channel_id: channel },
-        templates: upstream.templates,
-        ready: upstream.webhook_verified,
-        message: upstream.webhook_verified
-          ? 'Choose an approved evening message that asks the patient to reply BETTER, SAME or WORSE.'
-          : 'Verify the WhatsApp connection first.',
+        templates: invitations,
+        ready: upstream.webhook_verified && invitations.length > 0,
+        message: !upstream.webhook_verified
+          ? 'Verify the WhatsApp connection first.'
+          : !invitations.length
+            ? 'No approved evening message is available yet. WhatsApp must approve the message before automatic sending can be enabled.'
+            : 'Choose an approved evening message that asks the patient to reply BETTER, SAME or WORSE.',
       };
     } catch {
       return {

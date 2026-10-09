@@ -13,6 +13,13 @@ if not pnpm or not node:
 services = {
     'api': [pnpm, 'dev:api'],
     'web': [pnpm, 'dev:web'],
+    'patient-web-gateway': [shutil.which('python3') or '/usr/bin/python3',
+        str(root / 'scripts/patient-form-relay.py')],
+    'patient-web-tunnel': ['/usr/bin/ssh', '-N', '-o', 'BatchMode=yes',
+        '-o', 'ExitOnForwardFailure=yes', '-o', 'ConnectTimeout=10',
+        '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3',
+        '-i', str(Path.home() / '.ssh/id_ed25519_nralgo'),
+        '-R', '127.0.0.1:44002:127.0.0.1:3001', 'deploy@139.59.64.197'],
     'whatsapp-tunnel': ['/usr/bin/ssh', '-N', '-o', 'BatchMode=yes',
         '-o', 'ExitOnForwardFailure=yes', '-o', 'ConnectTimeout=10',
         '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3',
@@ -33,7 +40,7 @@ for name, command in services.items():
     path = agent_dir / f'{label}.plist'
     config = {
         'Label': label, 'ProgramArguments': command,
-        'WorkingDirectory': str(Path.home() if name == 'whatsapp-tunnel' else root),
+        'WorkingDirectory': str(Path.home() if name.endswith('-tunnel') else root),
         'EnvironmentVariables': {'PATH': str(Path(node).parent) + ':/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin', 'HOME': str(Path.home())},
         'RunAtLoad': True, 'KeepAlive': True, 'ThrottleInterval': 10,
         'ProcessType': 'Background', 'Umask': 0o077,

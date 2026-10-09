@@ -1290,6 +1290,10 @@ const HI: Record<string, string> = {
   'Connect the clinic WhatsApp account first.': 'पहले क्लिनिक का WhatsApp खाता जोड़ें।',
   'A public HTTPS address for the patient form is required. Local demo links still work.': 'मरीज़ के फ़ॉर्म के लिए सार्वजनिक HTTPS पता चाहिए। स्थानीय डेमो लिंक अब भी चलेंगे।',
   'Verify the WhatsApp connection first.': 'पहले WhatsApp कनेक्शन जाँचें।',
+  'No approved feedback invitation is available yet. WhatsApp must approve the message before automatic sending can be enabled. You can still demonstrate the private feedback form.':
+    'अभी कोई स्वीकृत फ़ीडबैक संदेश उपलब्ध नहीं है। अपने-आप संदेश भेजने से पहले WhatsApp की मंज़ूरी ज़रूरी है। आप अभी भी निजी फ़ीडबैक फ़ॉर्म का डेमो दिखा सकते हैं।',
+  'No approved evening message is available yet. WhatsApp must approve the message before automatic sending can be enabled.':
+    'अभी शाम का कोई स्वीकृत संदेश उपलब्ध नहीं है। अपने-आप संदेश भेजने से पहले WhatsApp की मंज़ूरी ज़रूरी है।',
   'Select a reviewed template that asks patients to reply FEEDBACK. The patient then receives their private form link.': 'जाँचा हुआ संदेश नमूना चुनें जो मरीज़ को FEEDBACK लिखने को कहता है। इसके बाद मरीज़ को निजी फ़ॉर्म लिंक मिलेगा।',
   'The connected platform cannot currently provide approved outbound templates. Use a private form link for the demo. No WhatsApp message has been sent.': 'जुड़ा प्लेटफ़ॉर्म अभी मंज़ूर संदेश नमूने नहीं दे सकता। डेमो के लिए निजी फ़ॉर्म लिंक उपयोग करें। कोई WhatsApp संदेश नहीं भेजा गया है।',
   'Automatic feedback · every doctor': 'हर डॉक्टर का अपने आप राय लेने का चुनाव',

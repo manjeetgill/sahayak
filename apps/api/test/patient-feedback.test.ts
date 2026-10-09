@@ -26,6 +26,7 @@ const channel = randomUUID(),
 let eveningFollowupId = '';
 let eveningDelivered = false;
 let templateChanged = false;
+let catalogueEmpty = false;
 let approvals = 0,
   prepared = 0,
   delivered = false,
@@ -37,6 +38,28 @@ const api = async (method: any, url: string, body?: unknown, headers = auth) =>
 const publicApi = (kind: string, body: unknown, slug = clinic.slug) =>
   api('POST', `/public/${slug}/feedback/${kind}`, body, {});
 const token = (path: string) => path.split('#')[1];
+it('keeps delivery unavailable until an appropriate approved invitation exists', async () => {
+  catalogueEmpty = true;
+  try {
+    for (const path of ['/staff/feedback/messaging', '/staff/evening/messaging']) {
+      const setup = (await api('GET', path, undefined, setupAuth)).json();
+      expect(setup.ready).toBe(false);
+      expect(setup.templates).toEqual([]);
+      expect(setup.message).toContain('WhatsApp must approve');
+      const save = await api(
+        'PUT',
+        path,
+        { enabled: true, templateId: '123456', reviewed: true },
+        setupAuth,
+      );
+      expect(save.statusCode).toBe(400);
+    }
+    expect(prepared).toBe(0);
+    expect(approvals).toBe(0);
+  } finally {
+    catalogueEmpty = false;
+  }
+});
 it('reports patient-message jobs independently from other background jobs', async () => {
   const saved = process.env.PATIENT_MESSAGES_JOBS_ENABLED;
   const global = process.env.JOBS_ENABLED;
@@ -117,22 +140,24 @@ beforeAll(async () => {
           return new Response(
             JSON.stringify({
               webhook_verified: true,
-              templates: [
-                {
-                  id: '123456',
-                  name: 'patient_checkin',
-                  language: 'en',
-                  text: templateChanged
-                    ? 'Changed invitation. Reply FEEDBACK.'
-                    : 'The clinic is checking on you. Reply FEEDBACK to get your private form.',
-                },
-                {
-                  id: '234567',
-                  name: 'evening_checkin',
-                  language: 'en',
-                  text: 'How are you feeling this evening? Reply BETTER, SAME or WORSE. For emergencies seek urgent care.',
-                },
-              ],
+              templates: catalogueEmpty
+                ? []
+                : [
+                    {
+                      id: '123456',
+                      name: 'patient_checkin',
+                      language: 'en',
+                      text: templateChanged
+                        ? 'Changed invitation. Reply FEEDBACK.'
+                        : 'The clinic is checking on you. Reply FEEDBACK to get your private form.',
+                    },
+                    {
+                      id: '234567',
+                      name: 'evening_checkin',
+                      language: 'en',
+                      text: 'How are you feeling this evening? Reply BETTER, SAME or WORSE. For emergencies seek urgent care.',
+                    },
+                  ],
             }),
           );
         if (url.endsWith('/approve')) {

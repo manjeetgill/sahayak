@@ -156,15 +156,18 @@ export async function installPatientFeedback(
         `/v1/whatsapp/channels/${channel}/send-setup`,
         setupSchema,
       );
+      const invitations = setup.templates.filter((t) => /\bfeedback\b/i.test(t.text));
       return {
         settings: { ...settings, channel_id: channel },
-        templates: setup.templates,
-        ready: setup.webhook_verified && publicReady,
+        templates: invitations,
+        ready: setup.webhook_verified && publicReady && invitations.length > 0,
         message: !publicReady
           ? 'A public HTTPS address for the patient form is required. Local demo links still work.'
           : !setup.webhook_verified
             ? 'Verify the WhatsApp connection first.'
-            : 'Select a reviewed template that asks patients to reply FEEDBACK. The patient then receives their private form link.',
+            : !invitations.length
+              ? 'No approved feedback invitation is available yet. WhatsApp must approve the message before automatic sending can be enabled. You can still demonstrate the private feedback form.'
+              : 'Select a reviewed template that asks patients to reply FEEDBACK. The patient then receives their private form link.',
       };
     } catch {
       return {
