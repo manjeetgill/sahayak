@@ -104,3 +104,38 @@ count as delivery; a delivery/read receipt does. Patients who cannot be reached 
 staff contact. This session-message path does not bypass approval for proactive feedback or
 nightly templates outside the active conversation window. Live phone calls and online payments
 still require their own configured services and successful live tests.
+
+## Doctor presentation: two sides of the same visit
+
+Open `/demo/present` (also linked from the home page). Choose the clinic view, agree to the
+fictional scenario, then click **Prepare the demo → Play demo**. Use **Full screen** for a
+meeting. Presentation speed leaves time to explain each step; Quick rehearsal is useful before
+arriving at the clinic. Pause and Next step let you control the pace.
+
+The left side shows each real response from Sahayak's practice booking conversation, followed by
+the patient QR/queue updates and a clearly labelled feedback invitation preview. The right side
+shows saved appointment, payment, queue, note and feedback records for that same patient.
+
+Playback pauses before signing. Review the displayed practice note and instructions, tick the
+review box, and click **Approve practice note & continue**. The remaining steps finish the visit,
+prepare the private form, submit a labelled example requesting clarification, and assign the
+concern to the doctor. This is a follow-up task awaiting a person, not a resolved complaint.
+
+The presentation uses its own demo sign-in, leaving the current clinic login untouched. Progress
+is retained in the current browser tab across a reload. **Open this practice clinic’s feedback**
+explicitly switches into the fictional doctor's workspace. A new patient allows another replay;
+finish an active demonstration consultation before starting another.
+
+No real phone is messaged or called, and no online payment is charged. Feedback delivery timing
+is accelerated for presentation; the actual future schedule remains visible. The private form and
+saved response use the normal clinic services. Live outbound invitation delivery still needs the
+approved WhatsApp template and working connection described above.
+
+### Hinglish video for a doctor meeting
+
+The reproducible video source is in `scripts/doctor-demo/`. See its README for the
+three commands to generate narration, record the complete journey and render an MP4.
+The result is `artifacts/doctor-demo/Sahayak-Doctor-Demo-Hinglish.mp4`, with English
+captions, synthetic Hinglish narration and chapter timestamps in the adjacent README.
+Rendered media is kept out of Git. The recording uses a disposable test database and
+does not send real WhatsApp messages or charge a payment.

@@ -52,6 +52,9 @@ export default function Demo() {
       <div className={styles.hero}>
         <p className={styles.eyebrow}>INTERACTIVE PRODUCT WALKTHROUGH</p>
         <h1>See a clinic day move from arrival to follow-up</h1>
+        <Link className="button-link primary" href="/demo/present">
+          Play the doctor presentation →
+        </Link>
         <Link className="button-link primary" href="/demo/journey">
           Follow one patient from booking to feedback →
         </Link>

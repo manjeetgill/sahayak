@@ -13,3 +13,6 @@ dist
 # Python runtime artifacts from local service helpers
 __pycache__/
 *.py[cod]
+
+# Rendered doctor-demo media (reproducible using scripts/doctor-demo)
+/artifacts/doctor-demo/

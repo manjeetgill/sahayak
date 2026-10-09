@@ -61,7 +61,7 @@ export function installDemoJourney(
           'SELECT id,starts_at,status FROM appointments WHERE patient_id=$1 ORDER BY created_at DESC LIMIT 1',
         ),
         arrival: await first(
-          'SELECT id,status,amount_paise FROM qr_arrivals WHERE patient_id=$1 ORDER BY created_at DESC LIMIT 1',
+          'SELECT id,status,amount_paise,waiting_answer FROM qr_arrivals WHERE patient_id=$1 ORDER BY created_at DESC LIMIT 1',
         ),
         queue: await first(
           'SELECT id,token_number,status FROM queue_entries WHERE patient_id=$1 ORDER BY checked_in_at DESC LIMIT 1',
@@ -126,6 +126,7 @@ export function installDemoJourney(
         id: z.string().uuid(),
         step: z.enum([
           'book',
+          'chat',
           'arrive',
           'payment',
           'call',
@@ -146,12 +147,24 @@ export function installDemoJourney(
           .regex(/^[a-f0-9]{64}$/)
           .optional(),
         note: z.string().max(4000).optional(),
+        text: z.string().trim().min(1).max(500).optional(),
       })
       .parse(req.body);
     const s = await snapshot(ctx, id);
     const tool = (name: string, input: unknown) => callTool(rt, ctx, name, input);
     let extra: Record<string, unknown> = {};
-    if (step === 'book') {
+    if (step === 'chat') {
+      if (!b.text || s.queue)
+        throw new ToolError('chat_unavailable', 'Use this conversation before starting the visit.');
+      const reply = await handleInbound(
+        { rt, gate: deps.gate },
+        { clinicId: ctx.clinicId, from: s.patient.phone, text: b.text, doctorId },
+      );
+      extra = {
+        transcript: [{ sent: b.text, reply: reply.replies.join('\n') }],
+        needsStaff: reply.handledBy === 'human',
+      };
+    } else if (step === 'book') {
       if (s.appointment)
         throw new ToolError('already_booked', 'This patient already has an appointment.');
       const transcript = [];

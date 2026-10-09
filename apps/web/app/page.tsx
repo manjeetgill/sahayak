@@ -23,6 +23,7 @@ export default function Home() {
       <p className="muted">{x("Example clinic: Dr. Sharma's Clinic.")}</p>
       <div className="card list home-links">
         {localDemo && <div>
+          <Link className="button-link primary" href="/demo/present">{lang === 'hi' ? 'डॉक्टर को पूरी डेमो दिखाएँ →' : 'Play the complete doctor demo →'}</Link>
           <Link href="/demo">{x('Interactive demo: solo doctor and small hospital')}</Link>
           <p className="muted">{x('Walk through fictional patient journeys on this local installation.')}</p>
         </div>}

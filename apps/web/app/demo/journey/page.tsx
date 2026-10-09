@@ -76,6 +76,9 @@ export default function DemoJourney() {
   return (
     <main className={`wrap ${styles.page}`}>
       <Link href="/demo">← Demo home</Link>
+      <Link className="button-link primary" href="/demo/present">
+        Play the side-by-side doctor presentation →
+      </Link>
       <header className={styles.hero}>
         <p className={styles.eyebrow}>ONE PATIENT · START TO FINISH</p>
         <h1>A visit that stays connected</h1>
