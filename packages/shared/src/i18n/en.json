@@ -50,6 +50,7 @@
   "msg.rebook_needed": "Your appointment needs a new time. Please choose: {options}",
   "msg.followup_reminder": "Reminder from {clinic}: your appointment is on {when}.",
   "msg.followup_checkin": "Hello {name}, how are you feeling after your visit? Reply and we'll let the doctor know if you need anything.",
+  "msg.evening_checkin": "Hello {name}, evening check-in {night}: how are you feeling after your visit? Reply BETTER, SAME, WORSE, or ask for a call. Your reply goes to the clinic team; this chat is not monitored continuously. For an emergency, seek urgent care now.",
   "msg.lead_welcome": "Welcome to {clinic}! I can tell you our timings and book you a slot with {doctor}. Would you like to book?",
   "msg.consent_needed": "Before I can message you, please give consent at the clinic or reply YES to receive messages from {clinic}.",
   "msg.llm_fallback": "Thanks for your message. The receptionist will reply shortly.",

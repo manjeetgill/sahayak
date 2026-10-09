@@ -197,3 +197,47 @@ it('uses the doctor as the default owner and keeps already planned check-ins whe
   await run('save_feedback_preferences', policy({ enabled: false }));
   expect((await rows(id)).rows[0].scheduled_at).toEqual(before.scheduled_at);
 });
+it('schedules only consented evening messages, saves the reply and stops later nights when help is needed', async () => {
+  await admin.query(
+    "INSERT INTO consents(clinic_id,patient_id,purpose,notice_version) VALUES($1,$2,'evening_checkins','evening-v1')",
+    [clinic.clinicId, patient],
+  );
+  await run(
+    'save_feedback_preferences',
+    policy({ delayDays: -1, eveningEnabled: true, eveningNights: 3, eveningTime: '19:00' }),
+  );
+  const id = await visit();
+  await run('finish_visit', { queueEntryId: id });
+  const due = (
+    await admin.query(
+      "SELECT id,evening_number,to_char(run_at AT TIME ZONE 'Asia/Kolkata','HH24:MI') local_time FROM follow_ups WHERE queue_entry_id=$1 ORDER BY evening_number",
+      [id],
+    )
+  ).rows;
+  expect(due.map((v) => [v.evening_number, v.local_time])).toEqual([
+    [1, '19:00'],
+    [2, '19:00'],
+    [3, '19:00'],
+  ]);
+  expect((await rows(id)).rows[0].scheduled_at.getTime()).toBeGreaterThan(Date.now());
+  await admin.query("UPDATE follow_ups SET status='sent' WHERE id=$1", [due[0].id]);
+  await run(
+    'record_evening_reply',
+    { followUpId: due[0].id, feeling: 'worse', message: 'Feeling worse tonight' },
+    { clinicId: clinic.clinicId, actor: { kind: 'agent', agent: 'followup' }, patientId: patient },
+  );
+  const states = (
+    await admin.query(
+      'SELECT status FROM follow_ups WHERE queue_entry_id=$1 ORDER BY evening_number',
+      [id],
+    )
+  ).rows;
+  expect(states.map((v) => v.status)).toEqual(['sent', 'skipped', 'skipped']);
+  expect(
+    (
+      await admin.query('SELECT message FROM evening_checkin_replies WHERE follow_up_id=$1', [
+        due[0].id,
+      ])
+    ).rows[0].message,
+  ).toBe('Feeling worse tonight');
+});

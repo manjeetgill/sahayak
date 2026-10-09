@@ -5,6 +5,7 @@ import { installOutboundCalls } from './outbound-calls';
 import { installOnlinePayments } from './online-payments';
 import type { RazorpayOptions } from './razorpay';
 import { installPatientFeedback } from './patient-feedback';
+import { installEveningDelivery } from './evening-delivery';
 import { callingStatus, callingRequest } from './calling-status';
 import { installCallingBridge, type CallingBridgeOptions } from './calling-bridge';
 import {
@@ -189,6 +190,10 @@ export async function buildApp(deps: AppDeps) {
         '/staff/feedback/messaging',
         '/staff/feedback/delivery-refresh',
         '/staff/feedback/delivery-evidence',
+        '/staff/evening/messaging',
+        '/staff/evening/delivery-refresh',
+        '/staff/evening/delivery-evidence',
+        '/staff/patient-checkins/evening-updates',
       ].includes(route);
     const adminReview = c.role === 'admin' && isAdminReviewRequest(req.method, route);
     if (c.role === 'admin' && !adminRoute && !adminReview)
@@ -209,7 +214,11 @@ export async function buildApp(deps: AppDeps) {
   const staffCtx = (c: Claims): ToolContext => ({
     clinicId: c.clinicId,
     actor: {
-      kind: 'staff', role: c.role, userId: c.uid, doctorId: c.doctorId, clinicAdmin: c.clinicAdmin,
+      kind: 'staff',
+      role: c.role,
+      userId: c.uid,
+      doctorId: c.doctorId,
+      clinicAdmin: c.clinicAdmin,
     } as Actor,
   });
   const clinicBySlug = async (slug: string) => {
@@ -231,6 +240,7 @@ export async function buildApp(deps: AppDeps) {
   };
 
   await installPatientFeedback(app, deps, async (req, roles) => staffCtx(await claims(req, roles)));
+  await installEveningDelivery(app, deps, async (req, roles) => staffCtx(await claims(req, roles)));
   await installOutboundCalls(app, deps, async (req, roles) => staffCtx(await claims(req, roles)));
   await installGoogleConnections(app, deps, async (req, roles) =>
     staffCtx(await claims(req, roles)),
@@ -242,15 +252,26 @@ export async function buildApp(deps: AppDeps) {
   const patientLink = async (slug: string, token: string) => {
     const clinic = await clinicBySlug(slug);
     const hash = createHash('sha256').update(token).digest('hex');
-    const link = await read(clinic.id, async (db) => (
-      await db.query(
-        `SELECT l.patient_id,p.name FROM patient_access_links l JOIN patients p ON p.id=l.patient_id
+    const link = await read(
+      clinic.id,
+      async (db) =>
+        (
+          await db.query(
+            `SELECT l.patient_id,p.name FROM patient_access_links l JOIN patients p ON p.id=l.patient_id
          WHERE l.token_hash=$1 AND l.expires_at>now() AND l.revoked_at IS NULL
            AND p.name<>'Erased patient' AND EXISTS
              (SELECT 1 FROM consents c WHERE c.patient_id=p.id AND c.purpose='visit_data'
-              AND c.withdrawn_at IS NULL)`, [hash],
-      )).rows[0]);
-    if (!link) throw new ToolError('link_expired', 'This private link has expired. Ask the clinic for a new one.', 404);
+              AND c.withdrawn_at IS NULL)`,
+            [hash],
+          )
+        ).rows[0],
+    );
+    if (!link)
+      throw new ToolError(
+        'link_expired',
+        'This private link has expired. Ask the clinic for a new one.',
+        404,
+      );
     return { clinic, patientId: link.patient_id as string, patientName: link.name as string };
   };
 
@@ -260,12 +281,16 @@ export async function buildApp(deps: AppDeps) {
     const token = randomBytes(32).toString('base64url');
     const hash = createHash('sha256').update(token).digest('hex');
     const slug = await read(c.clinicId, async (db) => {
-      const patient = (await db.query(
-        `SELECT p.id FROM patients p WHERE p.id=$1 AND p.name<>'Erased patient' AND EXISTS
+      const patient = (
+        await db.query(
+          `SELECT p.id FROM patients p WHERE p.id=$1 AND p.name<>'Erased patient' AND EXISTS
          (SELECT 1 FROM consents x WHERE x.patient_id=p.id AND x.purpose='visit_data'
-          AND x.withdrawn_at IS NULL)`, [patientId],
-      )).rows[0];
-      if (!patient) throw new ToolError('consent_required', 'Patient visit-data permission is required', 409);
+          AND x.withdrawn_at IS NULL)`,
+          [patientId],
+        )
+      ).rows[0];
+      if (!patient)
+        throw new ToolError('consent_required', 'Patient visit-data permission is required', 409);
       await db.query(
         'UPDATE patient_access_links SET revoked_at=now() WHERE patient_id=$1 AND revoked_at IS NULL',
         [patientId],
@@ -275,7 +300,8 @@ export async function buildApp(deps: AppDeps) {
          VALUES ($1,$2,$3,$4,now()+interval '7 days')`,
         [c.clinicId, patientId, hash, c.uid],
       );
-      return (await db.query('SELECT slug FROM clinics WHERE id=$1', [c.clinicId])).rows[0].slug as string;
+      return (await db.query('SELECT slug FROM clinics WHERE id=$1', [c.clinicId])).rows[0]
+        .slug as string;
     });
     return { path: `/c/${slug}/my-visit#${token}`, expiresInDays: 7 };
   });
@@ -285,63 +311,158 @@ export async function buildApp(deps: AppDeps) {
     const { clinic, patientId, patientName } = await patientLink((req.params as any).slug, b.token);
     reply.header('cache-control', 'no-store').header('referrer-policy', 'no-referrer');
     return read(clinic.id, async (db) => {
-      const appointments = await db.query(`SELECT a.id,a.doctor_id,d.name AS doctor,a.starts_at,a.status FROM appointments a
+      const appointments = await db.query(
+        `SELECT a.id,a.doctor_id,d.name AS doctor,a.starts_at,a.status FROM appointments a
           JOIN doctors d ON d.id=a.doctor_id WHERE a.patient_id=$1 AND a.starts_at>now()-interval '1 day'
-          AND a.status IN ('booked','checked_in','needs_rebooking') ORDER BY a.starts_at LIMIT 10`, [patientId]);
-      const queue = await db.query(`SELECT token_number,status,queue_date FROM queue_entries
+          AND a.status IN ('booked','checked_in','needs_rebooking') ORDER BY a.starts_at LIMIT 10`,
+        [patientId],
+      );
+      const queue = await db.query(
+        `SELECT token_number,status,queue_date FROM queue_entries
           WHERE patient_id=$1 AND queue_date=(now() AT TIME ZONE (SELECT timezone FROM clinics WHERE id=$2))::date
-          ORDER BY checked_in_at DESC LIMIT 1`, [patientId, clinic.id]);
-      const arrival = await db.query(`SELECT a.id,a.status,a.amount_paise,o.state AS online_state FROM qr_arrivals a
+          ORDER BY checked_in_at DESC LIMIT 1`,
+        [patientId, clinic.id],
+      );
+      const arrival = await db.query(
+        `SELECT a.id,a.status,a.amount_paise,o.state AS online_state FROM qr_arrivals a
           LEFT JOIN qr_payment_orders o ON o.arrival_id=a.id WHERE a.patient_id=$1
-          ORDER BY a.created_at DESC LIMIT 1`, [patientId]);
+          ORDER BY a.created_at DESC LIMIT 1`,
+        [patientId],
+      );
       const doctors = await db.query('SELECT id,name FROM doctors WHERE active ORDER BY name');
-      const reportRequests = await db.query("SELECT id,title,due_at FROM care_tasks WHERE patient_id=$1 AND kind='report' AND status='requested' ORDER BY due_at LIMIT 20", [patientId]);
+      const reportRequests = await db.query(
+        "SELECT id,title,due_at FROM care_tasks WHERE patient_id=$1 AND kind='report' AND status='requested' ORDER BY due_at LIMIT 20",
+        [patientId],
+      );
       const careSteps = await db.query(
         `SELECT s.id,s.title,s.message,s.due_at,s.status FROM care_plan_steps s
          JOIN care_plans p ON p.id=s.plan_id WHERE s.patient_id=$1 AND p.status='active'
          AND s.status IN ('pending','contacted','no_response','needs_review')
-         ORDER BY s.due_at LIMIT 20`, [patientId],
+         ORDER BY s.due_at LIMIT 20`,
+        [patientId],
       );
-      return { clinic: clinic.name, patientName, appointments: appointments.rows,
-        queue: queue.rows[0] ?? null, arrival: arrival.rows[0] ?? null,
-        doctors: doctors.rows, reportRequests: reportRequests.rows, careSteps: careSteps.rows };
+      return {
+        clinic: clinic.name,
+        patientName,
+        appointments: appointments.rows,
+        queue: queue.rows[0] ?? null,
+        arrival: arrival.rows[0] ?? null,
+        doctors: doctors.rows,
+        reportRequests: reportRequests.rows,
+        careSteps: careSteps.rows,
+      };
     });
   });
   app.post('/public/:slug/my-visit/slots', async (req) => {
-    const b = z.object({ token: z.string().min(40).max(100), doctorId: z.string().uuid(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }).parse(req.body);
+    const b = z
+      .object({
+        token: z.string().min(40).max(100),
+        doctorId: z.string().uuid(),
+        date: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
+      })
+      .parse(req.body);
     const { clinic, patientId } = await patientLink((req.params as any).slug, b.token);
-    return callTool(rt, { clinicId: clinic.id, actor: { kind: 'patient' }, patientId },
-      'list_free_slots', { doctorId: b.doctorId, date: b.date, count: 12 });
+    return callTool(
+      rt,
+      { clinicId: clinic.id, actor: { kind: 'patient' }, patientId },
+      'list_free_slots',
+      { doctorId: b.doctorId, date: b.date, count: 12 },
+    );
   });
   app.post('/public/:slug/my-visit/book', async (req) => {
-    const b = z.object({ token: z.string().min(40).max(100), doctorId: z.string().uuid(), startsAt: z.string().datetime(), reason: z.string().trim().max(200).optional() }).parse(req.body);
+    const b = z
+      .object({
+        token: z.string().min(40).max(100),
+        doctorId: z.string().uuid(),
+        startsAt: z.string().datetime(),
+        reason: z.string().trim().max(200).optional(),
+      })
+      .parse(req.body);
     const { clinic, patientId } = await patientLink((req.params as any).slug, b.token);
-    return callTool(rt, { clinicId: clinic.id, actor: { kind: 'patient' }, patientId },
-      'book_appointment', { doctorId: b.doctorId, patientId, startsAt: b.startsAt, reason: b.reason, source: 'patient_web' });
+    return callTool(
+      rt,
+      { clinicId: clinic.id, actor: { kind: 'patient' }, patientId },
+      'book_appointment',
+      {
+        doctorId: b.doctorId,
+        patientId,
+        startsAt: b.startsAt,
+        reason: b.reason,
+        source: 'patient_web',
+      },
+    );
   });
   app.post('/public/:slug/my-visit/cancel', async (req) => {
-    const b = z.object({ token: z.string().min(40).max(100), appointmentId: z.string().uuid() }).parse(req.body);
+    const b = z
+      .object({ token: z.string().min(40).max(100), appointmentId: z.string().uuid() })
+      .parse(req.body);
     const { clinic, patientId } = await patientLink((req.params as any).slug, b.token);
-    return callTool(rt, { clinicId: clinic.id, actor: { kind: 'patient' }, patientId },
-      'cancel_appointment', { appointmentId: b.appointmentId });
+    return callTool(
+      rt,
+      { clinicId: clinic.id, actor: { kind: 'patient' }, patientId },
+      'cancel_appointment',
+      { appointmentId: b.appointmentId },
+    );
   });
   app.post('/public/:slug/my-visit/reschedule', async (req) => {
-    const b = z.object({ token: z.string().min(40).max(100), appointmentId: z.string().uuid(), newStartsAt: z.string().datetime() }).parse(req.body);
+    const b = z
+      .object({
+        token: z.string().min(40).max(100),
+        appointmentId: z.string().uuid(),
+        newStartsAt: z.string().datetime(),
+      })
+      .parse(req.body);
     const { clinic, patientId } = await patientLink((req.params as any).slug, b.token);
-    return callTool(rt, { clinicId: clinic.id, actor: { kind: 'patient' }, patientId },
-      'reschedule_appointment', { appointmentId: b.appointmentId, newStartsAt: b.newStartsAt });
+    return callTool(
+      rt,
+      { clinicId: clinic.id, actor: { kind: 'patient' }, patientId },
+      'reschedule_appointment',
+      { appointmentId: b.appointmentId, newStartsAt: b.newStartsAt },
+    );
   });
   app.post('/public/:slug/my-visit/document', async (req) => {
-    const b = z.object({ token: z.string().min(40).max(100), filename: z.string().min(1).max(120), base64: z.string().min(8).max(12_000_000), caption: z.string().max(200).optional(), careTaskId: z.string().uuid().optional() }).parse(req.body);
+    const b = z
+      .object({
+        token: z.string().min(40).max(100),
+        filename: z.string().min(1).max(120),
+        base64: z.string().min(8).max(12_000_000),
+        caption: z.string().max(200).optional(),
+        careTaskId: z.string().uuid().optional(),
+      })
+      .parse(req.body);
     const { clinic, patientId } = await patientLink((req.params as any).slug, b.token);
-    return callTool(rt, { clinicId: clinic.id, actor: { kind: 'patient' }, patientId },
-      'store_patient_document', { patientId, filename: b.filename, base64: b.base64, caption: b.caption, kind: 'report', careTaskId: b.careTaskId });
+    return callTool(
+      rt,
+      { clinicId: clinic.id, actor: { kind: 'patient' }, patientId },
+      'store_patient_document',
+      {
+        patientId,
+        filename: b.filename,
+        base64: b.base64,
+        caption: b.caption,
+        kind: 'report',
+        careTaskId: b.careTaskId,
+      },
+    );
   });
   app.post('/public/:slug/my-visit/follow-up-reply', async (req) => {
-    const b = z.object({ token: z.string().min(40).max(100), stepId: z.string().uuid(), response: z.string().trim().min(1).max(2000) }).parse(req.body);
+    const b = z
+      .object({
+        token: z.string().min(40).max(100),
+        stepId: z.string().uuid(),
+        response: z.string().trim().min(1).max(2000),
+      })
+      .parse(req.body);
     const { clinic, patientId } = await patientLink((req.params as any).slug, b.token);
-    return callTool(rt, { clinicId: clinic.id, actor: { kind: 'patient' }, patientId },
-      'submit_patient_care_reply', { stepId: b.stepId, response: b.response });
+    return callTool(
+      rt,
+      { clinicId: clinic.id, actor: { kind: 'patient' }, patientId },
+      'submit_patient_care_reply',
+      { stepId: b.stepId, response: b.response },
+    );
   });
 
   // ---- auth ----
@@ -358,14 +479,17 @@ export async function buildApp(deps: AppDeps) {
       doctorId: u.doctor_id,
       name: u.name,
     };
-    const access = await withClinic(pool, c.clinicId, async (db) =>
-      (
-        await db.query(
-          `SELECT s.solo_owner,cs.workspace_mode FROM staff_users s
+    const access = await withClinic(
+      pool,
+      c.clinicId,
+      async (db) =>
+        (
+          await db.query(
+            `SELECT s.solo_owner,cs.workspace_mode FROM staff_users s
            JOIN clinic_settings cs ON cs.clinic_id=s.clinic_id WHERE s.id=$1`,
-          [c.uid],
-        )
-      ).rows[0],
+            [c.uid],
+          )
+        ).rows[0],
     );
     c.clinicAdmin = c.role === 'admin' || (c.role === 'doctor' && access?.solo_owner === true);
     return { token: app.jwt.sign(c, { expiresIn: '12h' }), user: c };
@@ -476,6 +600,26 @@ export async function buildApp(deps: AppDeps) {
       req.body,
     );
   });
+  app.post('/public/:slug/arrival/waiting-answer', async (req) => {
+    limitPublic(req.ip);
+    const c = await clinicBySlug((req.params as any).slug);
+    return callTool(
+      rt,
+      { clinicId: c.id, actor: { kind: 'patient' } },
+      'save_qr_waiting_answer',
+      req.body,
+    );
+  });
+  app.post('/public/:slug/arrival/feedback-link', async (req) => {
+    limitPublic(req.ip);
+    const c = await clinicBySlug((req.params as any).slug);
+    return callTool(
+      rt,
+      { clinicId: c.id, actor: { kind: 'patient' } },
+      'get_qr_feedback_link',
+      req.body,
+    );
+  });
   app.get('/staff/qr-settings', async (req) =>
     callTool(rt, staffCtx(await claims(req)), 'get_qr_settings', {}),
   );
@@ -485,12 +629,20 @@ export async function buildApp(deps: AppDeps) {
   app.get('/staff/qr-arrivals', async (req) =>
     callTool(rt, staffCtx(await claims(req, ['doctor', 'receptionist'])), 'list_qr_arrivals', {}),
   );
-  app.post('/staff/qr-arrivals/:id/confirm', async (req) =>
-    callTool(rt, staffCtx(await claims(req, ['doctor', 'receptionist'])), 'confirm_qr_payment', {
+  app.post('/staff/qr-arrivals/:id/confirm', async (req) => {
+    const c = await claims(req, ['doctor', 'receptionist']);
+    const out = await callTool(rt, staffCtx(c), 'confirm_qr_payment', {
       ...(req.body as object),
       id: idParam(req),
-    }),
-  );
+    });
+    if (out.messaged)
+      startIntakeFor(env, {
+        clinicId: c.clinicId,
+        patientId: out.patientId,
+        phone: out.phone,
+      }).catch((e) => app.log.warn(e, 'intake start failed'));
+    return { ok: out.ok, token: out.token, alreadyConfirmed: out.alreadyConfirmed ?? false };
+  });
   app.post('/staff/qr-arrivals/:id/cancel', async (req) =>
     callTool(rt, staffCtx(await claims(req, ['doctor', 'receptionist'])), 'cancel_qr_arrival', {
       id: idParam(req),
@@ -686,6 +838,13 @@ export async function buildApp(deps: AppDeps) {
           )
         ).rows.map((i) => [i.queue_entry_id, i.summary]),
       );
+      const waiting = new Map(
+        (
+          await db.query(
+            'SELECT queue_entry_id,waiting_answer FROM qr_arrivals WHERE waiting_answer IS NOT NULL AND queue_entry_id IS NOT NULL',
+          )
+        ).rows.map((a) => [a.queue_entry_id, a.waiting_answer]),
+      );
       return rows.map((r) => ({
         ...r,
         phone: c.role === 'receptionist' || c.clinicAdmin ? ph.get(r.patient_id)?.phone : undefined,
@@ -693,6 +852,7 @@ export async function buildApp(deps: AppDeps) {
           ? new Date().getFullYear() - ph.get(r.patient_id).year_of_birth
           : null,
         intake_summary: intake.get(r.id) ?? null,
+        waiting_answer: waiting.get(r.id) ?? null,
       }));
     });
   });
@@ -874,8 +1034,12 @@ export async function buildApp(deps: AppDeps) {
     return read(c.clinicId, async (db) => ({
       doctors: (
         await db.query(`SELECT d.id,d.name,coalesce(p.enabled,false) AS enabled,
-        coalesce(p.delay_days,1) AS delay_days,coalesce(p.send_time,'18:00'::time)::text AS send_time,
-        coalesce(p.reminder_enabled,false) AS reminder_enabled,u.name AS assigned_name
+        coalesce(p.delay_days,-1) AS delay_days,coalesce(p.send_time,'18:00'::time)::text AS send_time,
+        coalesce(p.reminder_enabled,false) AS reminder_enabled,
+        coalesce(p.waiting_question_enabled,true) AS waiting_question_enabled,
+        coalesce(p.evening_enabled,false) AS evening_enabled,
+        coalesce(p.evening_nights,3) AS evening_nights,
+        coalesce(p.evening_time,'19:00'::time)::text AS evening_time,u.name AS assigned_name
         FROM doctors d LEFT JOIN doctor_feedback_preferences p ON p.doctor_id=d.id
         LEFT JOIN staff_users u ON u.id=p.assigned_to ORDER BY d.name`)
       ).rows,
@@ -885,6 +1049,9 @@ export async function buildApp(deps: AppDeps) {
     const c = await claims(req, ['doctor']);
     return callTool(rt, staffCtx(c), 'get_feedback_preferences', {});
   });
+  app.get('/staff/patient-checkins/evening-updates', async (req) =>
+    callTool(rt, staffCtx(await claims(req)), 'list_evening_checkins', {}),
+  );
   app.put('/staff/patient-checkins/preferences', async (req) => {
     const c = await claims(req, ['doctor']);
     return callTool(rt, staffCtx(c), 'save_feedback_preferences', req.body);
@@ -978,9 +1145,10 @@ export async function buildApp(deps: AppDeps) {
             ).rows[0],
         )
       )?.ai_features?.scribe === true;
-    const s = b.source === 'conversation'
-      ? structureConversation(b.transcript)
-      : await structureNote(gate, b.transcript, aiOn);
+    const s =
+      b.source === 'conversation'
+        ? structureConversation(b.transcript)
+        : await structureNote(gate, b.transcript, aiOn);
     const out = await callTool(rt, staffCtx(c), 'save_visit_note_draft', {
       ...b,
       note: s.note,
@@ -1652,12 +1820,14 @@ export async function buildApp(deps: AppDeps) {
     }
     const inbound = await read(c.clinicId, async (db) =>
       saved?.channel_id
-        ? (await db.query(
-            `SELECT count(*)::int AS count, max(created_at) AS latest_at
+        ? (
+            await db.query(
+              `SELECT count(*)::int AS count, max(created_at) AS latest_at
              FROM agent_platform_receipts
              WHERE channel_id=$1 AND state='DONE'`,
-            [saved.channel_id],
-          )).rows[0]
+              [saved.channel_id],
+            )
+          ).rows[0]
         : { count: 0, latest_at: null },
     );
     return {

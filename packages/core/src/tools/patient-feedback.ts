@@ -11,6 +11,8 @@ export const feedbackResponseInput = z.object({
   help: z.enum(['none', 'instructions', 'medicine', 'next_steps', 'visit', 'other']),
   theme: z.enum(['none', 'waiting', 'explanation', 'staff', 'fees', 'booking', 'other']),
   message: z.string().trim().max(2000).default(''),
+  experience: z.enum(['excellent', 'good', 'okay', 'poor']).optional(),
+  suggestion: z.string().trim().max(1000).default(''),
 });
 export const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
 export async function feedbackEvent(r: ToolRun, id: string, kind: string, note = '') {
@@ -169,7 +171,7 @@ export const feedbackTools = [
       ).rows[0];
       if (prior) return { saved: true, duplicate: true };
       const phrases = (await r.db.query('SELECT phrase FROM red_flag_phrases')).rows;
-      const urgent = !!detectRedFlagKeywords(i.message, phrases);
+      const urgent = !!detectRedFlagKeywords(`${i.message}\n${i.suggestion}`, phrases);
       const category =
         ['same', 'worse'].includes(i.recovery) || i.help === 'medicine'
           ? 'clinical'
@@ -177,12 +179,24 @@ export const feedbackTools = [
             ? 'callback'
             : ['instructions', 'next_steps'].includes(i.help)
               ? 'instructions'
-              : i.theme !== 'none' || i.help === 'visit'
+              : i.theme !== 'none' ||
+                  i.help === 'visit' ||
+                  i.experience === 'poor' ||
+                  !!i.suggestion
                 ? 'service'
                 : 'review';
       await r.db.query(
-        'INSERT INTO patient_feedback_responses(clinic_id,checkin_id,recovery,help,theme,message) VALUES ($1,$2,$3,$4,$5,$6)',
-        [r.ctx.clinicId, l.checkin_id, i.recovery, i.help, i.theme, i.message],
+        'INSERT INTO patient_feedback_responses(clinic_id,checkin_id,recovery,help,theme,message,experience,suggestion) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+        [
+          r.ctx.clinicId,
+          l.checkin_id,
+          i.recovery,
+          i.help,
+          i.theme,
+          i.message,
+          i.experience ?? null,
+          i.suggestion,
+        ],
       );
       await r.db.query(
         "UPDATE patient_checkins SET work_status='new',category=$2,urgent=$3,response_due_at=now(),updated_at=now() WHERE id=$1",
@@ -241,7 +255,7 @@ export const feedbackTools = [
     async run(r, i) {
       const l = await validFeedbackLink(r, i.token, true);
       await r.db.query(
-        "UPDATE consents SET withdrawn_at=now() WHERE patient_id=$1 AND purpose IN ('whatsapp_messaging','reminders_followups') AND withdrawn_at IS NULL",
+        "UPDATE consents SET withdrawn_at=now() WHERE patient_id=$1 AND purpose IN ('whatsapp_messaging','reminders_followups','evening_checkins') AND withdrawn_at IS NULL",
         [l.patient_id],
       );
       // Keep already reported concerns open for care; cancel only outreach and unused links.
@@ -356,7 +370,7 @@ export const feedbackTools = [
     async run(r, i) {
       const rows = (
         await r.db.query(
-          `SELECT c.*,p.name AS patient_name,p.phone,u.name AS assignee,f.recovery,f.help,f.theme,f.message,f.created_at AS responded_at,
+          `SELECT c.*,p.name AS patient_name,p.phone,u.name AS assignee,f.recovery,f.help,f.theme,f.message,f.experience,f.suggestion,f.created_at AS responded_at,
  (SELECT jsonb_agg(e ORDER BY e.created_at) FROM patient_feedback_events e WHERE e.checkin_id=c.id) AS history,
  (SELECT jsonb_agg(d ORDER BY d.created_at) FROM patient_feedback_delivery d WHERE d.checkin_id=c.id) AS delivery,
  (SELECT jsonb_agg(x ORDER BY x.created_at) FROM patient_feedback_resolutions x WHERE x.checkin_id=c.id) AS resolutions

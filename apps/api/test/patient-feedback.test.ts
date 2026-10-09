@@ -21,7 +21,10 @@ let clinic: Awaited<ReturnType<typeof createTestClinic>>,
 let setupAuth: Record<string, string>;
 let auth: Record<string, string>, reception: Record<string, string>;
 const channel = randomUUID(),
-  providerId = randomUUID();
+  providerId = randomUUID(),
+  eveningProviderId = randomUUID();
+let eveningFollowupId = '';
+let eveningDelivered = false;
 let templateChanged = false;
 let approvals = 0,
   prepared = 0,
@@ -99,16 +102,32 @@ beforeAll(async () => {
                     ? 'Changed invitation. Reply FEEDBACK.'
                     : 'The clinic is checking on you. Reply FEEDBACK to get your private form.',
                 },
+                {
+                  id: '234567',
+                  name: 'evening_checkin',
+                  language: 'en',
+                  text: 'How are you feeling this evening? Reply BETTER, SAME or WORSE. For emergencies seek urgent care.',
+                },
               ],
             }),
           );
         if (url.endsWith('/approve')) {
           approvals++;
-          return new Response(JSON.stringify({ id: providerId, status: 'QUEUED' }));
+          return new Response(
+            JSON.stringify({
+              id: url.includes(eveningProviderId) ? eveningProviderId : providerId,
+              status: 'QUEUED',
+            }),
+          );
         }
         if (init?.method === 'POST') {
           prepared++;
-          return new Response(JSON.stringify({ id: providerId, status: 'DRAFT' }));
+          return new Response(
+            JSON.stringify({
+              id: JSON.parse(init.body).template_id === '234567' ? eveningProviderId : providerId,
+              status: 'DRAFT',
+            }),
+          );
         }
         return new Response(
           JSON.stringify([
@@ -118,6 +137,16 @@ beforeAll(async () => {
               delivery: readReceipt ? 'read' : delivered ? 'delivered' : null,
               idempotency_key: 'sahayak-checkin-' + checkin + '-initial',
             },
+            ...(eveningFollowupId
+              ? [
+                  {
+                    id: eveningProviderId,
+                    status: 'ACCEPTED',
+                    delivery: eveningDelivered ? 'delivered' : null,
+                    idempotency_key: `sahayak-evening-${eveningFollowupId}`,
+                  },
+                ]
+              : []),
           ]),
         );
       },
@@ -451,6 +480,90 @@ it('routes FEEDBACK from a known WhatsApp patient to their own form and expires 
       })
     ).statusCode,
   ).toBe(410);
+});
+it('requires admin approval for evening templates and records delivery and the patient reply', async () => {
+  const phone = '+919533331119';
+  const eveningPatient = await addPatient(admin, clinic.clinicId, 'Evening test', phone);
+  await admin.query(
+    "INSERT INTO consents(clinic_id,patient_id,purpose,notice_version) VALUES($1,$2,'evening_checkins','evening-v1')",
+    [clinic.clinicId, eveningPatient],
+  );
+  const eveningVisit = (
+    await admin.query(
+      "INSERT INTO queue_entries(clinic_id,patient_id,doctor_id,queue_date,token_number,position_key,status) VALUES($1,$2,$3,current_date,8010,8010,'done') RETURNING id",
+      [clinic.clinicId, eveningPatient, clinic.doctorIds[0]],
+    )
+  ).rows[0].id;
+  eveningFollowupId = (
+    await admin.query(
+      "INSERT INTO follow_ups(clinic_id,patient_id,queue_entry_id,kind,run_at,evening_number) VALUES($1,$2,$3,'post_visit',now()-interval '1 minute',1) RETURNING id",
+      [clinic.clinicId, eveningPatient, eveningVisit],
+    )
+  ).rows[0].id;
+  expect(
+    (
+      await api(
+        'PUT',
+        '/staff/evening/messaging',
+        { enabled: true, templateId: '234567', reviewed: true },
+        reception,
+      )
+    ).statusCode,
+  ).toBe(403);
+  expect(
+    (
+      await api(
+        'PUT',
+        '/staff/evening/messaging',
+        { enabled: true, templateId: '234567', reviewed: true },
+        setupAuth,
+      )
+    ).statusCode,
+  ).toBe(200);
+  const originalTimezone = (
+    await admin.query('SELECT timezone FROM clinics WHERE id=$1', [clinic.clinicId])
+  ).rows[0].timezone;
+  await admin.query(
+    "UPDATE clinics SET timezone=(SELECT name FROM pg_timezone_names WHERE to_char(now() AT TIME ZONE name,'HH24')='19' LIMIT 1) WHERE id=$1",
+    [clinic.clinicId],
+  );
+  const sent = await api('POST', `/staff/evening/${eveningFollowupId}/send`, { approved: true });
+  await admin.query('UPDATE clinics SET timezone=$2 WHERE id=$1', [
+    clinic.clinicId,
+    originalTimezone,
+  ]);
+  expect(sent.statusCode).toBe(200);
+  expect(sent.json().state).toBe('queued');
+  expect(
+    (await admin.query('SELECT status FROM follow_ups WHERE id=$1', [eveningFollowupId])).rows[0]
+      .status,
+  ).toBe('sent');
+  expect(
+    (await api('POST', `/staff/evening/${eveningFollowupId}/send`, { approved: true })).json()
+      .skipped,
+  ).toBe(true);
+  eveningDelivered = true;
+  const refresh = await api('POST', '/staff/evening/delivery-refresh', {}, setupAuth);
+  expect(refresh.statusCode, refresh.body).toBe(200);
+  expect(
+    (
+      await admin.query('SELECT delivered_at FROM patient_evening_delivery WHERE follow_up_id=$1', [
+        eveningFollowupId,
+      ])
+    ).rows[0].delivered_at,
+  ).toBeTruthy();
+  const reply = await handleInbound(
+    { rt, gate: new LlmGate(null) },
+    { clinicId: clinic.clinicId, from: phone, text: 'About the same', channel: 'whatsapp' },
+  );
+  expect(reply.replies.join(' ')).toContain('Thank you');
+  expect(
+    (
+      await admin.query('SELECT feeling FROM evening_checkin_replies WHERE follow_up_id=$1', [
+        eveningFollowupId,
+      ])
+    ).rows[0].feeling,
+  ).toBe('same');
 });
 it('erasure removes feedback text and links and redacts linked improvement titles', async () => {
   const exported = await call('export_patient_data', { patientId: patient });

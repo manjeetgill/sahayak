@@ -9,6 +9,80 @@ export type StaffLang = 'en' | 'hi';
  * clinical notes, and external service responses are kept as recorded. A missing key stays English.
  */
 const HI: Record<string, string> = {
+  'While the patient waits': 'मरीज़ के इंतज़ार के दौरान',
+  'Ask one question on the patient’s private queue page': 'मरीज़ के निजी कतार पेज पर एक सवाल पूछें',
+  'The patient can tell you one thing they want to discuss. Their answer appears in your queue and pre-visit brief. This works even without WhatsApp.':
+    'मरीज़ अपनी एक मुख्य बात बता सकता है। जवाब आपकी कतार और परामर्श से पहले की जानकारी में दिखेगा। यह WhatsApp के बिना भी चलता है।',
+  'Evening recovery check-ins': 'शाम का हालचाल',
+  'Ask how the patient feels each evening after the visit':
+    'विज़िट के बाद हर शाम मरीज़ का हाल पूछें',
+  'Number of evenings': 'कितनी शामें',
+  'Evening time': 'शाम का समय',
+  'Only patients who separately agree to evening messages receive them. Replies appear in the clinic work list. If someone feels worse or asks for help, later automatic messages stop until a person reviews the concern. Live delivery needs a working WhatsApp connection.':
+    'शाम के संदेश केवल अलग से सहमति देने वाले मरीज़ों को जाएंगे। जवाब क्लिनिक की कार्य सूची में दिखेंगे। हालत बिगड़ने या मदद माँगने पर आगे के अपने-आप भेजे जाने वाले संदेश रुकेंगे। असली संदेशों के लिए चालू WhatsApp कनेक्शन चाहिए।',
+  'After the consultation': 'परामर्श के बाद',
+  'About 30 minutes after the visit': 'विज़िट के लगभग 30 मिनट बाद',
+  'We use 8 am to 9 pm for this option; visits ending late are checked the next morning.':
+    'इस विकल्प में सुबह 8 से रात 9 बजे तक संदेश जाते हैं; देर से खत्म हुई विज़िट के लिए अगली सुबह पूछा जाएगा।',
+  'Your patient message choices are saved for future visits.':
+    'आने वाली विज़िट के लिए संदेश विकल्प सहेज दिए गए हैं।',
+  'Patient’s waiting-room note:': 'इंतज़ार करते समय मरीज़ की बात:',
+  'View source': 'मूल जवाब देखें',
+  'Visit experience:': 'विज़िट का अनुभव:',
+  'Patient suggestion:': 'मरीज़ का सुझाव:',
+  'Excellent experience': 'बहुत अच्छा अनुभव',
+  'Good experience': 'अच्छा अनुभव',
+  'Okay experience': 'ठीक-ठाक अनुभव',
+  'Needs improvement': 'सुधार की ज़रूरत',
+  'Evening check-ins': 'शाम का हालचाल',
+  'See who was asked, who replied, and which messages could not be sent. A reply in the inbox still needs a person to review it.':
+    'देखें किससे पूछा गया, किसने जवाब दिया और कौन-से संदेश नहीं भेजे जा सके। जवाब की किसी व्यक्ति को समीक्षा करनी होगी।',
+  'No evening check-ins scheduled yet.': 'अभी शाम के हालचाल का कोई संदेश तय नहीं है।',
+  Evening: 'शाम',
+  'Message sent': 'संदेश भेजा गया',
+  'Could not send — contact patient yourself': 'संदेश नहीं गया — मरीज़ से स्वयं संपर्क करें',
+  'Stopped or skipped': 'रुका या छोड़ा गया',
+  'Patient replied:': 'मरीज़ का जवाब:',
+  'WhatsApp sending unavailable': 'WhatsApp से संदेश नहीं जा रहा',
+  'The evening window passed': 'शाम का समय निकल गया',
+  'Patient needs a personal review': 'मरीज़ से व्यक्तिगत रूप से बात करें',
+  'Patient stopped messages': 'मरीज़ ने संदेश बंद किए',
+  'Patient stopped evening messages': 'मरीज़ ने शाम के संदेश बंद किए',
+  'Contact reception for details': 'जानकारी के लिए रिसेप्शन से संपर्क करें',
+  'Asked for help': 'मदद माँगी',
+  'Reply received': 'जवाब मिला',
+  'Message submitted; delivery not verified':
+    'संदेश भेजने के लिए दिया गया; पहुँचना अभी पुष्ट नहीं है',
+  'WhatsApp delivery confirmed': 'WhatsApp संदेश पहुँचने की पुष्टि हुई',
+  'Evening WhatsApp messages': 'शाम के WhatsApp संदेश',
+  'Doctors choose which patients to check on. Only patients who explicitly agree to evening messages are eligible. Review the approved WhatsApp message before enabling live sending.':
+    'डॉक्टर तय करते हैं कि किन मरीज़ों का हाल पूछना है। केवल शाम के संदेशों के लिए स्पष्ट अनुमति देने वाले मरीज़ पात्र हैं। असली संदेश चालू करने से पहले स्वीकृत WhatsApp संदेश पढ़ें।',
+  'Automatic evening messages enabled': 'शाम के अपने-आप भेजे जाने वाले संदेश चालू हैं',
+  'Automatic evening messages paused': 'शाम के अपने-आप भेजे जाने वाले संदेश रुके हैं',
+  'Background jobs are paused. Saved evening messages will not go out automatically.':
+    'अपने-आप चलने वाले काम रुके हैं। तय किए गए शाम के संदेश अपने-आप नहीं जाएंगे।',
+  'Approved evening message': 'स्वीकृत शाम का संदेश',
+  'This template is sent only to patients whose saved language matches it. Contact other patients personally until you approve a template in their language.':
+    'यह संदेश केवल उसी भाषा वाले मरीज़ों को जाएगा जो इसमें स्वीकृत है। दूसरी भाषा का स्वीकृत संदेश मिलने तक बाकी मरीज़ों से स्वयं संपर्क करें।',
+  'Approved message is unavailable in the patient’s language':
+    'मरीज़ की भाषा में स्वीकृत संदेश उपलब्ध नहीं है',
+  'Patient has another active conversation': 'मरीज़ की दूसरी बातचीत चल रही है',
+  'Fictional demo reply; no WhatsApp sent': 'बनावटी डेमो जवाब; WhatsApp नहीं भेजा गया',
+  'Practice example': 'अभ्यास उदाहरण',
+  'I reviewed this message. It asks how the patient feels and invites BETTER or WORSE replies without giving medical advice.':
+    'मैंने यह संदेश पढ़ लिया है। यह मरीज़ का हाल पूछता है और चिकित्सा सलाह दिए बिना BETTER या WORSE जवाब माँगता है।',
+  'Enable evening sending': 'शाम के संदेश चालू करें',
+  'Pause evening sending': 'शाम के संदेश रोकें',
+  'messages prepared': 'संदेश तैयार',
+  'delivery confirmations': 'पहुँचने की पुष्टि',
+  'Choose an approved evening message that asks the patient to reply BETTER, SAME or WORSE.':
+    'स्वीकृत शाम का संदेश चुनें जिसमें मरीज़ से BETTER, SAME या WORSE जवाब माँगा गया हो।',
+  'Approved outbound templates are unavailable from the connected platform.':
+    'जुड़े हुए प्लेटफ़ॉर्म से स्वीकृत भेजने वाले संदेश अभी उपलब्ध नहीं हैं।',
+  'Evening message delivery is not ready. You can save this choice, but no live evening message will be sent until the WhatsApp sending connection and background jobs are active.':
+    'शाम के संदेश भेजने की व्यवस्था अभी तैयार नहीं है। आप विकल्प सहेज सकते हैं, लेकिन WhatsApp भेजने का कनेक्शन और अपने-आप चलने वाला काम चालू होने तक असली संदेश नहीं जाएगा।',
+  'Waiting-room question:': 'इंतज़ार के दौरान सवाल:',
+  evenings: 'शामें',
   'Test a real patient journey': 'असली मरीज प्रक्रिया जाँचें',
   'Use only a WhatsApp number you control and test patient details. A practice chat does not prove a real message was delivered.': 'सिर्फ अपना WhatsApp नंबर और जाँच के लिए बनावटी मरीज विवरण इस्तेमाल करें। अभ्यास चैट से असली संदेश पहुँचने की पुष्टि नहीं होती।',
   'Refresh live test status': 'असली जाँच की स्थिति फिर देखें',

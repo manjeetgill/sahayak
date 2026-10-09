@@ -15,7 +15,9 @@ export function AdminFeedbackOverview() {
     <section id="settings" className="card" style={{ scrollMarginTop: 90 }}>
       <h2>{x('Automatic feedback · every doctor')}</h2>
       <p>
-        {x('These are each doctor’s saved choices for scheduling feedback after a finished visit. The doctor can change their own preferences. Admin manages delivery and the approved invitation.')}
+        {x(
+          'These are each doctor’s saved choices for scheduling feedback after a finished visit. The doctor can change their own preferences. Admin manages delivery and the approved invitation.',
+        )}
       </p>
       <a href="/admin/messages">{x('Open feedback delivery setup')}</a>
       {error && (
@@ -29,12 +31,27 @@ export function AdminFeedbackOverview() {
               <h3>{d.name}</h3>
               <p>
                 <b>{x(d.enabled ? 'Scheduling on' : 'Scheduling off')}</b> ·{' '}
-                {d.delay_days === 0 ? x('Same day') : `${d.delay_days} ${x('day(s) after the visit')}`} {x('at time')}{' '}
-                {d.send_time.slice(0, 5)}
+                {d.delay_days === -1 ? (
+                  x('About 30 minutes after the visit')
+                ) : (
+                  <>
+                    {d.delay_days === 0
+                      ? x('Same day')
+                      : `${d.delay_days} ${x('day(s) after the visit')}`}{' '}
+                    {x('at time')} {d.send_time.slice(0, 5)}
+                  </>
+                )}
               </p>
               <p>
-                {x('Follow-up owner:')} {d.assigned_name || x('Patient’s doctor')} · {x('Reminder:')}{' '}
-                {x(d.reminder_enabled ? 'On' : 'Off')}
+                {x('Waiting-room question:')} {x(d.waiting_question_enabled ? 'On' : 'Off')} ·{' '}
+                {x('Evening check-ins:')} {x(d.evening_enabled ? 'On' : 'Off')}
+                {d.evening_enabled
+                  ? ` · ${d.evening_nights} ${x('evenings')} · ${d.evening_time.slice(0, 5)}`
+                  : ''}
+              </p>
+              <p>
+                {x('Follow-up owner:')} {d.assigned_name || x('Patient’s doctor')} ·{' '}
+                {x('Reminder:')} {x(d.reminder_enabled ? 'On' : 'Off')}
               </p>
             </article>
           ))

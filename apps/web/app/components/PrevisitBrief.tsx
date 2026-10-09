@@ -37,7 +37,9 @@ export function PrevisitBrief({
     <section className="card" style={{ marginTop: 16 }}>
       <h2>{x('Before the consultation')}</h2>
       <p className="muted">
-        {x('Patient information for your review, with links to the original records. Uploaded files are listed, not interpreted. Missing information is not a normal finding.')}
+        {x(
+          'Patient information for your review, with links to the original records. Uploaded files are listed, not interpreted. Missing information is not a normal finding.',
+        )}
       </p>
       {error && (
         <p role="alert" className="error">
@@ -79,15 +81,25 @@ export function PrevisitBrief({
               </strong>
             </div>
           </div>
+          {data.waitingAnswers?.[0] && (
+            <p className="banner">
+              <b>{x('Patient’s waiting-room note:')}</b> {data.waitingAnswers[0].waiting_answer}{' '}
+              <a href={`#waiting-${data.waitingAnswers[0].id}`}>{x('View source')}</a>
+            </p>
+          )}
           <details className="patient-source-details">
             <summary>{x('Original sources and full history')}</summary>
             <h3>{x('Verified patient facts')}</h3>
             <p>
-              {(data.structured ?? []).filter((e: any) => e.kind === 'medication').length} {x('active medicine records')} ·{' '}
-              {(data.structured ?? []).filter((e: any) => e.kind === 'allergy').length} {x('allergy records')} · {(data.pending ?? []).length} {x('outstanding care tasks')}
+              {(data.structured ?? []).filter((e: any) => e.kind === 'medication').length}{' '}
+              {x('active medicine records')} ·{' '}
+              {(data.structured ?? []).filter((e: any) => e.kind === 'allergy').length}{' '}
+              {x('allergy records')} · {(data.pending ?? []).length} {x('outstanding care tasks')}
             </p>
             <p>
-              {x('These counts only include recorded facts. No allergy entry does not confirm no allergies.')}
+              {x(
+                'These counts only include recorded facts. No allergy entry does not confirm no allergies.',
+              )}
             </p>
             {(data.structured ?? [])
               .filter((e: any) => ['medication', 'allergy', 'diagnosis'].includes(e.kind))
@@ -113,7 +125,8 @@ export function PrevisitBrief({
               ))}
             {(data.pending ?? []).map((t: any) => (
               <p key={t.id}>
-                <a href="#care-tasks">{t.title}</a> · {x('due')} {new Date(t.due_at).toLocaleDateString(locale)}
+                <a href="#care-tasks">{t.title}</a> · {x('due')}{' '}
+                {new Date(t.due_at).toLocaleDateString(locale)}
               </p>
             ))}
             <h3>{x('Latest verified results')}</h3>
@@ -144,7 +157,9 @@ export function PrevisitBrief({
               </p>
             ))}
             <p>
-              {x('Comparisons match recorded test name, unit and sample/method; confirm comparability against the source.')}
+              {x(
+                'Comparisons match recorded test name, unit and sample/method; confirm comparability against the source.',
+              )}
             </p>
             <h3>{x('Recorded concerns')}</h3>
             {!data.concerns.length && <p>{x('No appointment concern recorded.')}</p>}
@@ -154,11 +169,18 @@ export function PrevisitBrief({
                   {new Date(a.starts_at).toLocaleDateString(locale)} · {a.reason}
                 </summary>
                 <p>
-                  {x('Recorded appointment')} · {x(displayLabel(a.status))}. {x('This is the recorded booking reason.')}
+                  {x('Recorded appointment')} · {x(displayLabel(a.status))}.{' '}
+                  {x('This is the recorded booking reason.')}
                 </p>
               </details>
             ))}
             <h3>{x('Before-visit answers')}</h3>
+            {(data.waitingAnswers ?? []).map((a: any) => (
+              <p key={a.id} id={`waiting-${a.id}`}>
+                <b>{x('Patient’s waiting-room note:')}</b> {a.waiting_answer} ·{' '}
+                {new Date(a.waiting_answered_at).toLocaleString(locale)}
+              </p>
+            ))}
             {!data.intake.length && <p>{x('No before-visit answers recorded.')}</p>}
             {data.intake.map((i: any) => (
               <div key={i.id}>
@@ -187,10 +209,15 @@ export function PrevisitBrief({
             {data.notes.map((n: any) => (
               <div key={n.id}>
                 <a href={`#note-${n.id}`}>
-                  {new Date(n.signed_at).toLocaleDateString(locale)} · {n.doctor} · {x('original note')}
+                  {new Date(n.signed_at).toLocaleDateString(locale)} · {n.doctor} ·{' '}
+                  {x('original note')}
                 </a>
                 <p>{n.note.complaint || n.note.history || x('See original note for details.')}</p>
-                {n.note.follow_up && <p>{x('Recorded follow-up:')} {n.note.follow_up}</p>}
+                {n.note.follow_up && (
+                  <p>
+                    {x('Recorded follow-up:')} {n.note.follow_up}
+                  </p>
+                )}
               </div>
             ))}
             <h3>{x('Uploaded records')}</h3>

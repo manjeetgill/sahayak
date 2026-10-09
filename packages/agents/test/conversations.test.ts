@@ -27,6 +27,74 @@ const appts = () =>
     .then((r) => r.rows.map((x) => x.status));
 
 describe('WhatsApp front desk', () => {
+  it('records an explicit evening opt-in, saves a check-in reply and allows evening-only opt-out', async () => {
+    const phone = '+919300000044';
+    const patientId = await addPatient(admin, c.clinicId, 'Evening Pt', phone);
+    expect((await say(phone, 'EVENING YES')).replies.join(' ')).toContain('up to 3 evenings');
+    expect(
+      (
+        await admin.query(
+          "SELECT 1 FROM consents WHERE patient_id=$1 AND purpose='evening_checkins' AND withdrawn_at IS NULL",
+          [patientId],
+        )
+      ).rowCount,
+    ).toBe(1);
+    const visit = (
+      await admin.query(
+        "INSERT INTO queue_entries(clinic_id,doctor_id,patient_id,queue_date,token_number,position_key,status) VALUES($1,$2,$3,current_date,440,440,'done') RETURNING id",
+        [c.clinicId, c.doctorIds[0], patientId],
+      )
+    ).rows[0].id;
+    const follow = (
+      await admin.query(
+        "INSERT INTO follow_ups(clinic_id,patient_id,queue_entry_id,kind,run_at,status,evening_number) VALUES($1,$2,$3,'post_visit',now(),'sent',1) RETURNING id",
+        [c.clinicId, patientId, visit],
+      )
+    ).rows[0].id;
+    await admin.query('UPDATE conversations SET state=$2 WHERE contact=$1', [
+      phone,
+      JSON.stringify({ flow: 'followup_checkin', followUpId: follow, eveningNumber: 1 }),
+    ]);
+    expect((await say(phone, 'About the same')).replies.join(' ')).toContain('Thank you');
+    expect(
+      (
+        await admin.query('SELECT feeling FROM evening_checkin_replies WHERE follow_up_id=$1', [
+          follow,
+        ])
+      ).rows[0].feeling,
+    ).toBe('same');
+    expect((await say(phone, 'EVENING STOP')).replies.join(' ')).toContain('stopped');
+    expect(
+      (
+        await admin.query(
+          "SELECT 1 FROM consents WHERE patient_id=$1 AND purpose='evening_checkins' AND withdrawn_at IS NULL",
+          [patientId],
+        )
+      ).rowCount,
+    ).toBe(0);
+  });
+  it('stops later evening prompts when a reply reports emergency symptoms', async () => {
+    const phone = '+919300000045';
+    const patientId = await addPatient(admin, c.clinicId, 'Urgent evening Pt', phone);
+    const visit = (await admin.query(
+      "INSERT INTO queue_entries(clinic_id,doctor_id,patient_id,queue_date,token_number,position_key,status) VALUES($1,$2,$3,current_date,445,445,'done') RETURNING id",
+      [c.clinicId, c.doctorIds[0], patientId],
+    )).rows[0].id;
+    const first = (await admin.query(
+      "INSERT INTO follow_ups(clinic_id,patient_id,queue_entry_id,kind,run_at,status,evening_number) VALUES($1,$2,$3,'post_visit',now(),'sent',1) RETURNING id",
+      [c.clinicId, patientId, visit],
+    )).rows[0].id;
+    await admin.query(
+      "INSERT INTO follow_ups(clinic_id,patient_id,queue_entry_id,kind,run_at,evening_number) VALUES($1,$2,$3,'post_visit',now()+interval '1 day',2)",
+      [c.clinicId, patientId, visit],
+    );
+    await say(phone, 'hello');
+    await admin.query('UPDATE conversations SET state=$2 WHERE contact=$1', [phone, JSON.stringify({ flow: 'followup_checkin', followUpId: first, eveningNumber: 1 })]);
+    const urgent = await say(phone, 'chest pain and difficulty breathing');
+    expect(urgent.redFlag).toBe(true);
+    expect((await admin.query('SELECT feeling FROM evening_checkin_replies WHERE follow_up_id=$1', [first])).rows[0].feeling).toBe('worse');
+    expect((await admin.query('SELECT status FROM follow_ups WHERE queue_entry_id=$1 AND evening_number=2', [visit])).rows[0].status).toBe('skipped');
+  });
   it('answers a queue question during intake without saving it as an intake answer', async () => {
     const phone = '+919300000003';
     const patientId = await addPatient(admin, c.clinicId, 'Queue Pt', phone);
@@ -36,7 +104,7 @@ describe('WhatsApp front desk', () => {
       [c.clinicId, c.doctorIds[0], patientId],
     );
     await admin.query(
-      "INSERT INTO conversations(clinic_id,patient_id,contact,state) VALUES($1,$2,$3,$4)",
+      'INSERT INTO conversations(clinic_id,patient_id,contact,state) VALUES($1,$2,$3,$4)',
       [c.clinicId, patientId, phone, JSON.stringify({ agent: 'intake', qi: 0, answers: [] })],
     );
     const status = await say(phone, 'What is my token number?');

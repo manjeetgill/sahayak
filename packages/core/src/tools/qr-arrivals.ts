@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { CheckinInput } from '@sahayak/shared';
+import { CheckinInput, detectRedFlagKeywords } from '@sahayak/shared';
 import { defineTool, ToolError } from './registry';
 import { registerCheckinPatient, checkInPatient } from './checkin';
 import { clinicToday } from './common';
 import { addCharge, recordPayment } from './clinical-workbench';
+import { issueFeedbackLink } from './patient-feedback';
 const token = z.string().regex(/^[a-f0-9]{64}$/),
   id = z.string().uuid();
 const digest = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -160,9 +161,9 @@ export const qrArrivalTools = [
     async run({ db }, i) {
       const row = (
         await db.query(
-          `SELECT a.id,a.status,a.amount_paise,a.expires_at,d.name AS doctor,q.token_number,q.status AS visit_status,o.state AS online_state,(o.key_id LIKE 'rzp_test_%') AS test_payment,c.status AS feedback_status,c.scheduled_at AS feedback_at,
+          `SELECT a.id,a.status,a.amount_paise,a.expires_at,a.waiting_answer,COALESCE(fp.waiting_question_enabled,true) AS waiting_question_enabled,d.name AS doctor,q.token_number,q.status AS visit_status,o.state AS online_state,(o.key_id LIKE 'rzp_test_%') AS test_payment,c.status AS feedback_status,c.work_status AS feedback_work_status,c.scheduled_at AS feedback_at,
  (SELECT COALESCE(sum(p.amount_paise),0) FROM clinic_payments p WHERE p.charge_id=a.charge_id AND p.voided_at IS NULL)::int AS paid
- FROM qr_arrivals a LEFT JOIN qr_payment_orders o ON o.arrival_id=a.id JOIN doctors d ON d.id=a.doctor_id LEFT JOIN queue_entries q ON q.id=a.queue_entry_id LEFT JOIN patient_checkins c ON c.queue_entry_id=q.id AND c.status='scheduled' WHERE a.access_hash=$1`,
+ FROM qr_arrivals a LEFT JOIN qr_payment_orders o ON o.arrival_id=a.id JOIN doctors d ON d.id=a.doctor_id LEFT JOIN doctor_feedback_preferences fp ON fp.doctor_id=a.doctor_id LEFT JOIN queue_entries q ON q.id=a.queue_entry_id LEFT JOIN patient_checkins c ON c.queue_entry_id=q.id AND c.status='scheduled' WHERE a.access_hash=$1`,
           [digest(i.accessToken)],
         )
       ).rows[0];
@@ -183,7 +184,86 @@ export const qrArrivalTools = [
         token: row.token_number,
         visitStatus: row.visit_status,
         feedbackAt: row.feedback_at,
+        feedbackWorkStatus: row.feedback_work_status,
+        waitingQuestionEnabled: row.waiting_question_enabled,
+        waitingAnswer: row.waiting_answer,
       };
+    },
+  }),
+  defineTool({
+    name: 'save_qr_waiting_answer',
+    module: 'core',
+    description: 'Save the patient’s own note for the doctor while they wait.',
+    allow: ['patient'],
+    input: z.object({ accessToken: token, answer: z.string().trim().min(1).max(1000) }).strict(),
+    auditInput: () => ({ waitingQuestion: true }),
+    auditOutput: () => ({ saved: true }),
+    async run(r, i) {
+      const a = (
+        await r.db.query(
+          `SELECT a.id,a.patient_id,a.queue_entry_id,a.waiting_answer,q.status,
+          COALESCE(p.waiting_question_enabled,true) enabled
+         FROM qr_arrivals a JOIN queue_entries q ON q.id=a.queue_entry_id
+         LEFT JOIN doctor_feedback_preferences p ON p.doctor_id=a.doctor_id
+         WHERE a.access_hash=$1 AND a.expires_at>now() FOR UPDATE OF a`,
+          [digest(i.accessToken)],
+        )
+      ).rows[0];
+      if (!a || a.status !== 'waiting' || !a.enabled)
+        throw new ToolError(
+          'not_waiting',
+          'This waiting-room question is no longer available',
+          409,
+        );
+      if (a.waiting_answer !== null) return { saved: true, urgent: false };
+      await r.db.query(
+        'UPDATE qr_arrivals SET waiting_answer=$2,waiting_answered_at=now() WHERE id=$1',
+        [a.id, i.answer],
+      );
+      const phrases = (await r.db.query('SELECT phrase FROM red_flag_phrases')).rows;
+      const urgent = !!detectRedFlagKeywords(i.answer, phrases);
+      if (urgent) {
+        const flag = (
+          await r.db.query(
+            `INSERT INTO flags(clinic_id,patient_id,kind,severity,summary)
+           VALUES($1,$2,'medical_question','urgent',$3) RETURNING id`,
+            [
+              r.ctx.clinicId,
+              a.patient_id,
+              `Waiting patient reported possible emergency: ${i.answer.slice(0, 250)}`,
+            ],
+          )
+        ).rows[0];
+        r.emit({ type: 'flag_raised', flagId: flag.id, severity: 'urgent' });
+      }
+      r.emit({ type: 'queue_changed' });
+      return { saved: true, urgent };
+    },
+  }),
+  defineTool({
+    name: 'get_qr_feedback_link',
+    module: 'core',
+    description: 'Open this completed visit’s private experience and recovery form.',
+    allow: ['patient'],
+    input: z.object({ accessToken: token }).strict(),
+    auditInput: () => ({ privateVisitLink: true }),
+    auditOutput: () => ({ prepared: true }),
+    async run(r, i) {
+      const row = (
+        await r.db.query(
+          `SELECT c.id FROM qr_arrivals a JOIN queue_entries q ON q.id=a.queue_entry_id
+         JOIN patient_checkins c ON c.queue_entry_id=q.id AND c.status='scheduled'
+         WHERE a.access_hash=$1 AND a.expires_at>now() AND q.status='done' AND c.work_status='planned'`,
+          [digest(i.accessToken)],
+        )
+      ).rows[0];
+      if (!row)
+        throw new ToolError(
+          'not_ready',
+          'The private feedback form is not available for this visit',
+          404,
+        );
+      return issueFeedbackLink(r, row.id, 'response');
     },
   }),
   defineTool({
@@ -299,7 +379,13 @@ export const qrArrivalTools = [
           r.ctx.actor.kind === 'staff' ? r.ctx.actor.userId : null,
         ],
       );
-      return { ok: true, token: out.token };
+      return {
+        ok: true,
+        token: out.token,
+        patientId: a.patient_id,
+        phone: p.phone,
+        messaged: out.messaged,
+      };
     },
   }),
   defineTool({

@@ -29,6 +29,14 @@ export const previsitBrief = defineTool({
         [patientId],
       )
     ).rows;
+    const waitingAnswers = (
+      await db.query(
+        `SELECT a.id,a.queue_entry_id,a.waiting_answer,a.waiting_answered_at
+       FROM qr_arrivals a WHERE a.patient_id=$1 AND a.waiting_answer IS NOT NULL
+       ORDER BY a.waiting_answered_at DESC LIMIT 5`,
+        [patientId],
+      )
+    ).rows;
     const notes = (
       await db.query(
         `SELECT n.id,n.note,n.signed_at,d.name AS doctor FROM visit_notes n JOIN doctors d ON d.id=n.doctor_id WHERE n.patient_id=$1 AND n.status='signed' ORDER BY n.signed_at DESC LIMIT 5`,
@@ -87,6 +95,7 @@ export const previsitBrief = defineTool({
       pending,
       concerns,
       intake,
+      waitingAnswers,
       notes,
       documents,
       visits,

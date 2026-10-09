@@ -11,11 +11,23 @@ const WORSE = [
 /** Reply to a post-visit check-in. Worsening symptoms always reach the doctor's team as an urgent item. */
 export async function continueFollowup(turn: Turn): Promise<boolean> {
   if (turn.state.flow !== 'followup_checkin') return false;
-  const worse = WORSE.some((r) => r.test(normalise(turn.text)));
+  const words = normalise(turn.text);
+  const worse = WORSE.some((r) => r.test(words));
+  const help =
+    !worse && /\b(help|call me|contact me|doctor|need to talk)\b|मदद|बात करनी|फोन करो/.test(words);
+  const better =
+    !worse && !help && /\b(better|improving|fine|good|okay)\b|बेहतर|ठीक हूँ|अच्छा/.test(words);
+  const feeling = worse ? 'worse' : help ? 'help' : better ? 'better' : 'same';
+  if (turn.state.eveningNumber && turn.state.followUpId)
+    await call(turn, AGENT, 'record_evening_reply', {
+      followUpId: turn.state.followUpId,
+      feeling,
+      message: turn.text.slice(0, 1000),
+    });
   await call(turn, AGENT, 'flag_to_receptionist', {
-    kind: worse ? 'medical_question' : 'other',
+    kind: worse || help ? 'medical_question' : 'other',
     severity: worse ? 'urgent' : 'normal',
-    summary: `${worse ? 'Patient reports NOT improving / worsening' : 'Post-visit reply'}: "${turn.text.slice(0, 250)}"`,
+    summary: `${worse ? 'Patient reports NOT improving / worsening' : help ? 'Patient requests help after visit' : 'Post-visit reply'}${turn.state.eveningNumber ? `, evening ${turn.state.eveningNumber}` : ''}: "${turn.text.slice(0, 250)}"`,
   });
   await setState(turn, AGENT, {});
   await say(turn, AGENT, worse ? 'msg.followup_worse' : 'msg.followup_ack');

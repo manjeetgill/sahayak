@@ -96,6 +96,12 @@ export async function handleInbound(
     );
     const rf = await checkRedFlag(env.gate, turn.text, phrases);
     if (rf.hit) {
+      if (turn.patientId && turn.state.eveningNumber && turn.state.followUpId)
+        await call(turn, 'followup', 'record_evening_reply', {
+          followUpId: turn.state.followUpId,
+          feeling: 'worse',
+          message: turn.text.slice(0, 1000),
+        }).catch(() => {});
       await call(turn, 'system', 'raise_red_flag', {
         topic: rf.topic ?? 'unspecified',
         source: rf.source ?? 'keywords',
@@ -133,6 +139,39 @@ export async function handleInbound(
     }
     const privacy = detectPrivacyRequest(turn.text);
     if (privacy && (await handlePrivacy(turn, privacy))) return result();
+
+    if (/^EVENING\s+(YES|STOP)$/i.test(turn.text.trim())) {
+      if (!turn.patientId) {
+        await sayText(
+          turn,
+          'followup',
+          turn.lang === 'hi'
+            ? 'पहले क्लिनिक में चेक-इन करें या रिसेप्शन से संपर्क करें।'
+            : 'Please check in with the clinic or contact reception first.',
+        );
+      } else {
+        const enabled = /YES$/i.test(turn.text.trim());
+        const permission = await call(turn, 'followup', 'set_evening_checkin_permission', {
+          enabled,
+        });
+        await sayText(
+          turn,
+          'followup',
+          permission.needsPermission
+            ? turn.lang === 'hi'
+              ? 'शाम के संदेशों के लिए पहले WhatsApp और फ़ॉलो-अप की अनुमति दें। रिसेप्शन से पूछें।'
+              : 'Evening messages need your WhatsApp and follow-up permission first. Please ask reception.'
+            : enabled
+              ? turn.lang === 'hi'
+                ? 'सहमति दर्ज हुई। डॉक्टर की सेटिंग चालू होने पर हर विज़िट के बाद अधिकतम 3 शाम तक हालचाल पूछेंगे। कभी भी EVENING STOP लिखें।'
+                : 'Your choice is saved. If your doctor enables it, we may check how you feel for up to 3 evenings after each visit. Reply EVENING STOP any time.'
+              : turn.lang === 'hi'
+                ? 'आगे के शाम वाले हालचाल संदेश बंद कर दिए गए हैं।'
+                : 'Future evening check-in messages are stopped.',
+        );
+      }
+      return result();
+    }
 
     if (/^(feedback|patient feedback|check.?in feedback|फीडबैक)$/i.test(turn.text.trim())) {
       const invitation = await call(turn, 'system', 'patient_feedback_invitation', {});

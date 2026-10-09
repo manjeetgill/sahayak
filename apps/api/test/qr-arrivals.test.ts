@@ -204,6 +204,16 @@ it('updates private status through consultation completion and automatic feedbac
     reminder: false,
   });
   const queued = await row(i);
+  const waiting = await req('', 'POST', `/public/${clinic.slug}/arrival/waiting-answer`, {
+    accessToken: i.accessToken,
+    answer: 'I want to ask the doctor about my sleep.',
+  });
+  expect(waiting.statusCode).toBe(200);
+  expect((await receipt(i)).json().waitingAnswer).toBe('I want to ask the doctor about my sleep.');
+  const brief = await req('doctor', 'GET', `/staff/patients/${queued.patient_id}/brief`);
+  expect(brief.json().waitingAnswers[0].waiting_answer).toBe(
+    'I want to ask the doctor about my sleep.',
+  );
   await db.query("UPDATE queue_entries SET status='in_consultation' WHERE id=$1", [
     queued.queue_entry_id,
   ]);
@@ -213,6 +223,28 @@ it('updates private status through consultation completion and automatic feedbac
     visitStatus: 'done',
     feedbackAt: expect.any(String),
   });
+  const link = await req('', 'POST', `/public/${clinic.slug}/arrival/feedback-link`, {
+    accessToken: i.accessToken,
+  });
+  expect(link.statusCode).toBe(200);
+  const formToken = link.json().path.split('#')[1];
+  const response = await req('', 'POST', `/public/${clinic.slug}/feedback/response`, {
+    token: formToken,
+    recovery: 'better',
+    help: 'none',
+    theme: 'waiting',
+    message: '',
+    experience: 'poor',
+    suggestion: 'Please explain the wait time.',
+  });
+  expect(response.statusCode).toBe(200);
+  const saved = (
+    await db.query(
+      'SELECT experience,suggestion FROM patient_feedback_responses WHERE checkin_id=(SELECT id FROM patient_checkins WHERE queue_entry_id=$1)',
+      [queued.queue_entry_id],
+    )
+  ).rows[0];
+  expect(saved).toEqual({ experience: 'poor', suggestion: 'Please explain the wait time.' });
   const audit = await db.query(
     "SELECT input,output FROM agent_actions WHERE clinic_id=$1 AND tool IN ('submit_qr_arrival','read_qr_arrival')",
     [clinic.clinicId],

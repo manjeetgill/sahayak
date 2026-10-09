@@ -76,6 +76,14 @@ export const lookupPatientByPhone = defineTool({
 
 export async function registerCheckinPatient(r: ToolRun, input: z.infer<typeof CheckinInput>) {
   const { db, ctx } = r;
+  if (
+    input.consent.evening_checkins &&
+    (!input.consent.whatsapp_messaging || !input.consent.reminders_followups)
+  )
+    throw new ToolError(
+      'consent_required',
+      'Evening check-ins need WhatsApp and follow-up permission',
+    );
   if (!(await db.query('SELECT id FROM doctors WHERE id=$1 AND active', [input.doctorId])).rowCount)
     throw new ToolError('doctor_not_found', 'Choose an active doctor from this clinic', 404);
   await db.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
@@ -141,7 +149,9 @@ export const checkInPatient = defineTool({
     const { db, ctx } = r;
     if (ctx.actor.kind === 'staff' && ctx.actor.role === 'doctor') {
       const mode = (
-        await db.query('SELECT workspace_mode FROM clinic_settings WHERE clinic_id=$1', [ctx.clinicId])
+        await db.query('SELECT workspace_mode FROM clinic_settings WHERE clinic_id=$1', [
+          ctx.clinicId,
+        ])
       ).rows[0]?.workspace_mode;
       if (mode !== 'solo' || ctx.actor.doctorId !== input.doctorId)
         throw new ToolError(

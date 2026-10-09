@@ -39,6 +39,7 @@ export const CheckinInput = z.object({
       visit_data: z.boolean().default(false), // mandatory for new patients
       whatsapp_messaging: z.boolean().default(false),
       reminders_followups: z.boolean().default(false),
+      evening_checkins: z.boolean().optional(),
     })
     .default({}),
 });

@@ -85,7 +85,8 @@ export default function Doctor() {
         <div>
           <span className="page-eyebrow">{x("Today's clinic")}</span>
           <h1>
-            {x(greeting())}, {lang === 'hi' ? 'डॉ.' : 'Dr.'} {s.user.name.replace(/^Dr\.\s*/i, '').split(' ')[0]}
+            {x(greeting())}, {lang === 'hi' ? 'डॉ.' : 'Dr.'}{' '}
+            {s.user.name.replace(/^Dr\.\s*/i, '').split(' ')[0]}
           </h1>
           <p className="muted">{x('Your next patient and outstanding work are together here.')}</p>
         </div>
@@ -133,13 +134,22 @@ export default function Doctor() {
                     <span className="page-eyebrow">{x('Now seeing')}</span>
                     <h2>{current.patient_name}</h2>
                   </div>
-                  <span className="tag called">{x('Token')} {current.token_number}</span>
+                  <span className="tag called">
+                    {x('Token')} {current.token_number}
+                  </span>
                 </div>
                 <p className="muted">{current.age ? `${x('Age')} ${current.age}` : ''}</p>
                 <p>
                   <b>{x('Intake:')}</b>{' '}
-                  {current.intake_summary ?? <span className="muted">{x('No intake answers yet')}</span>}
+                  {current.intake_summary ?? (
+                    <span className="muted">{x('No intake answers yet')}</span>
+                  )}
                 </p>
+                {current.waiting_answer && (
+                  <p>
+                    <b>{x('Patient’s waiting-room note:')}</b> {current.waiting_answer}
+                  </p>
+                )}
                 <div className="row">
                   {current.status === 'called' ? (
                     <button onClick={() => act(`/staff/queue/${current.id}/start`)}>
@@ -192,7 +202,9 @@ export default function Doctor() {
                 <div key={q.id} className="row between">
                   <span>
                     <b>{q.token_number}</b> · {q.patient_name}{' '}
-                    <span className="muted">~{q.wait_minutes} {x('min')}</span>
+                    <span className="muted">
+                      ~{q.wait_minutes} {x('min')}
+                    </span>
                   </span>
                   <span className="row">
                     <button
@@ -253,8 +265,8 @@ export default function Doctor() {
             <details>
               <summary>{x('Appointments today')}</summary>
               <p className="muted">
-                {today.length} {x('appointments')} · {queue.length} {x('checked in')} · {done} {x('seen')} ·{' '}
-                {waiting.length} {x('waiting')}
+                {today.length} {x('appointments')} · {queue.length} {x('checked in')} · {done}{' '}
+                {x('seen')} · {waiting.length} {x('waiting')}
               </p>
               <div className="list">
                 {today.map((a) => (
@@ -300,7 +312,8 @@ export default function Doctor() {
             {proposal && (
               <div data-testid="late-proposal" style={{ marginTop: '.6rem' }}>
                 <p>
-                  <b>{proposal.affected}</b> {x('patient(s) affected by a')} {proposal.minutes}-{x('minute delay')}
+                  <b>{proposal.affected}</b> {x('patient(s) affected by a')} {proposal.minutes}-
+                  {x('minute delay')}
                   {proposal.needsRebooking
                     ? ` (${proposal.needsRebooking} ${x('will need a new day/time')})`
                     : ''}
@@ -324,12 +337,16 @@ export default function Doctor() {
             )}
             {summary && (
               <div data-testid="late-summary" style={{ marginTop: '.6rem' }}>
-                <b>{x('Running-late update')} ({summary.proposal.minutes} {x('min')})</b>
+                <b>
+                  {x('Running-late update')} ({summary.proposal.minutes} {x('min')})
+                </b>
                 <div className="muted">
                   {summary.counts.notified}/{summary.counts.affected} {x('notified')} ·{' '}
-                  {summary.counts.keptNewTime} {x('kept new time')} · {summary.counts.rebooked} {x('rebooked')} ·{' '}
-                  {summary.counts.waitingForReply} {x('waiting for reply')}
-                  {summary.counts.needsCall ? ` · ${summary.counts.needsCall} ${x('need a call')}` : ''}
+                  {summary.counts.keptNewTime} {x('kept new time')} · {summary.counts.rebooked}{' '}
+                  {x('rebooked')} · {summary.counts.waitingForReply} {x('waiting for reply')}
+                  {summary.counts.needsCall
+                    ? ` · ${summary.counts.needsCall} ${x('need a call')}`
+                    : ''}
                 </div>
               </div>
             )}
@@ -349,7 +366,7 @@ export default function Doctor() {
                 <a href="/doctor/waitlist">{x('Waiting list')}</a>
                 <a href="/doctor/templates">{x('Reusable care plans')}</a>
                 <a href="/doctor/references">{x('Medical reference')}</a>
-                <a href="/doctor/share">{x("Share your clinic")}</a>
+                <a href="/doctor/share">{x('Share your clinic')}</a>
                 <a href="/doctor/away">{x("I'm away")}</a>
                 <a href="/doctor/shortcuts">{x('My visit shortcuts')}</a>
                 <a href="/doctor/settings">{x('My professional details')}</a>

@@ -40,6 +40,10 @@ const words: Record<string, string> = {
   yes: 'Concern addressed',
   partly: 'Partly addressed',
   help: 'Still needs help',
+  excellent: 'Excellent experience',
+  good: 'Good experience',
+  okay: 'Okay experience',
+  poor: 'Needs improvement',
 };
 export const feedbackLabel = (s: string) => words[s] ?? s.replaceAll('_', ' ');
 export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
@@ -105,7 +109,9 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
       <div className="feedback-heading">
         <div>
           <h2>{x(patientId ? 'Check-in responses' : 'Patients who need a reply')}</h2>
-          <p className="muted">{x('Read what the patient said, make contact, and record what helped.')}</p>
+          <p className="muted">
+            {x('Read what the patient said, make contact, and record what helped.')}
+          </p>
         </div>
         <button className="ghost" onClick={() => void load()}>
           {x('Refresh')}
@@ -140,7 +146,9 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
         <div className="card">
           <h3>{x('No check-ins in this view')}</h3>
           <p>
-            {x('Schedule a check-in from the visit completion checklist. Patient replies will appear here.')}
+            {x(
+              'Schedule a check-in from the visit completion checklist. Patient replies will appear here.',
+            )}
           </p>
           <div className="feedback-actions">
             {session?.user.role === 'admin' ? (
@@ -161,7 +169,8 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
               <div>
                 <h3>{patientId ? x('Patient check-in') : c.patient_name}</h3>
                 <p className="muted">
-                  {c.assignee} · {new Date(c.scheduled_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')}
+                  {c.assignee} ·{' '}
+                  {new Date(c.scheduled_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')}
                 </p>
               </div>
               <strong className={c.urgent ? 'error' : ''}>
@@ -209,7 +218,9 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                 </div>
                 {c.urgent && (
                   <p className="banner urgent">
-                    {x('Potential urgent symptoms were reported. Review the original response promptly. The patient form advises immediate emergency help.')}
+                    {x(
+                      'Potential urgent symptoms were reported. Review the original response promptly. The patient form advises immediate emergency help.',
+                    )}
                   </p>
                 )}
                 {c.message !== null && c.message !== undefined ? (
@@ -219,14 +230,28 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                       {x('Help requested:')} {x(feedbackLabel(c.help))} · {x('Clinic feedback:')}{' '}
                       {x(feedbackLabel(c.theme))}
                     </p>
+                    {c.experience && (
+                      <p>
+                        <b>{x('Visit experience:')}</b> {x(feedbackLabel(c.experience))}
+                      </p>
+                    )}
+                    {c.suggestion && (
+                      <p>
+                        <b>{x('Patient suggestion:')}</b> {c.suggestion}
+                      </p>
+                    )}
                     <blockquote style={{ whiteSpace: 'pre-wrap' }}>
                       {c.message || x('No written comment added.')}
                     </blockquote>
-                    <small>{new Date(c.responded_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')}</small>
+                    <small>
+                      {new Date(c.responded_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')}
+                    </small>
                   </section>
                 ) : (
                   <p>
-                    {x('No response yet. Silence does not mean the patient is satisfied or has left the clinic.')}
+                    {x(
+                      'No response yet. Silence does not mean the patient is satisfied or has left the clinic.',
+                    )}
                   </p>
                 )}
                 {!!c.resolutions?.length && (
@@ -235,7 +260,8 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                     <b>{x(feedbackLabel(c.resolutions[c.resolutions.length - 1].answer))}</b>
                   </p>
                 )}
-                {canManage && c.status === 'scheduled' &&
+                {canManage &&
+                  c.status === 'scheduled' &&
                   (c.work_status === 'planned' || c.work_status === 'action_taken') && (
                     <div>
                       <button
@@ -252,7 +278,9 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                           : x('Prepare patient form link')}
                       </button>
                       <p className="muted">
-                        {x('Private link, valid for seven days. Only share with this patient. Preparing a link does not send a message.')}
+                        {x(
+                          'Private link, valid for seven days. Only share with this patient. Preparing a link does not send a message.',
+                        )}
                       </p>
                     </div>
                   )}
@@ -261,7 +289,11 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                     <a href={links[c.id]} target="_blank" rel="noreferrer">
                       {x('Open private patient form')}
                     </a>
-                    <input aria-label={x('Private patient form link')} readOnly value={links[c.id]} />
+                    <input
+                      aria-label={x('Private patient form link')}
+                      readOnly
+                      value={links[c.id]}
+                    />
                   </p>
                 )}
                 {doctor && c.responded_at && (
@@ -286,7 +318,11 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                     </h4>
                     <p>
                       {x('Suggested category:')} {x(feedbackLabel(c.analysis.category))} ·{' '}
-                      {x(c.analysis.uncertain ? 'Needs human interpretation' : 'Verify before acting')}
+                      {x(
+                        c.analysis.uncertain
+                          ? 'Needs human interpretation'
+                          : 'Verify before acting',
+                      )}
                     </p>
                     {c.analysis.quotes.map((q: string, n: number) => (
                       <blockquote key={n}>{q}</blockquote>
@@ -296,7 +332,9 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                     </p>
                     <p>{c.analysis.draft}</p>
                     <p className="muted">
-                      {x('No treatment advice is generated. Record your own reviewed action below.')}
+                      {x(
+                        'No treatment advice is generated. Record your own reviewed action below.',
+                      )}
                     </p>
                   </section>
                 )}
@@ -366,12 +404,16 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                         maxLength={2000}
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
-                        placeholder={x('Record the contact, explanation or agreed next step. Do not imply contact happened unless it did.')}
+                        placeholder={x(
+                          'Record the contact, explanation or agreed next step. Do not imply contact happened unless it did.',
+                        )}
                       />
                     </label>
                     <button disabled={busy}>{x('Save action')}</button>
                     <p className="muted">
-                      {x('Clinical concerns need a doctor’s review before action or closure. Saving a note does not send it to the patient.')}
+                      {x(
+                        'Clinical concerns need a doctor’s review before action or closure. Saving a note does not send it to the patient.',
+                      )}
                     </p>
                   </form>
                 )}
@@ -391,7 +433,8 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                   <ul>
                     {c.history?.map((h: any) => (
                       <li key={h.id}>
-                        <b>{x(feedbackLabel(h.kind))}</b> · {new Date(h.created_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')}
+                        <b>{x(feedbackLabel(h.kind))}</b> ·{' '}
+                        {new Date(h.created_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')}
                         {h.note && <p style={{ whiteSpace: 'pre-wrap' }}>{h.note}</p>}
                       </li>
                     ))}

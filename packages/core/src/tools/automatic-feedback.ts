@@ -4,10 +4,14 @@ import { defineTool, ToolError, type ToolRun } from './registry';
 type ReadRun = Pick<ToolRun, 'db' | 'ctx'>;
 const defaults = {
   enabled: false,
-  delayDays: 1,
+  delayDays: -1,
   sendTime: '18:00',
   assignedTo: null as string | null,
   reminder: false,
+  waitingQuestion: true,
+  eveningEnabled: false,
+  eveningNights: 3,
+  eveningTime: '19:00',
 };
 async function preferences(r: ReadRun, doctorId: string) {
   const row = (
@@ -20,6 +24,10 @@ async function preferences(r: ReadRun, doctorId: string) {
         sendTime: String(row.send_time).slice(0, 5),
         assignedTo: row.assigned_to as string | null,
         reminder: row.reminder_enabled,
+        waitingQuestion: row.waiting_question_enabled,
+        eveningEnabled: row.evening_enabled,
+        eveningNights: row.evening_nights,
+        eveningTime: String(row.evening_time).slice(0, 5),
       }
     : defaults;
 }
@@ -47,6 +55,9 @@ export const automaticFeedbackTools = [
         ).rows,
         deliveryEnabled: !!(await r.db.query('SELECT enabled FROM patient_feedback_settings'))
           .rows[0]?.enabled,
+        eveningDeliveryReady:
+          !!(await r.db.query('SELECT enabled FROM patient_evening_settings')).rows[0]?.enabled &&
+          process.env.JOBS_ENABLED !== 'false',
       };
     },
   }),
@@ -58,10 +69,17 @@ export const automaticFeedbackTools = [
     input: z
       .object({
         enabled: z.boolean(),
-        delayDays: z.number().int().min(0).max(30),
+        delayDays: z.number().int().min(-1).max(30),
         sendTime: z.string().regex(/^(0[89]|1\d|20):[0-5]\d$/),
         assignedTo: z.string().uuid().nullable(),
         reminder: z.boolean(),
+        waitingQuestion: z.boolean().default(true),
+        eveningEnabled: z.boolean().default(false),
+        eveningNights: z.number().int().min(1).max(3).default(3),
+        eveningTime: z
+          .string()
+          .regex(/^(18|19|20):[0-5]\d$/)
+          .default('19:00'),
       })
       .strict(),
     async run(r, i) {
@@ -77,7 +95,7 @@ export const automaticFeedbackTools = [
       )
         throw new ToolError('wrong_owner', 'Choose a doctor or receptionist from this clinic');
       await r.db.query(
-        `INSERT INTO doctor_feedback_preferences(clinic_id,doctor_id,enabled,delay_days,send_time,assigned_to,reminder_enabled,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(doctor_id) DO UPDATE SET enabled=EXCLUDED.enabled,delay_days=EXCLUDED.delay_days,send_time=EXCLUDED.send_time,assigned_to=EXCLUDED.assigned_to,reminder_enabled=EXCLUDED.reminder_enabled,updated_by=EXCLUDED.updated_by,updated_at=now()`,
+        `INSERT INTO doctor_feedback_preferences(clinic_id,doctor_id,enabled,delay_days,send_time,assigned_to,reminder_enabled,updated_by,waiting_question_enabled,evening_enabled,evening_nights,evening_time) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT(doctor_id) DO UPDATE SET enabled=EXCLUDED.enabled,delay_days=EXCLUDED.delay_days,send_time=EXCLUDED.send_time,assigned_to=EXCLUDED.assigned_to,reminder_enabled=EXCLUDED.reminder_enabled,updated_by=EXCLUDED.updated_by,waiting_question_enabled=EXCLUDED.waiting_question_enabled,evening_enabled=EXCLUDED.evening_enabled,evening_nights=EXCLUDED.evening_nights,evening_time=EXCLUDED.evening_time,updated_at=now()`,
         [
           r.ctx.clinicId,
           doctorId,
@@ -87,6 +105,10 @@ export const automaticFeedbackTools = [
           i.assignedTo,
           i.reminder,
           r.ctx.actor.kind === 'staff' ? r.ctx.actor.userId : null,
+          i.waitingQuestion,
+          i.eveningEnabled,
+          i.eveningNights,
+          i.eveningTime,
         ],
       );
       return { ok: true };
@@ -138,10 +160,18 @@ export async function automaticFeedbackPlan(r: ReadRun, visitId: string) {
   ).rows[0];
   if (!owner) return { state: 'no_owner' as const };
   const timing = (
-    await r.db.query(
-      `WITH t AS (SELECT timezone,((COALESCE($1::timestamptz,now()) AT TIME ZONE timezone)::date+$2::int+$3::time) AS local_due FROM clinics WHERE id=$4) SELECT timezone,CASE WHEN local_due AT TIME ZONE timezone>now() THEN local_due AT TIME ZONE timezone ELSE (local_due+interval '1 day') AT TIME ZONE timezone END AS due FROM t`,
-      [visit.finished_at, policy.delayDays, policy.sendTime, r.ctx.clinicId],
-    )
+    policy.delayDays === -1
+      ? await r.db.query(
+          `WITH c AS (SELECT timezone,COALESCE($1::timestamptz,now())+interval '30 minutes' candidate FROM clinics WHERE id=$2),
+       t AS (SELECT timezone,candidate,candidate AT TIME ZONE timezone local_candidate FROM c)
+       SELECT timezone,CASE WHEN local_candidate::time >= time '08:00' AND local_candidate::time < time '21:00'
+         THEN candidate ELSE ((local_candidate::date + CASE WHEN local_candidate::time >= time '21:00' THEN 1 ELSE 0 END + time '08:00') AT TIME ZONE timezone) END due FROM t`,
+          [visit.finished_at, r.ctx.clinicId],
+        )
+      : await r.db.query(
+          `WITH t AS (SELECT timezone,((COALESCE($1::timestamptz,now()) AT TIME ZONE timezone)::date+$2::int+$3::time) AS local_due FROM clinics WHERE id=$4) SELECT timezone,CASE WHEN local_due AT TIME ZONE timezone>now() THEN local_due AT TIME ZONE timezone ELSE (local_due+interval '1 day') AT TIME ZONE timezone END AS due FROM t`,
+          [visit.finished_at, policy.delayDays, policy.sendTime, r.ctx.clinicId],
+        )
   ).rows[0];
   return {
     state: 'ready' as const,

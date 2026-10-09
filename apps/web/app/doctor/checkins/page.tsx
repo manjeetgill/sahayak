@@ -6,6 +6,7 @@ import { FeedbackPreferences } from '../../components/FeedbackPreferences';
 import { CareNav } from '../../components/CareNav';
 import { FeedbackWorkspace } from '../../components/FeedbackWorkspace';
 import { FeedbackReport } from '../../components/FeedbackReport';
+import { EveningUpdates } from '../../components/EveningUpdates';
 import { useStaffLang } from '../../../lib/staffText';
 export default function Checkins() {
   const { x } = useStaffLang();
@@ -48,9 +49,16 @@ export default function Checkins() {
         ))}
       </nav>
       {tab === 'patients' ? (
-        <FeedbackWorkspace />
+        <>
+          <FeedbackWorkspace />
+          <EveningUpdates />
+        </>
       ) : tab === 'settings' ? (
-        admin ? <AdminFeedbackOverview /> : <FeedbackPreferences />
+        admin ? (
+          <AdminFeedbackOverview />
+        ) : (
+          <FeedbackPreferences />
+        )
       ) : (
         <FeedbackReport />
       )}

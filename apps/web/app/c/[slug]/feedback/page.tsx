@@ -15,6 +15,8 @@ export default function Feedback({ params }: { params: { slug: string } }) {
     [languageOverride, setLanguageOverride] = useState<'en' | 'hi' | null>(null),
     [help, setHelp] = useState('none'),
     [theme, setTheme] = useState('none'),
+    [experience, setExperience] = useState(''),
+    [suggestion, setSuggestion] = useState(''),
     [message, setMessage] = useState(''),
     [answer, setAnswer] = useState('');
   const path = `/public/${params.slug}/feedback`;
@@ -32,6 +34,8 @@ export default function Feedback({ params }: { params: { slug: string } }) {
       setRecovery('');
       setHelp('none');
       setTheme('none');
+      setExperience('');
+      setSuggestion('');
       setMessage('');
       setAnswer('');
       if (!/^[a-f0-9]{64}$/.test(t)) {
@@ -55,11 +59,17 @@ export default function Feedback({ params }: { params: { slug: string } }) {
       window.removeEventListener('hashchange', open);
     };
   }, [path]);
-  const hi = languageOverride ? languageOverride === 'hi' : data?.language ? data.language === 'hi' : deviceLang === 'hi';
+  const hi = languageOverride
+    ? languageOverride === 'hi'
+    : data?.language
+      ? data.language === 'hi'
+      : deviceLang === 'hi';
   const label = (en: string, hindi: string) => (hi ? hindi : en);
   return (
     <main className="wrap feedback-patient" style={{ maxWidth: 640 }}>
-      <button className="ghost" type="button" onClick={() => setLanguageOverride(hi ? 'en' : 'hi')}>{hi ? 'English' : 'हिन्दी'}</button>
+      <button className="ghost" type="button" onClick={() => setLanguageOverride(hi ? 'en' : 'hi')}>
+        {hi ? 'English' : 'हिन्दी'}
+      </button>
       <a className="auth-brand" href="/">
         ✚ Sahayak
       </a>
@@ -78,7 +88,8 @@ export default function Feedback({ params }: { params: { slug: string } }) {
       </p>
       {error && (
         <p className="error" role="alert">
-          {hi && error === 'This private link is incomplete. Please contact the clinic for a new link.'
+          {hi &&
+          error === 'This private link is incomplete. Please contact the clinic for a new link.'
             ? 'यह निजी लिंक अधूरा है। नया लिंक लेने के लिए क्लिनिक से संपर्क करें।'
             : error}
         </p>
@@ -125,7 +136,7 @@ export default function Feedback({ params }: { params: { slug: string } }) {
                     body:
                       data.purpose === 'resolution'
                         ? { token, answer }
-                        : { token, recovery, help, theme, message },
+                        : { token, recovery, help, theme, message, experience, suggestion },
                   },
                 );
                 setUrgent(!!result.urgent);
@@ -188,6 +199,32 @@ export default function Feedback({ params }: { params: { slug: string } }) {
                     </label>
                   ))}
                 </fieldset>
+                <fieldset>
+                  <legend>
+                    {label(
+                      'How was your experience with the clinic?',
+                      'क्लिनिक में आपका अनुभव कैसा रहा?',
+                    )}
+                  </legend>
+                  {[
+                    ['excellent', 'Excellent', 'बहुत अच्छा'],
+                    ['good', 'Good', 'अच्छा'],
+                    ['okay', 'Okay', 'ठीक-ठाक'],
+                    ['poor', 'Needs improvement', 'सुधार की ज़रूरत है'],
+                  ].map(([value, en, hn]) => (
+                    <label className="check" key={value}>
+                      <input
+                        type="radio"
+                        name="experience"
+                        value={value}
+                        required
+                        checked={experience === value}
+                        onChange={() => setExperience(value)}
+                      />
+                      {label(en, hn)}
+                    </label>
+                  ))}
+                </fieldset>
                 <label>
                   {label('What do you need help with?', 'आपको किस बारे में मदद चाहिए?')}
                   <select value={help} onChange={(e) => setHelp(e.target.value)}>
@@ -204,6 +241,18 @@ export default function Feedback({ params }: { params: { slug: string } }) {
                       </option>
                     ))}
                   </select>
+                </label>
+                <label>
+                  {label(
+                    'What should we improve, or what would you suggest? (optional)',
+                    'हम क्या बेहतर करें? आपका कोई सुझाव? (वैकल्पिक)',
+                  )}
+                  <textarea
+                    maxLength={1000}
+                    rows={3}
+                    value={suggestion}
+                    onChange={(e) => setSuggestion(e.target.value)}
+                  />
                 </label>
                 <label>
                   {label(

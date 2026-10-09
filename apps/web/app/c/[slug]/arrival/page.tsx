@@ -7,6 +7,9 @@ export default function Arrival({ params }: { params: { slug: string } }) {
     [settings, setSettings] = useState<any>(null),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
+    [waitingBusy, setWaitingBusy] = useState(false),
+    [waitingAnswer, setWaitingAnswer] = useState(''),
+    [waitingUrgent, setWaitingUrgent] = useState(false),
     [token, setToken] = useState(''),
     [receipt, setReceipt] = useState<any>(null);
   const [form, setForm] = useState({
@@ -17,6 +20,7 @@ export default function Arrival({ params }: { params: { slug: string } }) {
     visit: false,
     whatsapp: false,
     followup: false,
+    evening: false,
   });
   const attempt = useRef('');
   const hi = form.language === 'hi';
@@ -72,6 +76,7 @@ export default function Arrival({ params }: { params: { slug: string } }) {
             visit_data: form.visit,
             whatsapp_messaging: form.whatsapp,
             reminders_followups: form.followup,
+            evening_checkins: form.evening && form.whatsapp && form.followup,
           },
           accessToken: attempt.current,
         },
@@ -192,6 +197,92 @@ export default function Arrival({ params }: { params: { slug: string } }) {
                       )}
                     </p>
                   )}
+                  {receipt.visitStatus === 'done' && receipt.feedbackWorkStatus === 'planned' && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={async () => {
+                        setBusy(true);
+                        setError('');
+                        try {
+                          const link = await api(`/public/${params.slug}/arrival/feedback-link`, {
+                            body: { accessToken: token },
+                          });
+                          location.href = link.path;
+                        } catch (err: any) {
+                          setError(err.message);
+                          setBusy(false);
+                        }
+                      }}
+                    >
+                      {text(
+                        'How was your visit? Tell the clinic',
+                        'आपकी विज़िट कैसी रही? क्लिनिक को बताएं',
+                      )}
+                    </button>
+                  )}
+                  {receipt.visitStatus === 'waiting' &&
+                    receipt.waitingQuestionEnabled &&
+                    (receipt.waitingAnswer ? (
+                      <p>
+                        <strong>
+                          {text('Your note for the doctor:', 'डॉक्टर के लिए आपकी बात:')}
+                        </strong>{' '}
+                        {receipt.waitingAnswer}
+                      </p>
+                    ) : (
+                      <form
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          setWaitingBusy(true);
+                          setError('');
+                          try {
+                            const result = await api(
+                              `/public/${params.slug}/arrival/waiting-answer`,
+                              { body: { accessToken: token, answer: waitingAnswer } },
+                            );
+                            setWaitingUrgent(!!result.urgent);
+                            setReceipt((r: any) => ({ ...r, waitingAnswer }));
+                          } catch (err: any) {
+                            setError(err.message);
+                          } finally {
+                            setWaitingBusy(false);
+                          }
+                        }}
+                      >
+                        <label htmlFor="waiting-answer">
+                          {text(
+                            'While you wait, is there one thing you want the doctor to know or ask?',
+                            'इंतज़ार करते समय, क्या आप डॉक्टर को कुछ बताना या पूछना चाहते हैं?',
+                          )}
+                        </label>
+                        <textarea
+                          id="waiting-answer"
+                          required
+                          maxLength={1000}
+                          rows={3}
+                          value={waitingAnswer}
+                          onChange={(e) => setWaitingAnswer(e.target.value)}
+                        />
+                        <button disabled={waitingBusy}>
+                          {text('Send to doctor', 'डॉक्टर को भेजें')}
+                        </button>
+                        <p className="muted">
+                          {text(
+                            'The doctor can read this before your consultation. For urgent symptoms, tell reception immediately.',
+                            'डॉक्टर इसे परामर्श से पहले पढ़ सकते हैं। तत्काल परेशानी हो तो रिसेप्शन को अभी बताएं।',
+                          )}
+                        </p>
+                      </form>
+                    ))}
+                  {waitingUrgent && (
+                    <p className="banner urgent" role="alert">
+                      {text(
+                        'Your message may describe an emergency. Tell reception now or seek urgent care. Do not wait in the queue.',
+                        'आपका संदेश आपात स्थिति का संकेत हो सकता है। अभी रिसेप्शन को बताएं या तुरंत सहायता लें। कतार में प्रतीक्षा न करें।',
+                      )}
+                    </p>
+                  )}
                 </>
               )}
               <p className="muted">
@@ -272,7 +363,13 @@ export default function Arrival({ params }: { params: { slug: string } }) {
             <input
               type="checkbox"
               checked={form.whatsapp}
-              onChange={(e) => setForm({ ...form, whatsapp: e.target.checked })}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  whatsapp: e.target.checked,
+                  evening: e.target.checked ? form.evening : false,
+                })
+              }
             />
             {text(
               'Send me visit updates on WhatsApp (optional).',
@@ -283,11 +380,29 @@ export default function Arrival({ params }: { params: { slug: string } }) {
             <input
               type="checkbox"
               checked={form.followup}
-              onChange={(e) => setForm({ ...form, followup: e.target.checked })}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  followup: e.target.checked,
+                  evening: e.target.checked ? form.evening : false,
+                })
+              }
             />
             {text(
               'Contact me for follow-ups and feedback after my visit (optional). I can reply STOP.',
               'विज़िट के बाद फ़ॉलो-अप और फीडबैक के लिए संपर्क करें (वैकल्पिक)। मैं STOP भेजकर बंद कर सकता/सकती हूं।',
+            )}
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={form.evening}
+              disabled={!form.whatsapp || !form.followup}
+              onChange={(e) => setForm({ ...form, evening: e.target.checked })}
+            />
+            {text(
+              'After each visit, send me an evening “how are you feeling?” message for up to 3 nights (optional). I can reply EVENING STOP any time.',
+              'हर विज़िट के बाद अधिकतम 3 शाम तक मेरा हाल पूछने वाला संदेश भेजें (वैकल्पिक)। मैं कभी भी EVENING STOP लिखकर बंद कर सकता/सकती हूं।',
             )}
           </label>
           <p>

@@ -57,9 +57,13 @@ export async function installPatientFeedback(
     const saved = await tool(ctx, 'submit_patient_feedback', req.body);
     // Save first, then run the existing second safety layer; an unavailable model cannot lose a response.
     if (saved.checkinId && !saved.urgent) {
-      const message = z
-        .object({ message: z.string().max(2000).default('') })
-        .parse(req.body).message;
+      const response = z
+        .object({
+          message: z.string().max(2000).default(''),
+          suggestion: z.string().max(1000).default(''),
+        })
+        .parse(req.body);
+      const message = `${response.message}\n${response.suggestion}`;
       const phrases = await scoped(
         ctx.clinicId,
         async (db) => (await db.query('SELECT phrase FROM red_flag_phrases')).rows,
@@ -105,9 +109,10 @@ export async function installPatientFeedback(
       ctx.clinicId,
       async (db) =>
         (
-          await db.query('SELECT message FROM patient_feedback_responses WHERE checkin_id=$1', [
-            checkin,
-          ])
+          await db.query(
+            "SELECT concat_ws(E'\\n',message,suggestion) AS message FROM patient_feedback_responses WHERE checkin_id=$1",
+            [checkin],
+          )
         ).rows[0],
     );
     if (!row) throw new ToolError('not_found', 'No patient response found', 404);

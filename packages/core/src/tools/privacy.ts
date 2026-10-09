@@ -119,6 +119,7 @@ export async function erasePatient(
     await db.query('DELETE FROM care_tasks WHERE patient_id=$1', [patientId]);
     await db.query('DELETE FROM appointment_waitlist WHERE patient_id=$1', [patientId]);
     await db.query('DELETE FROM follow_ups WHERE patient_id=$1', [patientId]);
+    await db.query('DELETE FROM evening_checkin_replies WHERE patient_id=$1', [patientId]);
     await db.query(
       'UPDATE consents SET withdrawn_at=COALESCE(withdrawn_at, now()) WHERE patient_id=$1',
       [patientId],
@@ -299,6 +300,16 @@ export const exportPatientData = defineTool({
       followUps: await rows(
         'SELECT kind, run_at, status FROM follow_ups WHERE patient_id=$1 ORDER BY run_at',
       ),
+      eveningReplies: await rows(
+        'SELECT feeling,message,created_at FROM evening_checkin_replies WHERE patient_id=$1 ORDER BY created_at',
+      ),
+      eveningDelivery: await rows(
+        `SELECT d.state,d.delivered_at,d.read_at,d.created_at FROM patient_evening_delivery d
+         JOIN follow_ups f ON f.id=d.follow_up_id WHERE f.patient_id=$1 ORDER BY d.created_at`,
+      ),
+      waitingRoomAnswers: await rows(
+        'SELECT waiting_answer,waiting_answered_at FROM qr_arrivals WHERE patient_id=$1 AND waiting_answer IS NOT NULL ORDER BY waiting_answered_at',
+      ),
     };
   },
 });
@@ -346,7 +357,7 @@ export const withdrawMessaging = defineTool({
     const { db } = r;
     await db.query('SELECT id FROM patients WHERE id=$1 FOR UPDATE', [patientId]);
     await db.query(
-      "UPDATE consents SET withdrawn_at=now() WHERE patient_id=$1 AND purpose IN ('whatsapp_messaging','reminders_followups') AND withdrawn_at IS NULL",
+      "UPDATE consents SET withdrawn_at=now() WHERE patient_id=$1 AND purpose IN ('whatsapp_messaging','reminders_followups','evening_checkins') AND withdrawn_at IS NULL",
       [patientId],
     );
     await db.query(
@@ -394,6 +405,9 @@ export const applyRetention = defineTool({
     );
     await db.query(
       "DELETE FROM follow_ups WHERE status<>'pending' AND created_at < now() - interval '90 days'",
+    );
+    await db.query(
+      "UPDATE qr_arrivals SET waiting_answer=NULL,waiting_answered_at=NULL WHERE waiting_answered_at < now() - interval '90 days'",
     );
     const audit = await db.query('SELECT redact_old_audit($1,$2) AS n', [
       ctx.clinicId,

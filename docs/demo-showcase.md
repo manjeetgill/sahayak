@@ -24,16 +24,18 @@ Incoming and outgoing phone calls are separate from WhatsApp messages. Use **Ass
 
 The public patient-form HTTPS origin is unset, the platform has not supplied approved outbound feedback templates, and `JOBS_ENABLED=false` pauses background sending, so automatic live feedback invitations remain off. Platform outbound late notices and follow-up reminders are unavailable: Sahayak now counts these as **not messaged** or **failed** and raises staff follow-up work instead of reporting a practice message as sent. Voice readiness remains unavailable. Those features need their separate delivery/provider work before a live test can pass.
 
+**New patient touchpoints:** The private QR queue page now asks one optional question while the patient waits and puts the answer in the doctor’s queue and pre-visit brief. After a finished visit, the same private page can open the experience form if the doctor enabled feedback and the patient gave messaging/follow-up permission; the form asks separately about recovery, visit experience and suggestions. The doctor can also choose one to three evening recovery messages. Those need an additional patient opt-in on the QR page or the known patient’s WhatsApp command `EVENING YES`; `EVENING STOP` withdraws only that evening permission. An evening reply is saved for staff review, and worsening/help requests stop later automatic evenings. Admin approves an appropriate outbound template under **Patient check-in messages**. The present pilot still needs that approved template and active background jobs before live evening sending can be verified; the UI shows scheduled, submitted and provider-confirmed delivery separately.
+
 **Operator follow-up:** rotate the pilot callback signing secret before exposing the connection more broadly. A local diagnostic error printed the previous secret. The platform's setup API rejects a changed binding for an enabled channel, so this needs the platform operator's supported pause/migration procedure and a matching private Sahayak `.env` update. The attempted API change returned 422 and did not change either side. Recheck a signed probe and a real owner-initiated `Hi` afterward; never put the secret in Git or chat.
 
-| Clinic | Role | Login |
-| --- | --- | --- |
-| Single doctor | Doctor and clinic owner | `doctor@solo.demo.test` |
-| Single doctor | Optional receptionist | `desk@solo.demo.test` |
-| Small hospital | Admin | `admin@hospital.demo.test` |
-| Small hospital | Doctor | `kavita@hospital.demo.test` |
-| Small hospital | Second doctor | `farah@hospital.demo.test` |
-| Small hospital | Receptionist | `desk@hospital.demo.test` |
+| Clinic         | Role                    | Login                       |
+| -------------- | ----------------------- | --------------------------- |
+| Single doctor  | Doctor and clinic owner | `doctor@solo.demo.test`     |
+| Single doctor  | Optional receptionist   | `desk@solo.demo.test`       |
+| Small hospital | Admin                   | `admin@hospital.demo.test`  |
+| Small hospital | Doctor                  | `kavita@hospital.demo.test` |
+| Small hospital | Second doctor           | `farah@hospital.demo.test`  |
+| Small hospital | Receptionist            | `desk@hospital.demo.test`   |
 
 Sign out before changing staff roles. The hospital's second doctor has a separate queue and feedback preference. The solo doctor has admin access as the clinic owner.
 
@@ -45,6 +47,7 @@ The [in-app walkthrough](http://localhost:3000/demo) contains direct links for e
 2. **Appointment → arrival → queue:** Use the agent showcase's check-in button for a booked-today fictional patient. It links today's appointment and issues the next queue token. Ask the assistant for the patient's token; this works even while intake questions are open. The separate **QR arrival** page demonstrates the payment-required path: an arrival waits at reception until staff checks payment, then confirmation issues the token. Do not represent a patient saying “paid” as payment verification. Asha Demo is already checked in with a test cash payment, and Ravi Demo is already called.
 3. **Consultation:** As Dr. Kavita Rao, open Ravi Demo in **Today's clinic**. Review the pre-visit intake, unsigned note, and draft instructions. The doctor checks and signs any clinical note or instruction. The visit checklist shows remaining items and the upcoming feedback plan. Finish the visit after review.
 4. **Automatic feedback scheduling:** Open **Patient feedback** and refresh. A new case for Ravi appears because the doctor's saved preference enables feedback after a finished visit. The invitation stays unsent because this demo clinic has no live WhatsApp delivery setup. Prepare a **private patient form link**, open it in a separate tab, and submit a fictional response. Refresh the doctor screen to see the response and assign the follow-up.
+   In the same screen, open **Automatic check-ins** for the waiting-room question and evening schedule. The **Patient responses** tab shows Meena Demo’s fictional evening reply, labelled as a practice example rather than a delivered WhatsApp message.
 5. **Closed loop:** Meena Demo has an open clinic-experience concern and an improvement task; Kabir Demo has a closed feedback example. The doctor or receptionist can record contact and action. The **Needs my attention** list includes a prefilled callback request and a clearly marked urgent safety example. Urgent concerns need human review.
 6. **Other linked work:** Show Meena's uploaded fictional PDF and report-review task, the care plan, the waiting-list offer for Kabir, and visit closeout. Admin can review assistant tasks, QR settings, roles, and delivery setup. The seed also includes a draft sample automation; it is intentionally inactive.
 
