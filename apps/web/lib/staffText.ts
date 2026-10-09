@@ -1290,6 +1290,12 @@ const HI: Record<string, string> = {
   'Connect the clinic WhatsApp account first.': 'पहले क्लिनिक का WhatsApp खाता जोड़ें।',
   'A public HTTPS address for the patient form is required. Local demo links still work.': 'मरीज़ के फ़ॉर्म के लिए सार्वजनिक HTTPS पता चाहिए। स्थानीय डेमो लिंक अब भी चलेंगे।',
   'Verify the WhatsApp connection first.': 'पहले WhatsApp कनेक्शन जाँचें।',
+  'Message to review': 'जाँचने के लिए संदेश',
+  'Evening message to review': 'जाँचने के लिए शाम का संदेश',
+  'Awaiting WhatsApp approval': 'WhatsApp की मंज़ूरी का इंतज़ार',
+  'Enable after WhatsApp approval': 'WhatsApp की मंज़ूरी के बाद चालू करें',
+  'Waiting for WhatsApp approval — sending will start automatically': 'WhatsApp की मंज़ूरी का इंतज़ार — मंज़ूरी मिलने पर संदेश अपने-आप शुरू होंगे',
+  'We check approval automatically every minute. Sending starts only if WhatsApp approves the exact message you reviewed. You can pause this at any time.': 'हम हर मिनट मंज़ूरी जाँचते हैं। आपके जाँचे हुए उसी संदेश को WhatsApp की मंज़ूरी मिलने पर ही संदेश भेजना शुरू होगा। आप इसे कभी भी रोक सकते हैं।',
   'No approved feedback invitation is available yet. WhatsApp must approve the message before automatic sending can be enabled. You can still demonstrate the private feedback form.':
     'अभी कोई स्वीकृत फ़ीडबैक संदेश उपलब्ध नहीं है। अपने-आप संदेश भेजने से पहले WhatsApp की मंज़ूरी ज़रूरी है। आप अभी भी निजी फ़ीडबैक फ़ॉर्म का डेमो दिखा सकते हैं।',
   'No approved evening message is available yet. WhatsApp must approve the message before automatic sending can be enabled.':

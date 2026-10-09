@@ -5,13 +5,8 @@ import { withClinic } from '@sahayak/db';
 import type { AppDeps } from './app';
 import { whatsappPlatform } from './whatsapp-platform';
 import { patientMessageJobsEnabled } from '@sahayak/shared';
+import { activateApprovedMessage, messageSetupSchema as setupSchema } from './message-approval';
 
-const setupSchema = z.object({
-  webhook_verified: z.boolean(),
-  templates: z.array(
-    z.object({ id: z.string(), name: z.string(), language: z.string(), text: z.string() }),
-  ),
-});
 const outboundSchema = z.object({
   id: z.string().uuid(),
   status: z.string(),
@@ -45,6 +40,8 @@ export async function installEveningDelivery(
       return {
         settings,
         templates: [],
+        pendingTemplates: [],
+        connectionReady: false,
         ready: false,
         message: 'Connect the clinic WhatsApp account first.',
       };
@@ -58,9 +55,14 @@ export async function installEveningDelivery(
       const invitations = upstream.templates.filter(
         (t) => /\bBETTER\b/i.test(t.text) && /\bWORSE\b/i.test(t.text),
       );
+      const pending = (upstream.pending_templates ?? []).filter(
+        (t) => /\bBETTER\b/i.test(t.text) && /\bWORSE\b/i.test(t.text),
+      );
       return {
         settings: { ...settings, channel_id: channel },
         templates: invitations,
+        pendingTemplates: pending,
+        connectionReady: upstream.webhook_verified,
         ready: upstream.webhook_verified && invitations.length > 0,
         message: !upstream.webhook_verified
           ? 'Verify the WhatsApp connection first.'
@@ -72,6 +74,8 @@ export async function installEveningDelivery(
       return {
         settings: { ...settings, channel_id: channel },
         templates: [],
+        pendingTemplates: [],
+        connectionReady: false,
         ready: false,
         message: 'Approved outbound templates are unavailable from the connected platform.',
       };
@@ -86,6 +90,7 @@ export async function installEveningDelivery(
     const input = z
       .object({
         enabled: z.boolean(),
+        activationRequested: z.boolean().default(false),
         templateId: z
           .string()
           .regex(/^\d{5,30}$/)
@@ -94,7 +99,22 @@ export async function installEveningDelivery(
       })
       .parse(req.body);
     const current = await setup(ctx.clinicId);
-    const template = current.templates.find((t) => t.id === input.templateId);
+    const template = [
+      ...current.templates,
+      ...(input.activationRequested ? (current.pendingTemplates ?? []) : []),
+    ].find((t) => t.id === input.templateId);
+    if (
+      input.activationRequested &&
+      (input.enabled ||
+        !current.connectionReady ||
+        !template ||
+        !/\bBETTER\b/i.test(template.text) ||
+        !/\bWORSE\b/i.test(template.text))
+    )
+      throw new ToolError(
+        'not_ready',
+        'Review an available message and verify the connection before requesting automatic activation.',
+      );
     if (
       input.enabled &&
       (!current.ready ||
@@ -108,8 +128,8 @@ export async function installEveningDelivery(
       );
     await scoped(ctx.clinicId, async (db) =>
       db.query(
-        `INSERT INTO patient_evening_settings(clinic_id,enabled,channel_id,template_id,reviewed_template,reviewed_by)
-       VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(clinic_id) DO UPDATE SET enabled=EXCLUDED.enabled,
+        `INSERT INTO patient_evening_settings(clinic_id,enabled,channel_id,template_id,reviewed_template,reviewed_by,activation_requested)
+       VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(clinic_id) DO UPDATE SET enabled=EXCLUDED.enabled,activation_requested=EXCLUDED.activation_requested,
        channel_id=EXCLUDED.channel_id,template_id=EXCLUDED.template_id,reviewed_template=EXCLUDED.reviewed_template,
        reviewed_by=EXCLUDED.reviewed_by,updated_at=now()`,
         [
@@ -119,6 +139,7 @@ export async function installEveningDelivery(
           input.templateId ?? null,
           template ? JSON.stringify(template) : null,
           ctx.actor.kind === 'staff' ? ctx.actor.userId : null,
+          input.activationRequested,
         ],
       ),
     );
@@ -362,6 +383,7 @@ export async function installEveningDelivery(
     running = true;
     try {
       for (const clinic of (await deps.pool.query('SELECT id FROM clinics_for_sweeps()')).rows) {
+        await activateApprovedMessage(deps, clinic.id, 'evening').catch(() => {});
         const enabled = await scoped(
           clinic.id,
           async (db) =>

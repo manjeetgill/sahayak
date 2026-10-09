@@ -34,7 +34,12 @@ export function EveningMessaging() {
     try {
       await staff(
         '/staff/evening/messaging',
-        { enabled, templateId: enabled ? template : undefined, reviewed: true },
+        {
+          enabled: enabled && !awaitingApproval,
+          activationRequested: enabled && awaitingApproval,
+          templateId: enabled ? template : undefined,
+          reviewed: true,
+        },
         'PUT',
       );
       setReviewed(false);
@@ -45,6 +50,8 @@ export function EveningMessaging() {
       setBusy(false);
     }
   };
+  const options = [...(data?.templates ?? []), ...(data?.pendingTemplates ?? [])];
+  const awaitingApproval = !!data?.pendingTemplates?.some((t: any) => t.id === template);
   return (
     <section className="card" aria-label={x('Evening WhatsApp messages')}>
       <h2>{x('Evening WhatsApp messages')}</h2>
@@ -66,11 +73,19 @@ export function EveningMessaging() {
               {x(
                 data.settings.enabled
                   ? 'Automatic evening messages enabled'
-                  : 'Automatic evening messages paused',
+                  : data.settings.activation_requested
+                    ? 'Waiting for WhatsApp approval — sending will start automatically'
+                    : 'Automatic evening messages paused',
               )}
             </b>
           </p>
-          <p>{x(data.message)}</p>
+          <p>
+            {x(
+              data.settings.activation_requested
+                ? 'We check approval automatically every minute. Sending starts only if WhatsApp approves the exact message you reviewed. You can pause this at any time.'
+                : data.message,
+            )}
+          </p>
           {!data.jobsEnabled && (
             <p className="banner warn">
               {x(
@@ -78,9 +93,9 @@ export function EveningMessaging() {
               )}
             </p>
           )}
-          {data.templates.length > 0 && (
+          {options.length > 0 && (
             <>
-              <label htmlFor="evening-template">{x('Approved evening message')}</label>
+              <label htmlFor="evening-template">{x('Evening message to review')}</label>
               <select
                 id="evening-template"
                 value={template}
@@ -90,13 +105,18 @@ export function EveningMessaging() {
                 }}
               >
                 <option value="">{x('Choose template')}</option>
-                {data.templates.map((t: any) => (
+                {options.map((t: any) => (
                   <option key={t.id} value={t.id}>
-                    {t.name} · {t.language}
+                    {t.name} · {t.language} ·{' '}
+                    {x(
+                      data.pendingTemplates?.some((p: any) => p.id === t.id)
+                        ? 'Awaiting WhatsApp approval'
+                        : 'Approved',
+                    )}
                   </option>
                 ))}
               </select>
-              <blockquote>{data.templates.find((t: any) => t.id === template)?.text}</blockquote>
+              <blockquote>{options.find((t: any) => t.id === template)?.text}</blockquote>
               <p className="muted">
                 {x(
                   'This template is sent only to patients whose saved language matches it. Contact other patients personally until you approve a template in their language.',
@@ -116,12 +136,17 @@ export function EveningMessaging() {
           )}
           <div className="feedback-actions">
             <button
-              disabled={busy || !data.ready || !template || !reviewed}
+              disabled={
+                busy ||
+                !(awaitingApproval ? data.connectionReady : data.ready) ||
+                !template ||
+                !reviewed
+              }
               onClick={() => void save(true)}
             >
-              {x('Enable evening sending')}
+              {x(awaitingApproval ? 'Enable after WhatsApp approval' : 'Enable evening sending')}
             </button>
-            {data.settings.enabled && (
+            {(data.settings.enabled || data.settings.activation_requested) && (
               <button className="ghost" disabled={busy} onClick={() => void save(false)}>
                 {x('Pause evening sending')}
               </button>

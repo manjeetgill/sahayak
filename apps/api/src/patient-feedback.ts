@@ -6,14 +6,9 @@ import { withClinic } from '@sahayak/db';
 import { checkRedFlag, analysePatientFeedback } from '@sahayak/agents';
 import { whatsappPlatform } from './whatsapp-platform';
 import { patientMessageJobsEnabled } from '@sahayak/shared';
+import { activateApprovedMessage, messageSetupSchema as setupSchema } from './message-approval';
 
 const idSchema = z.object({ id: z.string().uuid() });
-const setupSchema = z.object({
-  webhook_verified: z.boolean(),
-  templates: z.array(
-    z.object({ id: z.string(), name: z.string(), language: z.string(), text: z.string() }),
-  ),
-});
 const outboundSchema = z.object({
   id: z.string().uuid(),
   status: z.string(),
@@ -146,6 +141,8 @@ export async function installPatientFeedback(
       return {
         settings,
         templates: [],
+        pendingTemplates: [],
+        connectionReady: false,
         ready: false,
         message: 'Connect the clinic WhatsApp account first.',
       };
@@ -157,9 +154,12 @@ export async function installPatientFeedback(
         setupSchema,
       );
       const invitations = setup.templates.filter((t) => /\bfeedback\b/i.test(t.text));
+      const pending = (setup.pending_templates ?? []).filter((t) => /\bfeedback\b/i.test(t.text));
       return {
         settings: { ...settings, channel_id: channel },
         templates: invitations,
+        pendingTemplates: pending,
+        connectionReady: setup.webhook_verified && publicReady,
         ready: setup.webhook_verified && publicReady && invitations.length > 0,
         message: !publicReady
           ? 'A public HTTPS address for the patient form is required. Local demo links still work.'
@@ -173,6 +173,8 @@ export async function installPatientFeedback(
       return {
         settings: { ...settings, channel_id: channel },
         templates: [],
+        pendingTemplates: [],
+        connectionReady: false,
         ready: false,
         message:
           'The connected platform cannot currently provide approved outbound templates. Use a private form link for the demo. No WhatsApp message has been sent.',
@@ -188,6 +190,7 @@ export async function installPatientFeedback(
     const b = z
       .object({
         enabled: z.boolean(),
+        activationRequested: z.boolean().default(false),
         templateId: z
           .string()
           .regex(/^\d{5,30}$/)
@@ -196,7 +199,18 @@ export async function installPatientFeedback(
       })
       .parse(req.body);
     const setup = await messagingSetup(ctx);
-    const template = setup.templates.find((t) => t.id === b.templateId);
+    const template = [
+      ...setup.templates,
+      ...(b.activationRequested ? (setup.pendingTemplates ?? []) : []),
+    ].find((t) => t.id === b.templateId);
+    if (
+      b.activationRequested &&
+      (b.enabled || !setup.connectionReady || !template || !/\bfeedback\b/i.test(template.text))
+    )
+      throw new ToolError(
+        'not_ready',
+        'Review an available message and verify the connection before requesting automatic activation.',
+      );
     if (b.enabled && (!setup.ready || !template || !/\bfeedback\b/i.test(template.text)))
       throw new ToolError(
         'not_ready',
@@ -204,7 +218,7 @@ export async function installPatientFeedback(
       );
     await scoped(ctx.clinicId, async (db) =>
       db.query(
-        'INSERT INTO patient_feedback_settings(clinic_id,enabled,channel_id,template_id,reviewed_template,reviewed_by) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(clinic_id) DO UPDATE SET enabled=EXCLUDED.enabled,channel_id=EXCLUDED.channel_id,template_id=EXCLUDED.template_id,reviewed_template=EXCLUDED.reviewed_template,reviewed_by=EXCLUDED.reviewed_by,updated_at=now()',
+        'INSERT INTO patient_feedback_settings(clinic_id,enabled,channel_id,template_id,reviewed_template,reviewed_by,activation_requested) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(clinic_id) DO UPDATE SET enabled=EXCLUDED.enabled,activation_requested=EXCLUDED.activation_requested,channel_id=EXCLUDED.channel_id,template_id=EXCLUDED.template_id,reviewed_template=EXCLUDED.reviewed_template,reviewed_by=EXCLUDED.reviewed_by,updated_at=now()',
         [
           ctx.clinicId,
           b.enabled,
@@ -212,6 +226,7 @@ export async function installPatientFeedback(
           b.templateId ?? null,
           template ? JSON.stringify(template) : null,
           ctx.actor.kind === 'staff' ? ctx.actor.userId : null,
+          b.activationRequested,
         ],
       ),
     );
@@ -414,6 +429,7 @@ export async function installPatientFeedback(
     running = true;
     try {
       for (const c of (await deps.pool.query('SELECT id FROM clinics_for_sweeps()')).rows) {
+        await activateApprovedMessage(deps, c.id, 'feedback').catch(() => {});
         const enabled = await scoped(
           c.id,
           async (db) =>

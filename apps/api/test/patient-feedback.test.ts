@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { addPatient, createTestClinic, dropTestClinic, makePool } from '@sahayak/db';
 import { EventBus, callTool, registerAllTools, type ToolContext } from '@sahayak/core';
 import { LlmGate, analysePatientFeedback, handleInbound } from '@sahayak/agents';
-import { buildApp } from '../src/app';
+import { buildApp, type AppDeps } from '../src/app';
+import { activateApprovedMessage } from '../src/message-approval';
 const admin = new pg.Client({ connectionString: process.env.ADMIN_DATABASE_URL });
 const pool = makePool(),
   bus = new EventBus(''),
@@ -18,6 +19,7 @@ let clinic: Awaited<ReturnType<typeof createTestClinic>>,
   visit: string,
   checkin: string,
   link: string;
+let appDeps: AppDeps;
 let setupAuth: Record<string, string>;
 let auth: Record<string, string>, reception: Record<string, string>;
 const channel = randomUUID(),
@@ -27,6 +29,16 @@ let eveningFollowupId = '';
 let eveningDelivered = false;
 let templateChanged = false;
 let catalogueEmpty = false;
+let approvalStatus: 'PENDING' | 'APPROVED' | 'REJECTED' = 'APPROVED';
+let approvalTextChanged = false;
+const activationTemplate = () => ({
+  id: '345678',
+  name: 'activation_test',
+  language: 'en',
+  text: approvalTextChanged
+    ? 'Changed message. Reply FEEDBACK, BETTER or WORSE.'
+    : 'Reply FEEDBACK, BETTER or WORSE.',
+});
 let approvals = 0,
   prepared = 0,
   delivered = false,
@@ -59,6 +71,51 @@ it('keeps delivery unavailable until an appropriate approved invitation exists',
   } finally {
     catalogueEmpty = false;
   }
+});
+it('arms reviewed pending messages, activates only unchanged approvals and respects pause', async () => {
+  for (const kind of ['feedback', 'evening'] as const) {
+    const path = `/staff/${kind}/messaging`;
+    approvalStatus = 'PENDING';
+    expect(
+      (
+        await api(
+          'PUT',
+          path,
+          { enabled: false, activationRequested: true, templateId: '345678', reviewed: true },
+          setupAuth,
+        )
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      (await api('GET', path, undefined, setupAuth)).json().settings.activation_requested,
+    ).toBe(true);
+    expect(await activateApprovedMessage(appDeps, clinic.clinicId, kind)).toBe(false);
+    expect(await activateApprovedMessage(appDeps, other.clinicId, kind)).toBe(false);
+    approvalStatus = 'REJECTED';
+    expect(await activateApprovedMessage(appDeps, clinic.clinicId, kind)).toBe(false);
+    approvalStatus = 'APPROVED';
+    approvalTextChanged = true;
+    expect(await activateApprovedMessage(appDeps, clinic.clinicId, kind)).toBe(false);
+    approvalTextChanged = false;
+    await api('PUT', path, { enabled: false, reviewed: true }, setupAuth);
+    expect(await activateApprovedMessage(appDeps, clinic.clinicId, kind)).toBe(false);
+    approvalStatus = 'PENDING';
+    await api(
+      'PUT',
+      path,
+      { enabled: false, activationRequested: true, templateId: '345678', reviewed: true },
+      setupAuth,
+    );
+    approvalStatus = 'APPROVED';
+    expect(await activateApprovedMessage(appDeps, clinic.clinicId, kind)).toBe(true);
+    expect(await activateApprovedMessage(appDeps, clinic.clinicId, kind)).toBe(false);
+    const final = (await api('GET', path, undefined, setupAuth)).json().settings;
+    expect(final.enabled).toBe(true);
+    expect(final.activation_requested).toBe(false);
+    await api('PUT', path, { enabled: false, reviewed: true }, setupAuth);
+  }
+  expect(prepared).toBe(0);
+  expect(approvals).toBe(0);
 });
 it('reports patient-message jobs independently from other background jobs', async () => {
   const saved = process.env.PATIENT_MESSAGES_JOBS_ENABLED;
@@ -123,84 +180,88 @@ beforeAll(async () => {
     )
   ).rows[0].id;
   process.env.CHECKIN_PUBLIC_WEB_URL = 'https://clinic.example.test';
-  app = await buildApp({
-    pool,
-    bus,
-    gate: new LlmGate(null),
-    jwtSecret: 'feedback-test-secret',
-    whatsappBridge: {
-      [channel]: { clinicId: clinic.clinicId, appId: randomUUID(), secret: 'a'.repeat(64) },
-    },
-    whatsappPlatform: {
-      baseUrl: 'https://platform.example.test',
-      clinics: { [clinic.clinicId]: { key: 'test-key-12345', externalUserId: 'clinic-owner' } },
-      fetchImpl: async (input: any, init: any) => {
-        const url = String(input);
-        if (url.endsWith('send-setup'))
-          return new Response(
-            JSON.stringify({
-              webhook_verified: true,
-              templates: catalogueEmpty
-                ? []
-                : [
-                    {
-                      id: '123456',
-                      name: 'patient_checkin',
-                      language: 'en',
-                      text: templateChanged
-                        ? 'Changed invitation. Reply FEEDBACK.'
-                        : 'The clinic is checking on you. Reply FEEDBACK to get your private form.',
-                    },
-                    {
-                      id: '234567',
-                      name: 'evening_checkin',
-                      language: 'en',
-                      text: 'How are you feeling this evening? Reply BETTER, SAME or WORSE. For emergencies seek urgent care.',
-                    },
-                  ],
-            }),
-          );
-        if (url.endsWith('/approve')) {
-          approvals++;
-          return new Response(
-            JSON.stringify({
-              id: url.includes(eveningProviderId) ? eveningProviderId : providerId,
-              status: 'QUEUED',
-            }),
-          );
-        }
-        if (init?.method === 'POST') {
-          prepared++;
-          return new Response(
-            JSON.stringify({
-              id: JSON.parse(init.body).template_id === '234567' ? eveningProviderId : providerId,
-              status: 'DRAFT',
-            }),
-          );
-        }
-        return new Response(
-          JSON.stringify([
-            {
-              id: providerId,
-              status: delivered ? 'ACCEPTED' : 'QUEUED',
-              delivery: readReceipt ? 'read' : delivered ? 'delivered' : null,
-              idempotency_key: 'sahayak-checkin-' + checkin + '-initial',
-            },
-            ...(eveningFollowupId
-              ? [
-                  {
-                    id: eveningProviderId,
-                    status: 'ACCEPTED',
-                    delivery: eveningDelivered ? 'delivered' : null,
-                    idempotency_key: `sahayak-evening-${eveningFollowupId}`,
-                  },
-                ]
-              : []),
-          ]),
-        );
+  app = await buildApp(
+    (appDeps = {
+      pool,
+      bus,
+      gate: new LlmGate(null),
+      jwtSecret: 'feedback-test-secret',
+      whatsappBridge: {
+        [channel]: { clinicId: clinic.clinicId, appId: randomUUID(), secret: 'a'.repeat(64) },
       },
-    },
-  });
+      whatsappPlatform: {
+        baseUrl: 'https://platform.example.test',
+        clinics: { [clinic.clinicId]: { key: 'test-key-12345', externalUserId: 'clinic-owner' } },
+        fetchImpl: async (input: any, init: any) => {
+          const url = String(input);
+          if (url.endsWith('send-setup'))
+            return new Response(
+              JSON.stringify({
+                webhook_verified: true,
+                pending_templates: approvalStatus === 'PENDING' ? [activationTemplate()] : [],
+                templates: catalogueEmpty
+                  ? []
+                  : [
+                      ...(approvalStatus === 'APPROVED' ? [activationTemplate()] : []),
+                      {
+                        id: '123456',
+                        name: 'patient_checkin',
+                        language: 'en',
+                        text: templateChanged
+                          ? 'Changed invitation. Reply FEEDBACK.'
+                          : 'The clinic is checking on you. Reply FEEDBACK to get your private form.',
+                      },
+                      {
+                        id: '234567',
+                        name: 'evening_checkin',
+                        language: 'en',
+                        text: 'How are you feeling this evening? Reply BETTER, SAME or WORSE. For emergencies seek urgent care.',
+                      },
+                    ],
+              }),
+            );
+          if (url.endsWith('/approve')) {
+            approvals++;
+            return new Response(
+              JSON.stringify({
+                id: url.includes(eveningProviderId) ? eveningProviderId : providerId,
+                status: 'QUEUED',
+              }),
+            );
+          }
+          if (init?.method === 'POST') {
+            prepared++;
+            return new Response(
+              JSON.stringify({
+                id: JSON.parse(init.body).template_id === '234567' ? eveningProviderId : providerId,
+                status: 'DRAFT',
+              }),
+            );
+          }
+          return new Response(
+            JSON.stringify([
+              {
+                id: providerId,
+                status: delivered ? 'ACCEPTED' : 'QUEUED',
+                delivery: readReceipt ? 'read' : delivered ? 'delivered' : null,
+                idempotency_key: 'sahayak-checkin-' + checkin + '-initial',
+              },
+              ...(eveningFollowupId
+                ? [
+                    {
+                      id: eveningProviderId,
+                      status: 'ACCEPTED',
+                      delivery: eveningDelivered ? 'delivered' : null,
+                      idempotency_key: `sahayak-evening-${eveningFollowupId}`,
+                    },
+                  ]
+                : []),
+            ]),
+          );
+        },
+      },
+    }),
+  );
   auth = {
     authorization: `Bearer ${app.jwt.sign({ uid: owner, clinicId: clinic.clinicId, role: 'doctor', doctorId: clinic.doctorIds[0], name: 'Feedback doctor' })}`,
   };

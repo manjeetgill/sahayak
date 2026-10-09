@@ -42,3 +42,19 @@ This is a Mac-backed pilot address, not independent always-on hosting. Template
 approval and real delivery receipts are separate checks; see `demo-showcase.md`.
 
 Route guard tests: `python3 scripts/test_patient_form_relay.py`.
+
+## Approval-aware activation
+
+Migration 050 adds `activation_requested` separately from `enabled` to feedback
+and evening-message settings. Staff can review a provider-pending static message
+and select **Enable after WhatsApp approval**. This does not approve it at Meta.
+Each existing patient-message sweep checks the exact reviewed message and enables
+its clinic setting only once provider approval and connection checks succeed.
+Concurrent pauses or changed reviews cannot be overwritten. No sending is done by
+the activation check itself; regular dispatch retains consent, quiet hours,
+provider status/content verification and duplicate/uncertain-send protection.
+
+The connected pilot has both requests armed. Its templates were last reported as
+pending utility messages with no rejection reason. Keep the Mac and workers
+running; clinic-side settings will then activate without another manual setup
+step. Real delivery remains unverified until provider receipts arrive.

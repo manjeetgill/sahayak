@@ -23,6 +23,8 @@ export function FeedbackMessaging() {
   useEffect(() => {
     void load();
   }, []);
+  const options = [...(data?.templates ?? []), ...(data?.pendingTemplates ?? [])];
+  const awaitingApproval = !!data?.pendingTemplates?.some((t: any) => t.id === template);
   return (
     <section className="card">
       <h2>{x('WhatsApp check-in messages')}</h2>
@@ -38,10 +40,18 @@ export function FeedbackMessaging() {
             <b>
               {data.settings.enabled
                 ? x('Automatic invitations enabled')
-                : x('Automatic invitations paused')}
+                : data.settings.activation_requested
+                  ? x('Waiting for WhatsApp approval — sending will start automatically')
+                  : x('Automatic invitations paused')}
             </b>
           </p>
-          <p>{x(data.message)}</p>
+          <p>
+            {x(
+              data.settings.activation_requested
+                ? 'We check approval automatically every minute. Sending starts only if WhatsApp approves the exact message you reviewed. You can pause this at any time.'
+                : data.message,
+            )}
+          </p>
           {!data.jobsEnabled && (
             <p className="banner warn">
               {x(
@@ -54,10 +64,10 @@ export function FeedbackMessaging() {
               'Messages go out between 8am and 9pm in the clinic’s time zone. A check-in may have one reminder, two days after confirmed delivery, if explicitly selected and no response has arrived. Patients can reply STOP.',
             )}
           </p>
-          {data.templates.length > 0 && (
+          {options.length > 0 && (
             <>
               <label>
-                {x('Clinic-approved invitation')}
+                {x('Message to review')}
                 <select
                   value={template}
                   onChange={(e) => {
@@ -66,14 +76,19 @@ export function FeedbackMessaging() {
                   }}
                 >
                   <option value="">{x('Choose template')}</option>
-                  {data.templates.map((t: any) => (
+                  {options.map((t: any) => (
                     <option value={t.id} key={t.id}>
-                      {t.name} · {x(t.language === 'hi' ? 'Hindi' : 'English')}
+                      {t.name} · {x(t.language === 'hi' ? 'Hindi' : 'English')} ·{' '}
+                      {x(
+                        data.pendingTemplates?.some((p: any) => p.id === t.id)
+                          ? 'Awaiting WhatsApp approval'
+                          : 'Approved',
+                      )}
                     </option>
                   ))}
                 </select>
               </label>
-              <blockquote>{data.templates.find((t: any) => t.id === template)?.text}</blockquote>
+              <blockquote>{options.find((t: any) => t.id === template)?.text}</blockquote>
               <label className="check">
                 <input
                   type="checkbox"
@@ -122,13 +137,23 @@ export function FeedbackMessaging() {
           )}
           <div className="feedback-actions">
             <button
-              disabled={busy || !data.ready || !reviewed || !template}
+              disabled={
+                busy ||
+                !(awaitingApproval ? data.connectionReady : data.ready) ||
+                !reviewed ||
+                !template
+              }
               onClick={async () => {
                 setBusy(true);
                 try {
                   await staff(
                     '/staff/feedback/messaging',
-                    { enabled: true, templateId: template, reviewed: true },
+                    {
+                      enabled: !awaitingApproval,
+                      activationRequested: awaitingApproval,
+                      templateId: template,
+                      reviewed: true,
+                    },
                     'PUT',
                   );
                   await load();
@@ -139,9 +164,13 @@ export function FeedbackMessaging() {
                 }
               }}
             >
-              {x('Enable scheduled invitations')}
+              {x(
+                awaitingApproval
+                  ? 'Enable after WhatsApp approval'
+                  : 'Enable scheduled invitations',
+              )}
             </button>
-            {data.settings.enabled && (
+            {(data.settings.enabled || data.settings.activation_requested) && (
               <button
                 className="ghost"
                 disabled={busy}
