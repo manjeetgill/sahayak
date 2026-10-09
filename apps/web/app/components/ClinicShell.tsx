@@ -13,6 +13,7 @@ const doctorNav = [
   { label: 'My assistants', href: '/doctor/agents', group: 'assistants' },
   { label: 'Today', href: '/doctor', group: 'today' },
   { label: 'Patients', href: '/doctor#patient-search', group: 'patients' },
+  { label: 'Patient feedback', href: '/doctor/checkins', group: 'feedback' },
   { label: 'Care', href: '/doctor/care', group: 'care' },
   { label: 'Clinic', href: '/doctor/practice', group: 'clinic' },
 ];
@@ -25,6 +26,7 @@ const adminNav = [
   { label: 'Payments & QR', href: '/admin/qr-checkin', group: 'qr-checkin' },
   { label: 'Assistants', href: '/admin/agents', group: 'agents' },
   { label: 'Patient check-in messages', href: '/admin/messages', group: 'messages' },
+  { label: 'Patient feedback', href: '/doctor/checkins', group: 'feedback' },
   { label: 'Public pages', href: '/admin/features#patient-pages', group: 'public-pages' },
   { label: 'Connections', href: '/admin/integrations', group: 'integrations' },
   { label: 'Doctor workspace', href: '/doctor', group: 'doctor-view' },
@@ -48,6 +50,7 @@ const receptionNav = [
 const currentHash = (hash: string) => hash;
 
 function activeGroup(pathname: string, role: string, hash: string, mode: string) {
+  if (pathname === '/doctor/checkins') return 'feedback';
   if (role === 'admin' && pathname.startsWith('/doctor')) return 'doctor-view';
   if (role === 'admin' && pathname.startsWith('/console')) return 'reception-view';
   if (role === 'admin' && pathname === '/safety') return 'safety';
@@ -109,16 +112,16 @@ export function ClinicShell({ children }: { children: React.ReactNode }) {
       ? [
           { label: 'Today', href: '/doctor', group: 'today' },
           { label: 'Patients', href: '/doctor#patient-search', group: 'patients' },
+          { label: 'Patient feedback', href: '/doctor/checkins', group: 'feedback' },
           { label: 'Needs me', href: '/doctor/inbox', group: 'messages' },
-          { label: 'My assistants', href: '/doctor/agents', group: 'assistants' },
         ]
       : role === 'admin'
-        ? adminNav.filter((item) => ['overview', 'qr-checkin', 'agents'].includes(item.group))
+        ? adminNav.filter((item) => ['overview', 'qr-checkin', 'feedback', 'agents'].includes(item.group))
         : receptionNav.filter((item) => ['today', 'arrivals', 'conversations'].includes(item.group))
     : role === 'admin'
-      ? nav.filter((item) => ['overview', 'features', 'qr-checkin', 'agents', 'integrations'].includes(item.group))
+      ? nav.filter((item) => ['overview', 'features', 'feedback', 'qr-checkin', 'agents', 'integrations'].includes(item.group))
       : current.user.clinicAdmin && role === 'doctor'
-        ? nav.filter((item) => ['today', 'patients', 'assistants', 'setup'].includes(item.group))
+        ? nav.filter((item) => ['today', 'patients', 'feedback', 'assistants', 'setup'].includes(item.group))
         : nav;
   const signOut = () => { session.clear(); location.href = '/login'; };
   const initials = current.user.name

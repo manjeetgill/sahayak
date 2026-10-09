@@ -1,10 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { staff } from '../../lib/api';
+import { staff, useSession } from '../../lib/api';
 import { feedbackLabel } from './FeedbackWorkspace';
 import { useStaffLang } from '../../lib/staffText';
 export function FeedbackReport() {
   const { x, lang } = useStaffLang();
+  const canManage = useSession()?.user.role === 'doctor';
   const [data, setData] = useState<any>(null),
     [team, setTeam] = useState<any[]>([]),
     [error, setError] = useState(''),
@@ -80,7 +81,7 @@ export function FeedbackReport() {
                   </a>
                 ))}
               </div>
-              <button
+              {canManage && <button
                 className="ghost"
                 onClick={() => {
                   setTitle(`${x('Improve')} ${x(feedbackLabel(t.theme))}`);
@@ -88,7 +89,7 @@ export function FeedbackReport() {
                 }}
               >
                 {x('Create improvement from this feedback')}
-              </button>
+              </button>}
             </div>
           ))}
           <h3>{x('Did our response help?')}</h3>
@@ -101,7 +102,7 @@ export function FeedbackReport() {
               </p>
             ))
           )}
-          <form
+          {canManage && <form
             className="card"
             onSubmit={async (e) => {
               e.preventDefault();
@@ -161,7 +162,7 @@ export function FeedbackReport() {
               />
             </label>
             <button disabled={busy}>{x('Add improvement')}</button>
-          </form>
+          </form>}
           <h3>{x('Improvement tasks')}</h3>
           {data.improvements.map((i: any) => (
             <article className="card" key={i.id}>
@@ -177,7 +178,7 @@ export function FeedbackReport() {
               {i.source_checkin_id && (
                 <a href={`/doctor/checkins#case-${i.source_checkin_id}`}>{x('Original feedback')}</a>
               )}
-              {i.status === 'open' && (
+              {canManage && i.status === 'open' && (
                 <button
                   className="ghost"
                   disabled={busy}

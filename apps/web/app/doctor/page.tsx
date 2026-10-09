@@ -89,12 +89,17 @@ export default function Doctor() {
           </h1>
           <p className="muted">{x('Your next patient and outstanding work are together here.')}</p>
         </div>
-        <button
-          onClick={() => act('/staff/queue/call-next', {})}
-          disabled={!waiting.length && !current}
-        >
-          {t(lang, 'doctor.next')} →
-        </button>
+        <div className="row">
+          <a className="button-link" href="/doctor/checkins">
+            {x('Patient feedback')} →
+          </a>
+          <button
+            onClick={() => act('/staff/queue/call-next', {})}
+            disabled={!waiting.length && !current}
+          >
+            {t(lang, 'doctor.next')} →
+          </button>
+        </div>
       </header>
       {!setupDone && (
         <div className="banner warn" role="status">

@@ -17,13 +17,15 @@ export function soloSections(user: User): NavSection[] {
   ];
   if (user.role === 'admin') return [
     { label: 'Overview', links: [link('Clinic overview', '/admin'), link('Doctor workspace', '/doctor'), link('Reception workspace', '/console')] },
-    { label: 'Patients & care', links: [link('Arrivals & payments', '/console/arrivals'), link('Patient messages', '/doctor/inbox'), link('Follow-up work', '/doctor/care'), link('Patient feedback', '/doctor/checkins'), link('Waiting list', '/doctor/waitlist')] },
+    { label: 'Patients & care', links: [link('Arrivals & payments', '/console/arrivals'), link('Patient messages', '/doctor/inbox'), link('Follow-up work', '/doctor/care'), link('Waiting list', '/doctor/waitlist')] },
+    { label: 'Patient feedback', direct: true, links: [link('Patient feedback', '/doctor/checkins')] },
     { label: 'Assistants', direct: true, links: [link('Assistants', '/admin/agents')] },
     { label: 'Clinic setup', links: [link('Clinic details', '/admin/settings'), link('Doctors & team', '/admin/team'), link('Payments & QR', '/admin/qr-checkin'), link('Patient check-in messages', '/admin/messages'), link('Connections', '/admin/integrations'), link('Public pages', '/admin/features#patient-pages'), link('Setup checklist', '/admin/setup'), link('All features', '/admin/features'), link('Safety & privacy', '/safety')] },
   ];
   return [
     { label: 'Today', links: [link('Today’s patients', '/doctor'), ...(user.clinicAdmin ? [link('Arrivals & payments', '/console/arrivals'), link('Close day', '/doctor/closeout')] : [])] },
-    { label: 'Patients & care', links: [link('Find a patient', '/doctor#patient-search'), link('Follow-up work', '/doctor/care'), link('Patient feedback', '/doctor/checkins'), link('Waiting list', '/doctor/waitlist'), link('Care plans', '/doctor/templates')] },
+    { label: 'Patients & care', links: [link('Find a patient', '/doctor#patient-search'), link('Follow-up work', '/doctor/care'), link('Waiting list', '/doctor/waitlist'), link('Care plans', '/doctor/templates')] },
+    { label: 'Patient feedback', direct: true, links: [link('Patient feedback', '/doctor/checkins')] },
     { label: 'Needs me', direct: true, links: [link('Needs me', '/doctor/inbox')] },
     { label: 'My assistants', direct: true, links: [link('My assistants', '/doctor/agents')] },
     { label: 'Clinic', links: [link('Clinic activity', '/doctor/practice'), link('My profile', '/doctor/settings'), ...(user.clinicAdmin ? [link('Clinic setup', '/admin'), link('Clinic details', '/admin/settings'), link('Payments & QR', '/admin/qr-checkin'), link('Assistant setup', '/admin/agents'), link('Connections', '/admin/integrations'), link('All features', '/admin/features')] : []), link('More tools', '/doctor/tools'), link('Safety & privacy', '/safety')] },

@@ -69,6 +69,7 @@ export function SoloDoctorDesk({ doctorId, onCheckin }: { doctorId: string; onCh
         <nav className="solo-desk-links" aria-label={x('Daily actions')}>
           <a className="button-link primary" href="/console/arrivals">{x('Review QR arrivals & payments')}</a>
           <a className="button-link" href="/doctor/inbox">{x('Patient messages')}</a>
+          <a className="button-link" href="/doctor/checkins">{x('Patient feedback')}</a>
           <a className="button-link" href="/doctor/care">{x('Follow-up work')}</a>
           <a className="button-link" href="/doctor/closeout">{x('Close out the day')}</a>
         </nav>

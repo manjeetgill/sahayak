@@ -15,7 +15,8 @@ export default function Checkins() {
   useEffect(() => {
     const open = () => {
       if (location.hash.startsWith('#case-')) setTab('patients');
-      else if (location.hash === '#settings') setTab('settings');
+      else if (['#patients', '#improve', '#settings'].includes(location.hash))
+        setTab(location.hash.slice(1));
     };
     open();
     window.addEventListener('hashchange', open);
@@ -25,7 +26,7 @@ export default function Checkins() {
   return (
     <div className="wrap">
       <p className="eyebrow">{x('AFTER THE VISIT')}</p>
-      <h1>{x('Check on my patients')}</h1>
+      <h1>{x('Patient feedback')}</h1>
       <p>{x('Hear concerns early. Follow through personally. Improve the clinic experience.')}</p>
       <CareNav />
       <nav className="section-tabs" aria-label={x('Patient check-in views')}>
@@ -39,27 +40,17 @@ export default function Checkins() {
             className={tab === v ? '' : 'ghost'}
             onClick={() => {
               setTab(v);
-              if (admin) location.hash = v;
+              location.hash = v;
             }}
           >
             {x(l)}
           </button>
         ))}
       </nav>
-      {admin ? (
-        <>
-          <section id="patients">
-            <FeedbackWorkspace />
-          </section>
-          <section id="improve">
-            <FeedbackReport />
-          </section>
-          <AdminFeedbackOverview />
-        </>
-      ) : tab === 'patients' ? (
+      {tab === 'patients' ? (
         <FeedbackWorkspace />
       ) : tab === 'settings' ? (
-        <FeedbackPreferences />
+        admin ? <AdminFeedbackOverview /> : <FeedbackPreferences />
       ) : (
         <FeedbackReport />
       )}

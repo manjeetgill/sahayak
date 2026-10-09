@@ -46,6 +46,7 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
   const { x, lang } = useStaffLang();
   const session = useSession();
   const doctor = session?.user.role === 'doctor';
+  const canManage = !!session && session.user.role !== 'admin';
   const canViewRecord = doctor || session?.user.role === 'admin';
   const [data, setData] = useState<any>(null),
     [filter, setFilter] = useState('all'),
@@ -141,6 +142,16 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
           <p>
             {x('Schedule a check-in from the visit completion checklist. Patient replies will appear here.')}
           </p>
+          <div className="feedback-actions">
+            {session?.user.role === 'admin' ? (
+              <a href="/admin/messages">{x('Open feedback delivery setup')}</a>
+            ) : (
+              <>
+                <a href="/doctor/checkins#settings">{x('Change my automatic feedback settings')}</a>
+                <a href="/doctor#patient-search">{x('Find a patient')}</a>
+              </>
+            )}
+          </div>
         </div>
       )}
       <div className="workspace-stack">
@@ -189,7 +200,7 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                   {canViewRecord && (
                     <a href={`/doctor/patients/${c.patient_id}`}>{x('Open patient and visit')}</a>
                   )}
-                  <a href={`tel:${c.phone}`}>{x('Call patient')}</a>
+                  {canManage && <a href={`tel:${c.phone}`}>{x('Call patient')}</a>}
                   {canViewRecord && (
                     <a href={`/doctor/patients/${c.patient_id}#care-workspace`}>
                       {x('Arrange follow-up')}
@@ -224,7 +235,7 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                     <b>{x(feedbackLabel(c.resolutions[c.resolutions.length - 1].answer))}</b>
                   </p>
                 )}
-                {c.status === 'scheduled' &&
+                {canManage && c.status === 'scheduled' &&
                   (c.work_status === 'planned' || c.work_status === 'action_taken') && (
                     <div>
                       <button
@@ -289,7 +300,7 @@ export function FeedbackWorkspace({ patientId }: { patientId?: string }) {
                     </p>
                   </section>
                 )}
-                {c.responded_at && c.status === 'scheduled' && (
+                {canManage && c.responded_at && c.status === 'scheduled' && (
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
