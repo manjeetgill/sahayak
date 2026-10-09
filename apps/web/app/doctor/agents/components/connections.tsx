@@ -7,6 +7,7 @@ import { AGENT_NAMES } from '@sahayak/shared';
 import { staff } from '../../../../lib/api';
 import { GuidedTest } from './testing';
 import { Diagnostics } from './diagnostics';
+import { LiveJourney } from './live-journey';
 
 const labels: Record<string, string> = {
   checkin: 'Help patients check in',
@@ -239,6 +240,7 @@ export function Connections({
             </>
           )}
           {view === 'whatsapp' && <WhatsAppSetup canManage={canManage} />}
+          {view === 'whatsapp' && canManage && <LiveJourney />}
           {view === 'phone' && <CallingSetup canManage={canManage} onChanged={load} />}
         </div>
         {view !== 'overview' && (

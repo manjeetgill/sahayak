@@ -250,6 +250,30 @@ describe('Follow-up agent (pg-boss jobs call these tools)', () => {
   });
 });
 
+it('marks a due follow-up failed and alerts staff when live platform delivery is unavailable', async () => {
+  const followup = await callTool(rt, recCtx, 'schedule_followup', {
+    patientId: ids.p1,
+    kind: 'post_visit',
+    runAt: new Date().toISOString(),
+  });
+  const before = (await msgs(phones.p1)).length;
+  const result = await callTool(
+    { ...rt, requireLiveChannel: true },
+    { clinicId: c.clinicId, actor: { kind: 'system' } },
+    'run_followup',
+    { followUpId: followup.followUpId },
+  );
+  expect(result).toEqual({ status: 'failed', why: 'live_delivery_unavailable' });
+  expect((await msgs(phones.p1)).length).toBe(before);
+  const saved = await admin.query('SELECT status,detail FROM follow_ups WHERE id=$1', [followup.followUpId]);
+  expect(saved.rows[0]).toMatchObject({ status: 'failed', detail: 'live_delivery_unavailable' });
+  const flagged = await admin.query(
+    "SELECT 1 FROM flags WHERE clinic_id=$1 AND patient_id=$2 AND kind='system' AND summary LIKE 'A follow-up message%'",
+    [c.clinicId, ids.p1],
+  );
+  expect(flagged.rowCount).toBe(1);
+});
+
 describe('Queue agent no-show handling', () => {
   it('nudges at 8 minutes, marks no-show at 15, tells the receptionist', async () => {
     const ci = await callTool(

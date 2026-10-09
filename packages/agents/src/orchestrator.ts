@@ -203,6 +203,21 @@ export async function handleInbound(
 
     // Continue whatever the conversation was doing.
     if (turn.state.agent === 'intake' && turn.patientId) {
+      // A checked-in patient may ask about their turn while answering intake.
+      // Answer from the queue without treating the question as a clinical answer
+      // or losing the current intake question.
+      if (classifyIntent(turn.text) === 'queue_status') {
+        const info = await call(turn, 'system', 'get_clinic_info', {});
+        if (info.agents?.queue === false) {
+          await call(turn, 'system', 'handoff_to_human', {
+            reason: 'other',
+            summary: 'Queue assistant is paused during patient intake.',
+          });
+          await say(turn, 'system', 'msg.human_handoff');
+          rec.handledBy = 'human';
+        } else await queueStatus(turn);
+        return result();
+      }
       await continueIntake(turn);
       return result();
     }

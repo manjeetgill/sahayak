@@ -73,7 +73,6 @@ async function seedClinic(db: pg.Client, config: (typeof CLINICS)[number], passw
       [clinic, 'Fictional Demo Road, Sample City', 'Demo location only. No physical clinic is here.',
         '+910000000000', json(hours), json(intakeQuestions),
         json([
-          { id: 'hours', keywords: ['hours', 'timing', 'समय'], en: 'Demo clinic hours are shown on the public page.', hi: 'डेमो क्लिनिक का समय सार्वजनिक पेज पर है।' },
           { id: 'fees', keywords: ['fees', 'price', 'फीस'], en: 'The sample consultation fee is ₹500. Please confirm with reception.', hi: 'डेमो परामर्श शुल्क ₹500 है। रिसेप्शन से पुष्टि करें।' },
         ]),
         json({ completed: true }), json({ about: 'Fictional clinic and patients for a Sahayak product demonstration.' }),
@@ -119,7 +118,9 @@ async function seedClinic(db: pg.Client, config: (typeof CLINICS)[number], passw
       for (const kind of ['whatsapp', 'phone', 'reminders'])
         await db.query(
           'INSERT INTO doctor_assistant_access(clinic_id,doctor_id,kind,allowed,enabled) VALUES($1,$2,$3,true,$4)',
-          [clinic, doctorId, kind, kind === 'reminders'],
+          // Enable each doctor's assistant for the practice channels. No live
+          // WhatsApp or calling connection is created for either demo clinic.
+          [clinic, doctorId, kind, true],
         );
       await db.query(
         'INSERT INTO visit_templates(clinic_id,doctor_id,name,body) VALUES($1,$2,$3,$4)',
@@ -139,7 +140,7 @@ async function seedClinic(db: pg.Client, config: (typeof CLINICS)[number], passw
       'INSERT INTO custom_agents(clinic_id,name,description,spec,status,created_by,doctor_id) VALUES($1,$2,$3,$4,$5,$6,$7)',
       [clinic, 'Daily clinic summary (demo draft)', 'A sample staff summary that is not active.',
         json({ trigger: { type: 'schedule', every: 'day', at: '20:00' }, audience: {},
-          action: { type: 'summary', metrics: ['seen', 'appointments', 'flags'] } }), 'draft', firstUser, firstDoctor],
+          action: { type: 'summary', metrics: ['seen', 'appointments', 'wait'] } }), 'draft', firstUser, firstDoctor],
     );
 
     const patientData = [
@@ -150,6 +151,8 @@ async function seedClinic(db: pg.Client, config: (typeof CLINICS)[number], passw
       ['Noor Demo', 'en', 2000, ['new patient']],
       ['Pooja Demo', 'hi', 1995, ['needs call']],
       ['Ishaan Demo', 'en', 2017, ['paediatric']],
+      ['Anaya Demo', 'en', 1990, ['booked today']],
+      ['Dev Demo', 'en', 1986, ['agent booking']],
     ] as const;
     const patients: string[] = [];
     for (let i = 0; i < patientData.length; i++) {
@@ -159,7 +162,10 @@ async function seedClinic(db: pg.Client, config: (typeof CLINICS)[number], passw
         [clinic, name, `+9100000000${String(i + 1).padStart(2, '0')}`, language, birth, tags, 'demo'],
       )).rows[0].id as string;
       patients.push(id);
-      for (const purpose of ['visit_data', 'whatsapp_messaging', 'reminders_followups'])
+      // The two agent-journey patients have visit-data permission but no
+      // proactive messaging permission. Their practice chats use the mock
+      // channel, and check-in prepares no outbound patient message.
+      for (const purpose of i >= 7 ? ['visit_data'] : ['visit_data', 'whatsapp_messaging', 'reminders_followups'])
         await db.query(
           'INSERT INTO consents(clinic_id,patient_id,purpose,notice_version) VALUES($1,$2,$3,$4)',
           [clinic, id, purpose, 'demo-v1'],
@@ -188,6 +194,9 @@ async function seedClinic(db: pg.Client, config: (typeof CLINICS)[number], passw
     await appointment(4, secondDoctor, 1, '10:30', 'booked', 'New appointment');
     await appointment(5, firstDoctor, 1, '11:30', 'cancelled', 'Cancelled slot for waiting list');
     const a6 = await appointment(6, secondDoctor, 0, '11:00', 'checked_in', 'Paediatric visit');
+    // Anaya shows the booked → arrival → queue transition. Dev has no
+    // appointment until the practice assistant books one during the demo.
+    await appointment(7, firstDoctor, 0, '20:30', 'booked', 'Demo booked patient arriving today');
     const q0 = await queue(0, firstDoctor, a0, 0, 1, 'waiting');
     const q1 = await queue(1, firstDoctor, a1, 0, 2, 'called');
     const q2 = await queue(2, firstDoctor, a2, -1, 1, 'done');

@@ -54,6 +54,15 @@ export default function Demo() {
         <span>Practice chat is simulated. Live WhatsApp, telephone calls, and online payments are not connected. Never enter a real patient’s details.</span>
       </section>
       <section className={styles.logins}>
+        <div><h2>Start with the agent in action</h2><p>Watch a fictional WhatsApp booking create an appointment, then check a booked patient into the queue. Try clinic answers, human handoff, and urgent safety handling.</p></div>
+        <Link className={styles.primaryLink} href={`/demo/agents?clinic=${kind}`}>Open agent showcase →</Link>
+      </section>
+      <section className={styles.notice}>
+        <strong>Real WhatsApp test</strong>
+        <span>Sign in to the separate clinic that owns your WhatsApp number. The Assistants screen now shows a live journey checklist and connection evidence. The fictional clinics above use practice chat only.</span>
+        <Link href="/admin/agents#whatsapp">Open live test checklist →</Link>
+      </section>
+      <section className={styles.logins}>
         <div>
           <h2>Choose who is using Sahayak</h2>
           <p>Sign out before switching roles. Every demo account uses password <code>demo1234</code>.</p>

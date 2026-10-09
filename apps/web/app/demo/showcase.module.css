@@ -23,4 +23,20 @@
 .stepHead span { flex: none; display: grid; place-items: center; width: 2.3rem; height: 2.3rem; border-radius: 50%; background: #e1f1e9; color: #0b513e; font-weight: 800; }
 .stepHead h3 { margin: 0; }
 .footer { padding: 1rem 1.2rem; background: #e2eee7; border-radius: 12px; }
+.fullWidth { grid-column: 1 / -1; margin: 0; color: #56665c; }
+.success { padding: .9rem 1.1rem; border-radius: 12px; background: #e1f1e9; color: #0b513e; font-weight: 650; }
+.capabilities { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.capability { display: flex; flex-direction: column; align-items: flex-start; gap: .55rem; padding: 1.35rem; background: #fff; border: 1px solid #dbe5df; border-radius: 18px; }
+.capability h3, .capability p { margin: 0; }
+.capability p { line-height: 1.5; color: #56665c; }
+.capability button { margin-top: .35rem; }
+.capability button:disabled { opacity: .55; cursor: default; }
+.capability a { display: inline-block; font-weight: 650; }
+.number { color: #176b55; font-weight: 800; letter-spacing: .08em; }
+.state { padding: .55rem .75rem; border-radius: 9px; background: #f3f8f5; width: 100%; }
+.transcript { margin: 2rem 0; padding: 1.35rem; background: #fff; border: 1px solid #dbe5df; border-radius: 18px; }
+.transcriptHead { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.turn { margin-top: .8rem; padding: .8rem 1rem; background: #f3f8f5; border-radius: 12px; }
+.turn p { margin: .25rem 0; }
 @media (max-width: 700px) { .steps { grid-template-columns: 1fr; } .logins { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .capabilities { grid-template-columns: 1fr; } .fullWidth { grid-column: 1; } }

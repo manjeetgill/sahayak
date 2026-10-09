@@ -11,6 +11,8 @@ import { buildApp } from '../src/app';
 const admin = new pg.Client({ connectionString: process.env.ADMIN_DATABASE_URL }),
   pool = makePool();
 const channel = randomUUID(),
+  recoveredChannel = randomUUID(),
+  formerClinicId = randomUUID(),
   appId = randomUUID(),
   secret = 'fixture-bridge-secret-'.repeat(3);
 let clinic: Awaited<ReturnType<typeof createTestClinic>>,
@@ -50,7 +52,10 @@ beforeAll(async () => {
     bus: new EventBus(''),
     gate: new LlmGate(null),
     jwtSecret: 'test',
-    whatsappBridge: { [channel]: { appId, clinicId: clinic.clinicId, secret } },
+    whatsappBridge: {
+      [channel]: { appId, clinicId: clinic.clinicId, secret },
+      [recoveredChannel]: { appId, clinicId: clinic.clinicId, platformClinicId: formerClinicId, secret },
+    },
   });
   url = await app.listen({ port: 0, host: '127.0.0.1' });
 });
@@ -162,6 +167,21 @@ it('probes readiness without starting conversations', async () => {
     ready: true,
     clinic_id: clinic.clinicId,
   });
+});
+it('routes an explicitly mapped former platform clinic ID only for its signed channel', async () => {
+  const body = { ...payload(), channel_id: recoveredChannel, clinic_id: formerClinicId, probe: true };
+  expect((await post(body)).json()).toEqual({ ready: true, clinic_id: formerClinicId });
+  expect((await post({ ...body, clinic_id: other.clinicId })).statusCode).toBe(403);
+  const reply = await post({ ...body, probe: undefined, event_id: randomUUID() });
+  expect(reply.statusCode).toBe(200);
+  const receipt = await withClinic(pool, clinic.clinicId, (db) =>
+    db.query('SELECT 1 FROM agent_platform_receipts WHERE channel_id=$1', [recoveredChannel]),
+  );
+  expect(receipt.rowCount).toBe(1);
+  const wrongClinic = await withClinic(pool, other.clinicId, (db) =>
+    db.query('SELECT 1 FROM agent_platform_receipts WHERE channel_id=$1', [recoveredChannel]),
+  );
+  expect(wrongClinic.rowCount).toBe(0);
 });
 it('accepts current option taps, rejects old taps, and retains typed replies', async () => {
   const send = (text: string) => post({ ...payload(text), from: '919533330009' });

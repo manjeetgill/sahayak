@@ -98,7 +98,12 @@ type Claims = {
 export async function buildApp(deps: AppDeps) {
   registerAllTools();
   const { pool, bus, gate } = deps;
-  const rt = { pool, bus, channel: deps.whatsapp?.messaging };
+  const rt = {
+    pool,
+    bus,
+    channel: deps.whatsapp?.messaging,
+    requireLiveChannel: deps.liveChannelOwner === 'platform',
+  };
   const stt = deps.stt ?? new MockSpeechToText();
   const tts = deps.tts ?? new MockTextToSpeech();
   const env: AgentEnv = { rt, gate };
@@ -1632,6 +1637,34 @@ export async function buildApp(deps: AppDeps) {
           (deps.whatsappPlatform?.clinics[c.clinicId] ? 'agent-platform' : null),
       },
       phone: await callingStatus(deps.callingBridge, deps.whatsappPlatform, c.clinicId),
+    };
+  });
+  app.get('/staff/agents/live-test', async (req) => {
+    const c = await claims(req, ['admin']);
+    const saved = await waRead(c.clinicId);
+    let active = false;
+    if (saved?.channel_id) {
+      try {
+        active = (await currentWhatsApp(c.clinicId, saved))?.preparation === 'ACTIVE';
+      } catch {
+        // A cached setup row is not proof that the platform is reachable.
+      }
+    }
+    const inbound = await read(c.clinicId, async (db) =>
+      saved?.channel_id
+        ? (await db.query(
+            `SELECT count(*)::int AS count, max(created_at) AS latest_at
+             FROM agent_platform_receipts
+             WHERE channel_id=$1 AND state='DONE'`,
+            [saved.channel_id],
+          )).rows[0]
+        : { count: 0, latest_at: null },
+    );
+    return {
+      whatsapp: { active, number: active ? saved.phone : null, inbound },
+      lateNoticeDeliveryReady: !!deps.whatsapp?.messaging,
+      feedbackPublicFormsReady: !!process.env.CHECKIN_PUBLIC_WEB_URL?.startsWith('https://'),
+      backgroundJobsEnabled: process.env.JOBS_ENABLED !== 'false',
     };
   });
   app.get('/staff/agents/my-status', async (req) => {

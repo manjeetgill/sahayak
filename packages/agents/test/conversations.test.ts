@@ -27,6 +27,25 @@ const appts = () =>
     .then((r) => r.rows.map((x) => x.status));
 
 describe('WhatsApp front desk', () => {
+  it('answers a queue question during intake without saving it as an intake answer', async () => {
+    const phone = '+919300000003';
+    const patientId = await addPatient(admin, c.clinicId, 'Queue Pt', phone);
+    await admin.query(
+      `INSERT INTO queue_entries(clinic_id,doctor_id,patient_id,queue_date,token_number,position_key)
+       VALUES($1,$2,$3,(now() AT TIME ZONE 'Asia/Kolkata')::date,7,7000)`,
+      [c.clinicId, c.doctorIds[0], patientId],
+    );
+    await admin.query(
+      "INSERT INTO conversations(clinic_id,patient_id,contact,state) VALUES($1,$2,$3,$4)",
+      [c.clinicId, patientId, phone, JSON.stringify({ agent: 'intake', qi: 0, answers: [] })],
+    );
+    const status = await say(phone, 'What is my token number?');
+    expect(status.replies[0]).toMatch(/token is 7/);
+    const state = (await admin.query('SELECT state FROM conversations WHERE contact=$1', [phone]))
+      .rows[0].state;
+    expect(state).toMatchObject({ agent: 'intake', qi: 0, answers: [] });
+    expect((await say(phone, 'Since yesterday')).replies[0]).toMatch(/Since when\?/);
+  });
   it('answers timings and directions from clinic settings', async () => {
     expect((await say('+919300000001', 'what are your timings')).replies[0]).toMatch(
       /Mon-Sun 00:00-23:45/,

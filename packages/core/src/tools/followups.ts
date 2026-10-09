@@ -64,12 +64,13 @@ export const runFollowup = defineTool({
       !(await hasConsent(db, p.id, 'whatsapp_messaging'))
     )
       return skip('no_consent');
+    let messaged = false;
     if (f.kind === 'reminder') {
       const a = (
         await db.query('SELECT starts_at, status FROM appointments WHERE id=$1', [f.appointment_id])
       ).rows[0];
       if (!a || !['booked', 'checked_in'].includes(a.status)) return skip('appointment_not_active');
-      await notifyPatient(
+      messaged = await notifyPatient(
         r,
         p,
         'msg.followup_reminder',
@@ -89,48 +90,58 @@ export const runFollowup = defineTool({
           .rowCount
       )
         return skip('already_rated');
-      await notifyPatient(
+      messaged = await notifyPatient(
         r,
         p,
         'msg.review_ask',
         { name: p.name.split(' ')[0], doctor: q.doctor, clinic: s.clinic_name },
         { sender: 'agent:followup' },
       );
-      await db.query('UPDATE conversations SET state=$2 WHERE clinic_id=$1 AND contact=$3', [
-        ctx.clinicId,
-        JSON.stringify({
-          flow: 'review_rating',
-          queueEntryId: f.queue_entry_id,
-          doctorId: q.doctor_id,
-        }),
-        p.phone,
-      ]);
+      if (messaged)
+        await db.query('UPDATE conversations SET state=$2 WHERE clinic_id=$1 AND contact=$3', [
+          ctx.clinicId,
+          JSON.stringify({
+            flow: 'review_rating',
+            queueEntryId: f.queue_entry_id,
+            doctorId: q.doctor_id,
+          }),
+          p.phone,
+        ]);
     } else if (f.kind === 'post_visit') {
-      await notifyPatient(
+      messaged = await notifyPatient(
         r,
         p,
         'msg.followup_checkin',
         { name: p.name.split(' ')[0] },
         { sender: 'agent:followup' },
       );
-      await db.query('UPDATE conversations SET state=$2 WHERE clinic_id=$1 AND contact=$3', [
-        ctx.clinicId,
-        JSON.stringify({ flow: 'followup_checkin' }),
-        p.phone,
-      ]);
+      if (messaged)
+        await db.query('UPDATE conversations SET state=$2 WHERE clinic_id=$1 AND contact=$3', [
+          ctx.clinicId,
+          JSON.stringify({ flow: 'followup_checkin' }),
+          p.phone,
+        ]);
     } else {
       const future = await db.query(
         "SELECT 1 FROM appointments WHERE patient_id=$1 AND status='booked' AND starts_at > now()",
         [p.id],
       );
       if (future.rowCount) return skip('has_upcoming_appointment');
-      await notifyPatient(
+      messaged = await notifyPatient(
         r,
         p,
         'msg.recall',
         { name: p.name.split(' ')[0], clinic: s.clinic_name },
         { sender: 'agent:leads' },
       );
+    }
+    if (!messaged) {
+      await db.query("UPDATE follow_ups SET status='failed', detail='live_delivery_unavailable' WHERE id=$1", [f.id]);
+      await db.query(
+        "INSERT INTO flags(clinic_id,patient_id,kind,severity,summary) VALUES($1,$2,'system','normal',$3)",
+        [ctx.clinicId, p.id, `A follow-up message for ${p.name} was not sent. Contact the patient another way.`],
+      );
+      return { status: 'failed', why: 'live_delivery_unavailable' };
     }
     await db.query("UPDATE follow_ups SET status='sent' WHERE id=$1", [f.id]);
     return { status: 'sent' };

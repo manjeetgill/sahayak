@@ -5,6 +5,7 @@ import { withClinic } from '@sahayak/db';
 
 type Deps = {
   channel?: MessagingChannel;
+  requireLiveChannel?: boolean;
   adminUrl: string;
   pool: pg.Pool;
   bus: EventBus;
@@ -84,11 +85,11 @@ export async function deliverOutbox(
   return sent;
 }
 
-export async function startJobs({ adminUrl, pool, bus, channel, log = () => {} }: Deps) {
+export async function startJobs({ adminUrl, pool, bus, channel, requireLiveChannel, log = () => {} }: Deps) {
   const boss = new PgBoss({ connectionString: adminUrl, schema: 'pgboss' });
   boss.on('error', (e) => log('pg-boss error', e));
   await boss.start();
-  const rt = { pool, bus };
+  const rt = { pool, bus, channel, requireLiveChannel };
   const system = (clinicId: string) => ({
     clinicId,
     actor: { kind: 'system' as const, name: 'jobs' },

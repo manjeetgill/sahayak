@@ -46,6 +46,8 @@ export interface ToolRuntime {
   bus: EventBus;
   /** Outbound channel adapter (WhatsApp). Defaults to the mock simulator channel. */
   channel?: import('../channels').MessagingChannel;
+  /** A live platform owns delivery; never treat the practice channel as a real send. */
+  requireLiveChannel?: boolean;
 }
 export interface ToolRun {
   db: Db;

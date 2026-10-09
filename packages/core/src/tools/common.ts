@@ -86,6 +86,7 @@ export async function notifyPatient(
   const { db, ctx, rt } = r;
   if (opts.proactive !== false && !(await hasConsent(db, patient.id, 'whatsapp_messaging')))
     return false;
+  if (rt.requireLiveChannel && !rt.channel) return false;
   const text = t(patient.language, key, vars);
   const conv = await ensureConversation(
     db,
@@ -185,6 +186,8 @@ export async function deliver(
   m: { to: string; text: string; lang: Lang; channel?: string; offerId?: string },
 ) {
   if (m.channel && m.channel !== 'whatsapp') return; // voice/web replies go back to the caller directly, never out as WhatsApp
+  if (r.rt.requireLiveChannel && !r.rt.channel)
+    throw new ToolError('delivery_unavailable', 'Live WhatsApp delivery is not connected for this message.', 503);
   const ch = r.rt.channel ?? mock;
   if (!ch.queued) return ch.send({ clinicId: r.ctx.clinicId, ...m });
   await r.db.query(

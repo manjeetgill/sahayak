@@ -54,6 +54,7 @@ await app.listen({ port: Number(process.env.API_PORT ?? 4000), host: '0.0.0.0' }
 if (process.env.JOBS_ENABLED !== 'false' && process.env.ADMIN_DATABASE_URL) {
   startJobs({
     channel: whatsapp?.messaging,
+    requireLiveChannel: platformChannels,
     adminUrl: process.env.ADMIN_DATABASE_URL,
     pool,
     bus,

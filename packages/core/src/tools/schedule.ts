@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Lang } from '@sahayak/shared';
 import { defineTool, ToolError, type ToolRun } from './registry';
 import { emitWebhook } from '../webhooks';
-import { fmtTime, getSettings, notifyPatient } from './common';
+import { fmtTime, getSettings, hasConsent, notifyPatient } from './common';
 import { nextFreeSlots } from './appointments';
 
 const DOCTOR = ['staff:doctor'];
@@ -128,6 +128,7 @@ export const confirmScheduleShift = defineTool({
       )
     ).rows; // latest first so shifted slots never collide
     let notified = 0,
+      notMessaged = 0,
       noConsent = 0;
     for (const it of items) {
       if (it.needs_rebooking)
@@ -203,18 +204,21 @@ export const confirmScheduleShift = defineTool({
         sent ? 'pending' : 'no_consent',
       ]);
       if (sent) notified++;
-      else noConsent++;
+      else {
+        notMessaged++;
+        if (!(await hasConsent(db, patient.id, 'whatsapp_messaging'))) noConsent++;
+      }
     }
     await db.query(
       "UPDATE schedule_proposals SET status='confirmed', confirmed_at=now() WHERE id=$1",
       [proposalId],
     );
-    if (noConsent) {
+    if (notMessaged) {
       const f = await db.query(
         "INSERT INTO flags (clinic_id,kind,severity,summary) VALUES ($1,'system','normal',$2) RETURNING id",
         [
           ctx.clinicId,
-          `${doc} running ${p.minutes} min late: ${noConsent} patient(s) could not be messaged (no consent). Please call them.`,
+          `${doc} running ${p.minutes} min late: ${notMessaged} patient(s) could not be messaged (consent or live delivery unavailable). Please contact them.`,
         ],
       );
       r.emit({ type: 'flag_raised', flagId: f.rows[0].id, severity: 'normal' });
@@ -228,7 +232,7 @@ export const confirmScheduleShift = defineTool({
       moved: items.length,
       notified,
     });
-    return { ok: true, moved: items.length, notified, noConsent };
+    return { ok: true, moved: items.length, notified, noConsent, notMessaged };
   },
 });
 

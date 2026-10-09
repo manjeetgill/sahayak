@@ -8,6 +8,8 @@ import { handleInbound, type AgentEnv } from '@sahayak/agents';
 import { MockWhatsAppChannel } from '@sahayak/core';
 const Binding = z.object({
   clinicId: z.string().uuid(),
+  /** Explicit old platform clinic ID after a local database restore. The signed channel still selects this one local clinic. */
+  platformClinicId: z.string().uuid().optional(),
   appId: z.string().uuid(),
   secret: z.string().min(32),
 });
@@ -105,7 +107,7 @@ export function installWhatsAppBridge(
       signature = req.headers['x-agent-signature'];
     if (
       !b ||
-      b.clinicId !== i.clinic_id ||
+      (b.platformClinicId ?? b.clinicId) !== i.clinic_id ||
       b.appId !== i.app_id ||
       typeof stamp !== 'string' ||
       !/^\d{10}$/.test(stamp) ||
@@ -125,7 +127,7 @@ export function installWhatsAppBridge(
         return (await db.query('SELECT 1 FROM clinics WHERE id=$1', [b.clinicId])).rowCount;
       });
       return ready
-        ? { ready: true, clinic_id: b.clinicId }
+        ? { ready: true, clinic_id: i.clinic_id }
         : reply.code(409).send({ error: 'Clinic unavailable' });
     }
     const digest = createHash('sha256').update(JSON.stringify(i)).digest('hex');
