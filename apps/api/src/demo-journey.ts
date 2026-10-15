@@ -125,6 +125,8 @@ export function installDemoJourney(
       .object({
         id: z.string().uuid(),
         step: z.enum([
+          'late-propose',
+          'late-confirm',
           'book',
           'chat',
           'arrive',
@@ -153,7 +155,32 @@ export function installDemoJourney(
     const s = await snapshot(ctx, id);
     const tool = (name: string, input: unknown) => callTool(rt, ctx, name, input);
     let extra: Record<string, unknown> = {};
-    if (step === 'chat') {
+    if (step === 'late-propose') {
+      if (!s.appointment || s.queue)
+        throw new ToolError('booking_required', 'Book before demonstrating a delay.');
+      extra = {
+        shift: await tool('propose_schedule_shift', {
+          doctorId,
+          minutes: 15,
+          requestedText: 'DEMO: running 15 minutes late',
+        }),
+      };
+    } else if (step === 'late-confirm') {
+      const proposal = await read(
+        ctx.clinicId,
+        async (db) =>
+          (
+            await db.query(
+              "SELECT id FROM schedule_proposals WHERE doctor_id=$1 AND status='pending' ORDER BY created_at DESC LIMIT 1",
+              [doctorId],
+            )
+          ).rows[0],
+      );
+      if (!proposal || !s.appointment || s.queue)
+        throw new ToolError('proposal_required', 'Prepare the practice delay first.');
+      await tool('confirm_schedule_shift', { proposalId: proposal.id });
+      extra = { shift: await tool('get_shift_summary', { proposalId: proposal.id }) };
+    } else if (step === 'chat') {
       if (!b.text || s.queue)
         throw new ToolError('chat_unavailable', 'Use this conversation before starting the visit.');
       const reply = await handleInbound(

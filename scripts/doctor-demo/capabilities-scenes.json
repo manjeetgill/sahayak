@@ -1,0 +1,218 @@
+[
+  {
+    "id": "welcome",
+    "kicker": "SAHAYAK FOR YOUR CLINIC",
+    "title": "More time for patients.\nA more connected clinic.",
+    "tiles": [
+      ["Before the visit", "Help patients reach you and find an appointment."],
+      ["During the visit", "Keep the patient journey organised."],
+      ["After the visit", "Stay connected through reminders and feedback."]
+    ],
+    "narration": [
+      "Sahayak brings your patient journey together, from the first enquiry to the follow-up after a visit.",
+      "Its assistants help with everyday clinic work, giving your team more room to focus on patients."
+    ],
+    "spoken": [
+      "सहायक पेशेंट की पूरी जर्नी को जोड़ता है। पहली एनक्वायरी से लेकर विज़िट के बाद के फॉलो-अप तक।",
+      "इसके असिस्टेंट रोज़ के क्लिनिक कामों में मदद करते हैं, ताकि आपकी टीम पेशेंट पर ज़्यादा ध्यान दे सके।"
+    ]
+  },
+  {
+    "id": "frontdesk",
+    "kicker": "FRONT-DESK & ENQUIRY ASSISTANTS",
+    "title": "A helpful first conversation.",
+    "tiles": [
+      ["Clinic questions", "Clear answers about hours, location and fees."],
+      ["New enquiries", "Patient details and the reason for contacting you, together."],
+      ["Personal attention", "Requests needing a person stay visible to your team."]
+    ],
+    "narration": [
+      "The front-desk assistant answers routine clinic questions. The enquiry assistant brings new-patient details together.",
+      "Patients get a clearer starting point, while your team spends less effort repeating the same information."
+    ],
+    "spoken": [
+      "फ्रंट डेस्क असिस्टेंट टाइमिंग, लोकेशन और फीस जैसे सवालों में मदद करता है। एनक्वायरी असिस्टेंट नए पेशेंट की जानकारी एक जगह लाता है।",
+      "पेशेंट को शुरुआत से क्लैरिटी मिलती है, और टीम को बार-बार वही जानकारी नहीं दोहरानी पड़ती।"
+    ]
+  },
+  {
+    "id": "booking",
+    "kicker": "APPOINTMENT ASSISTANT",
+    "title": "From a conversation\nto a confirmed appointment.",
+    "tiles": [
+      ["Convenient booking", "Help patients find a suitable available time."],
+      ["Patient choice", "A time the patient has chosen and confirmed."],
+      ["One clear calendar", "Appointments visible to the clinic team."]
+    ],
+    "narration": [
+      "Patients can find a suitable appointment through a conversation, choose an available time and confirm their visit.",
+      "The clinic gets an organised calendar, with less back-and-forth over booking details."
+    ],
+    "spoken": [
+      "पेशेंट बातचीत में अपनी सुविधा का अवेलेबल टाइम ढूँढ सकता है, चुन सकता है और विज़िट कन्फर्म कर सकता है।",
+      "क्लिनिक को एक व्यवस्थित कैलेंडर मिलता है। बुकिंग की डिटेल्स के लिए बार-बार बात करने की ज़रूरत कम होती है।"
+    ]
+  },
+  {
+    "id": "arrival",
+    "kicker": "CHECK-IN & QUEUE ASSISTANTS",
+    "title": "A smoother arrival.\nA clearer waiting room.",
+    "tiles": [
+      ["Easy check-in", "A patient QR page connects arrival with the visit."],
+      ["Payment visibility", "Consultation payment records stay alongside the visit."],
+      ["Queue clarity", "Tokens and waiting updates help everyone stay informed."]
+    ],
+    "narration": [
+      "Check-in and queue assistants help organise arrivals, consultation payment records and patient tokens.",
+      "Patients can see their waiting progress, and the team can see who is waiting and who is with the doctor."
+    ],
+    "spoken": [
+      "चेक-इन और क्यू असिस्टेंट आने वाले पेशेंट, कंसल्टेशन पेमेंट रिकॉर्ड और टोकन व्यवस्थित रखने में मदद करते हैं।",
+      "पेशेंट अपनी बारी की प्रोग्रेस देख सकता है। टीम को साफ दिखता है कि कौन इंतज़ार में है और कौन डॉक्टर के साथ है।"
+    ]
+  },
+  {
+    "id": "intake",
+    "kicker": "INTAKE & RECORDS ASSISTANTS",
+    "title": "Know the patient’s concern\nbefore the conversation begins.",
+    "tiles": [
+      ["Patient concerns", "What the patient wants to discuss, in their own words."],
+      ["Visit preparation", "Intake answers and previous visits in one brief."],
+      ["Reports together", "Uploaded records with links to their source."]
+    ],
+    "narration": [
+      "The intake assistant captures what the patient wants to discuss. The records assistant keeps uploaded documents close to the patient’s visit history.",
+      "A pre-visit brief gives the doctor useful context before the consultation."
+    ],
+    "spoken": [
+      "इनटेक असिस्टेंट पेशेंट की वह बात सामने लाता है जो वह डॉक्टर से करना चाहता है। रिकॉर्ड्स असिस्टेंट रिपोर्ट्स को विज़िट हिस्ट्री के साथ रखता है।",
+      "प्री-विज़िट ब्रीफ से डॉक्टर को कंसल्टेशन से पहले उपयोगी बैकग्राउंड मिल जाता है।"
+    ]
+  },
+  {
+    "id": "changes",
+    "kicker": "DELAY & APPOINTMENT SUPPORT",
+    "title": "When plans change,\nkeep the clinic moving.",
+    "tiles": [
+      ["Doctor running late", "Help coordinate appointment changes and patient updates."],
+      ["A cancelled appointment", "Offer an available slot to eligible waiting patients."],
+      ["Less confusion", "A clearer next step for patients and the clinic team."]
+    ],
+    "narration": [
+      "When the doctor is running late, Sahayak helps the team coordinate appointment changes and patient updates.",
+      "When a slot opens up, waiting-list support can offer it to an eligible patient who wants an earlier visit."
+    ],
+    "spoken": [
+      "डॉक्टर लेट हों, तो सहायक अपॉइंटमेंट में बदलाव और पेशेंट अपडेट्स को व्यवस्थित करने में मदद करता है।",
+      "कोई स्लॉट खाली हो जाए, तो वेटिंग लिस्ट में पहले आना चाहने वाले योग्य पेशेंट को वह समय ऑफर किया जा सकता है।"
+    ]
+  },
+  {
+    "id": "notes",
+    "kicker": "NOTE & LANGUAGE ASSISTANTS",
+    "title": "Less rewriting.\nClearer visit notes.",
+    "tiles": [
+      ["Structured drafts", "Turn captured or supplied consultation text into organised notes."],
+      ["Doctor-reviewed care", "Notes and patient instructions stay under the doctor’s review."],
+      ["Language support", "Draft instructions in a supported patient language."]
+    ],
+    "narration": [
+      "The note assistant helps organise consultation text into a structured draft, with the doctor’s review at the centre.",
+      "Language support helps prepare patient instructions in a language they understand."
+    ],
+    "spoken": [
+      "नोट असिस्टेंट कंसल्टेशन के टेक्स्ट को व्यवस्थित ड्राफ्ट में लाने में मदद करता है। डॉक्टर का रिव्यू इसमें केंद्र में रहता है।",
+      "लैंग्वेज सपोर्ट से पेशेंट की समझ की भाषा में इंस्ट्रक्शंस तैयार करने में मदद मिलती है।"
+    ]
+  },
+  {
+    "id": "followup",
+    "kicker": "FOLLOW-UP ASSISTANT",
+    "title": "Care continues\nafter the patient goes home.",
+    "tiles": [
+      ["Follow-up reminders", "Help patients remember a planned return visit."],
+      ["Patient check-ins", "Ask how the patient is feeling after consultation."],
+      ["Evening messages", "An optional way to stay in touch after the visit."]
+    ],
+    "narration": [
+      "The follow-up assistant helps the clinic stay connected after a consultation through planned reminders and patient check-ins.",
+      "Optional evening messages give patients another opportunity to share how they are feeling."
+    ],
+    "spoken": [
+      "फॉलो-अप असिस्टेंट प्लान किए रिमाइंडर और पेशेंट चेक-इन से कंसल्टेशन के बाद भी क्लिनिक को जुड़े रहने में मदद करता है।",
+      "वैकल्पिक ईवनिंग मैसेज से पेशेंट को यह बताने का एक और मौका मिलता है कि अब उसे कैसा लग रहा है।"
+    ]
+  },
+  {
+    "id": "feedback",
+    "kicker": "FEEDBACK ASSISTANT",
+    "title": "Hear what patients\nmight not say in the clinic.",
+    "tiles": [
+      ["Patient experience", "How the visit felt, and what could be better."],
+      ["Suggestions", "The patient’s own words stay visible."],
+      ["A caring response", "Concerns become follow-up work for the clinic team."]
+    ],
+    "narration": [
+      "The feedback assistant helps collect the patient’s experience, concerns and suggestions after the visit.",
+      "The clinic can see what needs attention and who is following up, creating an opportunity to listen, clarify and improve."
+    ],
+    "spoken": [
+      "फीडबैक असिस्टेंट विज़िट के बाद पेशेंट का एक्सपीरियंस, उसकी चिंता और सुझाव सामने लाने में मदद करता है।",
+      "क्लिनिक देख सकता है कि कहाँ ध्यान चाहिए और कौन फॉलो-अप कर रहा है। इससे सुनने, समझाने और सुधार करने का मौका मिलता है।"
+    ]
+  },
+  {
+    "id": "daily",
+    "kicker": "CLINIC SUMMARY & ROUTINE ASSISTANTS",
+    "title": "A clearer picture\nof your clinic’s day.",
+    "tiles": [
+      ["Daily overview", "Appointments, queue activity and clinic summaries."],
+      ["Ask your clinic", "Answers to supported questions about your clinic records."],
+      ["Routine assistance", "Reminders and staff notifications that support everyday work."]
+    ],
+    "narration": [
+      "Clinic summaries bring daily activity into focus. Ask your clinic helps answer supported questions about your records.",
+      "Routine assistants help with reminders and staff notifications, keeping important work easier to see."
+    ],
+    "spoken": [
+      "क्लिनिक समरी से दिन की गतिविधियाँ एक नज़र में समझ आती हैं। आस्क योर क्लिनिक आपके रिकॉर्ड से जुड़े सपोर्टेड सवालों में मदद करता है।",
+      "रूटीन असिस्टेंट रिमाइंडर और स्टाफ नोटिफिकेशन में मदद करते हैं, ताकि ज़रूरी काम सामने रहें।"
+    ]
+  },
+  {
+    "id": "connection",
+    "kicker": "PATIENT COMMUNICATION & SUPPORT",
+    "title": "More ways to connect.\nA person when it matters.",
+    "tiles": [
+      ["WhatsApp assistance", "Support for clinic questions and appointment conversations."],
+      ["Phone conversation support", "Another way to help patients reach the clinic."],
+      ["Human attention", "Patient concerns and requests for staff remain visible."]
+    ],
+    "narration": [
+      "Sahayak supports patient conversations through WhatsApp and phone assistance, alongside patient pages.",
+      "It helps bring concerns and requests for a person to the clinic team, while supporting patient communication preferences."
+    ],
+    "spoken": [
+      "सहायक पेशेंट पेज के साथ व्हाट्सऐप और फोन असिस्टेंस पर क्लिनिक की बातचीत में मदद करता है।",
+      "पेशेंट की चिंता और किसी व्यक्ति से बात करने की रिक्वेस्ट टीम तक पहुँचाने में मदद मिलती है। पेशेंट की कम्युनिकेशन पसंद का भी ध्यान रहता है।"
+    ]
+  },
+  {
+    "id": "close",
+    "kicker": "FOR SOLO DOCTORS & CLINIC TEAMS",
+    "title": "One connected patient journey.\nMore room for personal care.",
+    "tiles": [
+      ["Before the visit", "Questions, enquiries and appointments."],
+      ["During the visit", "Arrival, queue, context and notes."],
+      ["After the visit", "Reminders, feedback and human follow-up."]
+    ],
+    "narration": [
+      "For a solo doctor or a clinic team, Sahayak brings everyday patient support into one connected journey.",
+      "From the first hello to the next follow-up: a more organised clinic, and more opportunities to give patients personal attention."
+    ],
+    "spoken": [
+      "चाहे सोलो डॉक्टर हों या क्लिनिक टीम, सहायक रोज़ के पेशेंट सपोर्ट को एक जुड़ी हुई जर्नी में लाता है।",
+      "पहले हैलो से अगले फॉलो-अप तक। क्लिनिक के काम अधिक व्यवस्थित, और पेशेंट को व्यक्तिगत ध्यान देने के ज़्यादा अवसर।"
+    ]
+  }
+]

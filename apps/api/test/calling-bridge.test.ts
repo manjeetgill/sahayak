@@ -211,3 +211,34 @@ asyncio.run(main())`;
     });
   },
 );
+
+it.skipIf(!process.env.AI_AGENT_PLATFORM_DIR)(
+  'books through the real internet voice client with an app caller identity',
+  async () => {
+    const address=app.server.address() as {port:number};
+    const session=randomUUID(), caller=randomUUID();
+    const before=Number((await admin.query('SELECT count(*) n FROM appointments WHERE clinic_id=$1',[clinic.clinicId])).rows[0].n);
+    const code=`import asyncio,json,os
+from uuid import uuid4
+from agent_platform.web_voice import invoke
+async def main():
+ cfg=json.loads(os.environ['VOICE_TEST_CONFIG'])
+ base=json.loads(os.environ['VOICE_TEST_PAYLOAD'])
+ replies=[]
+ for turn,text in enumerate(['Hi','1','1','Web Voice Patient','yes','1','earliest','1','yes'],1):
+  reply=await invoke(cfg,{**base,'event_id':str(uuid4()),'turn':turn,'input':text})
+  replies.append(reply)
+ print(json.dumps(replies))
+asyncio.run(main())`;
+    const result=await promisify(execFile)(process.env.AI_AGENT_PLATFORM_DIR+'/.venv-voice/bin/python',['-c',code],{
+      env:{...process.env,PYTHONPATH:process.env.AI_AGENT_PLATFORM_DIR+'/src',
+        VOICE_TEST_CONFIG:JSON.stringify({url:`http://127.0.0.1:${address.port}/integrations/agent-platform/voice`,secret}),
+        VOICE_TEST_PAYLOAD:JSON.stringify({caller_phone:'+919533330049',session_id:session,agent_id:agent,app_id:appId,user_id:caller,input_trust:'untrusted_speech',channel:'web_voice',language:'en',conversation:[]})},timeout:15000});
+    const replies=JSON.parse(result.stdout);
+    expect(replies[7].text).toContain('Confirm your appointment');
+    expect(replies[8].text).toContain('is booked for');
+    expect(replies[8].action).toBe('end');
+    expect(Number((await admin.query('SELECT count(*) n FROM appointments WHERE clinic_id=$1',[clinic.clinicId])).rows[0].n)).toBe(before+1);
+    expect((await admin.query('SELECT 1 FROM outbox WHERE clinic_id=$1',[clinic.clinicId])).rowCount).toBe(0);
+  },
+);

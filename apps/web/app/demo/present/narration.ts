@@ -1,0 +1,23 @@
+// Short Hinglish narration follows the same twenty saved story beats.
+export const hinglish = [
+  'Patient जब call नहीं कर सकता, तब message से शुरुआत कर सकता है।',
+  'Appointment की request, booking conversation में आगे बढ़ती है।',
+  'यह patient की पहली visit है।',
+  'Assistant clinic के available appointment slots दिखाता है।',
+  'Patient अपना समय चुनता है।',
+  'Booking confirm हुई। Appointment अब clinic में saved है।',
+  'Patient reminders के लिए अपनी permission देता है।',
+  'Doctor पंद्रह मिनट late हैं। पहले affected appointments का preview देखें।',
+  'इस practice demo में change confirm हुआ। Timing update हुई। कोई real WhatsApp message नहीं भेजा गया।',
+  'Patient आने पर check in करता है। वही patient record आगे चलता है।',
+  'Practice payment record हुआ और queue token बन गया।',
+  'Waiting के दौरान patient अपना सवाल लिख सकता है।',
+  'Doctor patient को बुलाते हैं। Visit की जानकारी सामने है।',
+  'Practice note का draft तैयार है। अब doctor इसे review करेंगे।',
+  'Doctor ने review करके note sign किया और instructions approve किए।',
+  'Patient अपनी approved instructions private link से खोल सकता है और PDF save कर सकता है। नीचे patient document copy खोलें।',
+  'Visit complete हुई। Doctor की setting के अनुसार feedback schedule हुआ।',
+  'यह feedback invitation का preview है। Live delivery यहाँ नहीं हुई है।',
+  'Patient का feedback उसी visit के साथ save हुआ।',
+  'Follow up doctor को assign हुआ। अब pending concern दिखाई देता है। नीचे बाकी clinic capabilities भी देख सकते हैं।',
+];

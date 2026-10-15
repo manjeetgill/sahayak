@@ -8,6 +8,7 @@ import { installPatientFeedback } from './patient-feedback';
 import { installEveningDelivery } from './evening-delivery';
 import { installScheduleDelivery } from './schedule-delivery';
 import { installDemoJourney } from './demo-journey';
+import { demoRuntime } from './demo-runtime';
 import { callingStatus, callingRequest } from './calling-status';
 import { installCallingBridge, type CallingBridgeOptions } from './calling-bridge';
 import {
@@ -40,7 +41,7 @@ import {
   type LlmGate,
 } from '@sahayak/agents';
 import {
-  callTool,
+  callTool as callCoreTool,
   hashKey,
   WEBHOOK_EVENTS,
   MockSpeechToText,
@@ -107,6 +108,16 @@ export async function buildApp(deps: AppDeps) {
     channel: deps.whatsapp?.messaging,
     requireLiveChannel: deps.liveChannelOwner === 'platform',
     platformClinics: Object.values(deps.whatsappBridge ?? {}).map((b) => b.clinicId),
+  };
+  const callTool: typeof callCoreTool = async (runtime, ctx, name, input) => {
+    const selected =
+      runtime === rt && ctx.actor.kind === 'staff'
+        ? await demoRuntime(runtime, ctx.clinicId, deps.simulator !== false, [
+            ...rt.platformClinics,
+            ...Object.keys(deps.razorpay?.clinics ?? {}),
+          ])
+        : runtime;
+    return callCoreTool(selected, ctx, name, input);
   };
   const stt = deps.stt ?? new MockSpeechToText();
   const tts = deps.tts ?? new MockTextToSpeech();
@@ -353,6 +364,10 @@ export async function buildApp(deps: AppDeps) {
         queue: queue.rows[0] ?? null,
         arrival: arrival.rows[0] ?? null,
         doctors: doctors.rows,
+        instructions: (await db.query(
+          "SELECT id,body,language,approved_at FROM patient_instructions WHERE patient_id=$1 AND status='approved' ORDER BY approved_at DESC LIMIT 20",
+          [patientId],
+        )).rows,
         reportRequests: reportRequests.rows,
         careSteps: careSteps.rows,
       };

@@ -1,13 +1,17 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { videoDisruptions } from './video-disruptions';
 
-test('record the narrated doctor demo', async ({ browser, baseURL }) => {
+test('record the narrated doctor demo', async ({ browser, baseURL, request }) => {
   test.skip(process.env.DEMO_VIDEO !== '1', 'Media rendering is opt-in.');
-  test.setTimeout(600000);
-  const output = resolve('artifacts/doctor-demo/work');
+  test.setTimeout(900000);
+  const audience = process.env.DEMO_AUDIENCE ?? 'doctor';
+  expect(['doctor', 'owner', 'workflow']).toContain(audience);
+  const output = resolve(`artifacts/${audience}-demo/work`);
   mkdirSync(output, { recursive: true });
   const scenes = JSON.parse(readFileSync(resolve(output, 'scenes-audio.json'), 'utf8'));
+  const disruptions = audience === 'workflow' ? await videoDisruptions(request) : null;
   const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
     recordVideo: { dir: output, size: { width: 1920, height: 1080 } },
@@ -70,7 +74,7 @@ test('record the narrated doctor demo', async ({ browser, baseURL }) => {
     };
     for (const [index, scene] of scenes.entries()) {
       await page.evaluate(
-        ({ scene, index }: any) => {
+        ({ scene, index, audience }: any) => {
           const cover = document.getElementById('film-cover')!;
           cover.style.display = scene.type === 'app' ? 'none' : 'block';
           const esc = (s: string) =>
@@ -80,7 +84,7 @@ test('record the narrated doctor demo', async ({ browser, baseURL }) => {
             entries
               .map(
                 (e, i) =>
-                  `<div class="tile"><span class="num">0${i + 1}</span><b>${e[0]}</b><p>${e[1]}</p></div>`,
+                  `<div class="tile"><span class="num">0${i + 1}</span><b>${esc(e[0])}</b><p>${esc(e[1])}</p></div>`,
               )
               .join('') +
             '</div>';
@@ -111,8 +115,12 @@ test('record the narrated doctor demo', async ({ browser, baseURL }) => {
           if (scene.type === 'closing')
             content =
               '<p class="lead">For a single doctor or a small clinic team.</p><div class="cta">See your clinic’s complete patient journey.</div><p class="fine">Request a Sahayak walkthrough · Fictional demonstration · Synthetic narration<br/>Live delivery, phone calls and online payments require configured services.</p>';
+          if (scene.tiles) content = tiles(scene.tiles);
+          if (scene.lead) content = `<p class="lead">${esc(scene.lead)}</p>` + content;
+          if (scene.cta) content += `<div class="cta">${esc(scene.cta)}</div>`;
+          if (scene.fine) content += `<p class="fine">${esc(scene.fine)}</p>`;
           cover.innerHTML =
-            '<div class="brand">✚ Sahayak <small>DOCTOR DEMONSTRATION</small></div><div class="kicker">' +
+            `<div class="brand">✚ Sahayak <small>${audience === 'owner' ? 'FOR CLINIC & HOSPITAL OWNERS' : 'DOCTOR DEMONSTRATION'}</small></div><div class="kicker">` +
             esc(
               scene.kicker ??
                 (scene.type === 'closing'
@@ -125,7 +133,7 @@ test('record the narrated doctor demo', async ({ browser, baseURL }) => {
             content;
           const caption = document.getElementById('film-caption')!;
           caption.querySelector('b')!.textContent =
-            `${String(index + 1).padStart(2, '0')} · ${scene.type === 'app' ? 'Fictional clinic · actual saved workflow' : 'Sahayak for doctors'}`;
+            `${String(index + 1).padStart(2, '0')} · ${scene.role ?? (scene.type === 'app' ? 'Fictional clinic · actual saved workflow' : scene.type === 'assistants' ? 'Assistant roles · illustrated examples' : audience === 'owner' ? 'Sahayak for clinic & hospital owners' : 'Sahayak for doctors')}`;
           caption.querySelector('p')!.textContent = scene.narration[0];
           const words = scene.narration.map((line: string) => line.split(/\s+/).length),
             total = words.reduce((a: number, b: number) => a + b, 0);
@@ -139,11 +147,31 @@ test('record the narrated doctor demo', async ({ browser, baseURL }) => {
           });
           window.scrollTo(0, 0);
         },
-        { scene, index },
+        { scene, index, audience },
       );
       const started = Date.now();
       timeline.push({ ...scene, start: (started - origin) / 1000 });
       const actions = async () => {
+        if (
+          disruptions &&
+          ['late-propose', 'late-confirm', 'late-reply', 'cancel', 'fill-slot'].includes(
+            scene.action,
+          )
+        ) {
+          await wait(1400);
+          const result = await disruptions.run(scene.action);
+          await page.evaluate((result) => {
+            const tiles = document.querySelectorAll('#film-cover .tile');
+            result.tiles.forEach(([title, detail], index) => {
+              tiles[index].querySelector('b')!.textContent = title;
+              tiles[index].querySelector('p')!.textContent = detail;
+            });
+            const note = document.createElement('p');
+            note.className = 'fine';
+            note.textContent = result.fine;
+            document.getElementById('film-cover')!.append(note);
+          }, result);
+        }
         if (scene.action === 'hello') {
           await wait(1500);
           await next();
@@ -217,5 +245,6 @@ test('record the narrated doctor demo', async ({ browser, baseURL }) => {
     await video.saveAs(resolve(output, 'doctor-demo-raw.webm'));
   } finally {
     await context.close();
+    await disruptions?.close();
   }
 });

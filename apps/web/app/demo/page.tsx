@@ -2,6 +2,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import styles from './showcase.module.css';
+import { api, session } from '../../lib/api';
+import CapabilityExplorer from './CapabilityExplorer';
 
 const clinics = {
   solo: {
@@ -27,6 +29,26 @@ const clinics = {
 export default function Demo() {
   const [kind, setKind] = useState<'solo' | 'hospital'>('solo');
   const [local, setLocal] = useState<boolean | null>(null);
+  const [opening, setOpening] = useState('');
+  const [error, setError] = useState('');
+  async function openRole(email: string, role: string) {
+    if (opening || !local) return;
+    setOpening(email);
+    setError('');
+    try {
+      const auth = await api('/auth/login', { body: { email, password: 'demo1234' } });
+      session.set(auth);
+      window.location.href =
+        role === 'Admin'
+          ? '/admin'
+          : role.toLowerCase().includes('receptionist')
+            ? '/console'
+            : '/doctor';
+    } catch {
+      setError('The demo could not sign in. Run pnpm demo:ready on this computer, then try again.');
+      setOpening('');
+    }
+  }
   useEffect(() => {
     const host = window.location.hostname;
     setLocal(
@@ -52,12 +74,18 @@ export default function Demo() {
       <div className={styles.hero}>
         <p className={styles.eyebrow}>INTERACTIVE PRODUCT WALKTHROUGH</p>
         <h1>See a clinic day move from arrival to follow-up</h1>
+        <Link className="button-link primary" href="/demo/videos">
+          Watch English demo videos →
+        </Link>
         <Link className="button-link primary" href="/demo/present">
           Play the doctor presentation →
         </Link>
         <Link className="button-link primary" href="/demo/journey">
           Follow one patient from booking to feedback →
         </Link>
+        <a className="button-link primary" href="#capabilities">
+          Explore all doctor and clinic capabilities →
+        </a>
         <p>
           Use these fictional patients to demonstrate the assistant, patient arrivals, doctor work,
           and feedback. Each action below creates a visible change in another screen.
@@ -107,7 +135,8 @@ export default function Demo() {
         <div>
           <h2>Choose who is using Sahayak</h2>
           <p>
-            Sign out before switching roles. Every demo account uses password <code>demo1234</code>.
+            The buttons below sign you into the selected fictional clinic. Every demo account uses
+            password <code>demo1234</code>.
           </p>
         </div>
         <Link className={styles.primaryLink} href="/login">
@@ -118,9 +147,13 @@ export default function Demo() {
             <div className={styles.role} key={email}>
               <b>{role}</b>
               <code>{email}</code>
+              <button disabled={!!opening} onClick={() => openRole(email, role)}>
+                {opening === email ? 'Opening…' : `Open ${role.toLowerCase()} view`}
+              </button>
             </div>
           ))}
         </div>
+        {error && <p role="alert">{error}</p>}
       </section>
       <h2 className={styles.sectionTitle}>Run the interactive walkthrough</h2>
       <ol className={styles.steps}>
@@ -226,9 +259,10 @@ export default function Demo() {
           <Link href="/admin/qr-checkin">QR and payments →</Link>
         </li>
       </ol>
+      <CapabilityExplorer key={kind} kind={kind} />
       <p className={styles.footer}>
-        Before another demonstration, run <code>pnpm demo:reset</code> locally. It replaces only the
-        two exact DEMO clinics and clears their practice changes.
+        Before another demonstration, run <code>pnpm demo:ready --refresh-demo</code> locally. It
+        replaces only the two exact DEMO clinics and clears their practice changes.
       </p>
     </main>
   );

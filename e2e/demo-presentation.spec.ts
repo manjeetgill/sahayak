@@ -6,6 +6,7 @@ for (const kind of ['solo', 'hospital'])
     test.setTimeout(120000);
     page.setDefaultTimeout(15000);
     await page.goto('/demo/present');
+    await expect(page.getByRole('button', { name: 'Turn on narration', exact: true })).toBeVisible();
     await page.evaluate(() =>
       localStorage.setItem(
         'sahayak.session',
@@ -21,17 +22,17 @@ for (const kind of ['solo', 'hospital'])
     await expect(
       page.getByRole('region', { name: 'Patient view' }).getByText(/Welcome to DEMO/),
     ).toBeVisible();
-    await expect(page.getByText('1 / 17 steps saved', { exact: true })).toBeVisible();
+    await expect(page.getByText('1 / 20 steps saved', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Play demo', exact: true }).click();
     await page.getByRole('button', { name: 'Pause', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Next step →', exact: true })).toBeEnabled();
     const paused = await page.evaluate(
-      () => JSON.parse(sessionStorage.getItem('sahayak.demo.presentation.v1')!).cursor,
+      () => JSON.parse(sessionStorage.getItem('sahayak.demo.presentation.v2')!).cursor,
     );
     await page.waitForTimeout(500);
     expect(
       await page.evaluate(
-        () => JSON.parse(sessionStorage.getItem('sahayak.demo.presentation.v1')!).cursor,
+        () => JSON.parse(sessionStorage.getItem('sahayak.demo.presentation.v2')!).cursor,
       ),
     ).toBe(paused);
     await page.getByRole('button', { name: 'Play demo', exact: true }).click();
@@ -41,18 +42,19 @@ for (const kind of ['solo', 'hospital'])
     });
     await expect(approval).toBeVisible({ timeout: 45000 });
     await expect(approval).toBeDisabled();
-    await expect(page.getByText('12 / 17 steps saved', { exact: true })).toBeVisible();
+    await expect(page.getByText('14 / 20 steps saved', { exact: true })).toBeVisible();
     await expect(page.getByText('Doctor’s draft — review needed')).toBeVisible();
     expect(
       await page.evaluate(() => JSON.parse(localStorage.getItem('sahayak.session')!).token),
     ).toBe('existing-clinic-login');
     await page.reload();
-    await expect(page.getByText('12 / 17 steps saved', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Turn on narration', exact: true })).toBeVisible();
+    await expect(page.getByText('14 / 20 steps saved', { exact: true })).toBeVisible();
     await expect(approval).toBeDisabled();
     await page.getByRole('combobox', { name: 'Speed', exact: true }).selectOption('250');
     await page.getByLabel('I have reviewed this fictional note').check();
     await approval.click();
-    await expect(page.getByText('17 / 17 steps saved', { exact: true })).toBeVisible({
+    await expect(page.getByText('20 / 20 steps saved', { exact: true })).toBeVisible({
       timeout: 45000,
     });
     await expect(
@@ -60,13 +62,25 @@ for (const kind of ['solo', 'hospital'])
     ).toBeVisible();
     await expect(page.getByText('Signed consultation note', { exact: true })).toBeVisible();
     const result = await page.evaluate(() =>
-      JSON.parse(sessionStorage.getItem('sahayak.demo.presentation.v1')!),
+      JSON.parse(sessionStorage.getItem('sahayak.demo.presentation.v2')!),
     );
     expect(result.data.appointment.status).toBe('completed');
     expect(result.data.queue.status).toBe('done');
     expect(result.data.feedback.work_status).toBe('assigned');
     expect(result.data.response.recovery).toBe('callback');
     expect(result.data.arrival.waiting_answer).toContain('understand what happens');
+    expect(result.documentPath).toContain('/my-visit#');
+    const patientCopy = await page.context().newPage();
+    await patientCopy.goto(result.documentPath);
+    await expect(
+      patientCopy.getByRole('heading', { name: 'Your approved visit instructions' }),
+    ).toBeVisible();
+    await expect(
+      patientCopy.getByRole('region', { name: 'Approved visit instructions' }),
+    ).toContainText('Contact the clinic if you need clarification');
+    await expect(patientCopy.getByRole('button', { name: 'Print / save as PDF' })).toBeVisible();
+    await patientCopy.close();
+
     await page.screenshot({
       path: `/private/tmp/sahayak-presentation-${kind}.png`,
       fullPage: true,

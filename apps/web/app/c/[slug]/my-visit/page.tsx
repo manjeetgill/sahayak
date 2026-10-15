@@ -6,6 +6,7 @@ import { useStaffLang } from '../../../../lib/staffText';
 type Visit = {
   clinic: string; patientName: string;
   appointments: { id: string; doctor_id: string; doctor: string; starts_at: string; status: string }[];
+  instructions: { id: string; body: string; language: string; approved_at: string }[];
   doctors: { id: string; name: string }[];
   reportRequests: { id: string; title: string; due_at: string }[];
   careSteps: { id: string; title: string; message: string; due_at: string; status: string }[];
@@ -64,6 +65,16 @@ export default function MyVisit({ params }: { params: { slug: string } }) {
         <p>{data.queue ? <>{x('Your token is')} {data.queue.token_number}. {x('Status:')} {x(data.queue.status.replaceAll('_', ' '))}.</> : x('You have no queue token today.')}</p>
         {data.arrival && <p>{x('Latest QR check-in:')} {x(data.arrival.status.replaceAll('_', ' '))} · ₹{(data.arrival.amount_paise / 100).toFixed(2)}
           {data.arrival.online_state ? ` · ${x('Online payment')} ${x(data.arrival.online_state.replaceAll('_', ' '))}` : ''}.</p>}
+      </section>
+      <section className="card" aria-label="Approved visit instructions">
+        <h2>{lang === 'hi' ? 'डॉक्टर के स्वीकृत निर्देश' : 'Your approved visit instructions'}</h2>
+        <p>{lang === 'hi' ? 'अपने निर्देश पढ़ें या प्रिंट करके रखें। यह निजी लिंक केवल आपके लिए है।' : 'Read your instructions or print a copy to keep. This private link is for you.'}</p>
+        {!data.instructions?.length && <p>{lang === 'hi' ? 'अभी कोई स्वीकृत निर्देश नहीं है।' : 'No approved instructions are available yet.'}</p>}
+        {data.instructions?.map((item) => <article key={item.id}>
+          <p>{new Date(item.approved_at).toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN')}</p>
+          <div style={{ whiteSpace: 'pre-wrap' }}>{item.body}</div>
+        </article>)}
+        {!!data.instructions?.length && <button onClick={() => window.print()}>{lang === 'hi' ? 'प्रिंट करें / PDF के रूप में सहेजें' : 'Print / save as PDF'}</button>}
       </section>
       <section className="card"><h2>{x('Appointments')}</h2>
         {!data.appointments.length && <p>{x('No upcoming appointment.')}</p>}

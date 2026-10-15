@@ -16,3 +16,10 @@ __pycache__/
 
 # Rendered doctor-demo media (reproducible using scripts/doctor-demo)
 /artifacts/doctor-demo/
+/artifacts/owner-demo/
+/artifacts/workflow-demo/
+
+# Keep finished public demo videos in Git so a fresh clone can play them.
+/artifacts/english-live-demo/
+/private-transfer/
+*.dump

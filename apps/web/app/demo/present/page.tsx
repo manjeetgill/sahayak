@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { API, api, session } from '../../../lib/api';
 import { beats, phases, noteText, waitingAnswer, suggestion } from './story';
 import css from './presentation.module.css';
+import CapabilityExplorer from '../CapabilityExplorer';
+import { hinglish } from './narration';
 
 type Bubble = { who: string; text: string; kind: 'patient' | 'assistant' | 'update' | 'preview' };
 type Saved = {
@@ -14,8 +16,9 @@ type Saved = {
   events: { title: string; who: string }[];
   arrivalToken: string;
   feedbackPath: string;
+  documentPath?: string;
 };
-const KEY = 'sahayak.demo.presentation.v1';
+const KEY = 'sahayak.demo.presentation.v2';
 const date = (value: string) =>
   new Date(value).toLocaleString('en-IN', {
     timeZone: 'Asia/Kolkata',
@@ -34,6 +37,59 @@ export default function Presentation() {
     [error, setError] = useState(''),
     [speed, setSpeed] = useState('2000'),
     [formOpen, setFormOpen] = useState(false);
+  const [voiceOn, setVoiceOn] = useState(false);
+  const [voiceLanguage, setVoiceLanguage] = useState('en-IN');
+  const [voiceStatus, setVoiceStatus] = useState('');
+  const voiceEnabled = useRef(false);
+  const releaseVoice = useRef<(() => void) | null>(null);
+  function stopVoice() {
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    releaseVoice.current?.();
+  }
+  async function narrate(index: number) {
+    if (!voiceEnabled.current) return;
+    if (!('speechSynthesis' in window)) {
+      setVoiceStatus('Voice is unavailable in this browser. Use Chrome on your Mac.');
+      return;
+    }
+    stopVoice();
+    await new Promise<void>((resolve) => {
+      const speech = new SpeechSynthesisUtterance(
+        voiceLanguage === 'hi-IN' ? hinglish[index] : `${beats[index].title}. ${beats[index].why}`,
+      );
+      speech.lang = voiceLanguage;
+      const voices = window.speechSynthesis.getVoices();
+      const voice =
+        voices.find((v) => v.lang === voiceLanguage) ??
+        voices.find((v) => v.lang.startsWith(voiceLanguage.slice(0, 2)));
+      if (voice) speech.voice = voice;
+      speech.rate = 1.1;
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        releaseVoice.current = null;
+        resolve();
+      };
+      const timer = setTimeout(() => {
+        window.speechSynthesis.cancel();
+        setVoiceStatus(
+          'Voice did not finish. Check your sound output or switch narration language.',
+        );
+        finish();
+      }, 25000);
+      releaseVoice.current = finish;
+      speech.onend = finish;
+      speech.onerror = (event) => {
+        if (event.error !== 'canceled' && event.error !== 'interrupted')
+          setVoiceStatus('Voice could not play. Check your browser voice and sound settings.');
+        finish();
+      };
+      setVoiceStatus('');
+      window.speechSynthesis.speak(speech);
+    });
+  }
   const state = useRef<Saved | null>(null),
     active = useRef(false),
     playing = useRef(false),
@@ -56,6 +112,7 @@ export default function Presentation() {
     return () => {
       mounted.current = false;
       playing.current = false;
+      stopVoice();
     };
   }, []);
   useEffect(() => {
@@ -141,6 +198,35 @@ export default function Presentation() {
       bubble('Booking assistant', result.transcript[0].reply, 'assistant');
       if (result.needsStaff)
         throw new Error('The conversation needs staff review. Automatic playback has stopped.');
+    } else if (beat.action === 'late-propose') {
+      const result = await step('late-propose');
+      bubble('Doctor · practice scenario', 'I am running 15 minutes late.', 'update');
+      bubble(
+        'Schedule preview',
+        `${result.shift.affected} appointment(s) affected. Proposed changes are ready.`,
+        'preview',
+      );
+    } else if (beat.action === 'late-confirm') {
+      const before = s.data.appointment.starts_at;
+      const result = await step('late-confirm');
+      bubble(
+        'Saved appointment update',
+        `${date(before)} → ${date(result.appointment.starts_at)}. Practice notices: ${result.shift.counts.notified}. No external message sent.`,
+        'update',
+      );
+    } else if (beat.action === 'document') {
+      const link = await request(`/staff/patients/${s.data.patient.id}/access-link`, {});
+      const patientCopy = await request(`/public/${s.data.slug}/my-visit`, {
+        token: link.path.split('#')[1],
+      });
+      if (!patientCopy.instructions?.some((item: any) => item.id === s.data.instructions.id))
+        throw new Error('Approved instructions are not available to the patient yet.');
+      patch({ documentPath: link.path });
+      bubble(
+        'Patient digital copy · private link prepared',
+        'Your doctor-approved instructions are available to read and print. Open Patient document copy below. This is local access, not WhatsApp delivery.',
+        'update',
+      );
     } else if (beat.action === 'arrive') {
       const token =
         s.arrivalToken ||
@@ -241,7 +327,9 @@ export default function Presentation() {
     setRunning(auto);
     try {
       do {
+        const spokenStep = state.current!.cursor;
         await perform();
+        await narrate(spokenStep);
         if (
           !playing.current ||
           !mounted.current ||
@@ -263,6 +351,7 @@ export default function Presentation() {
     }
   }
   function pause() {
+    stopVoice();
     playing.current = false;
     setRunning(false);
   }
@@ -296,6 +385,9 @@ export default function Presentation() {
         <div>
           <p className={css.eyebrow}>ONE PATIENT. ONE CONNECTED CLINIC.</p>
           <h1>From “Hello” to a caring follow-up.</h1>
+          <Link href="/demo/videos" className="button-link primary">
+            Watch the two English videos →
+          </Link>
           <p>Watch the patient conversation and the clinic move forward together.</p>
         </div>
         <div className={css.setup}>
@@ -320,11 +412,48 @@ export default function Presentation() {
           </button>
         </div>
       </section>
+      <section className={css.setup} aria-label="Narration controls">
+        <button
+          aria-pressed={voiceOn}
+          onClick={() => {
+            voiceEnabled.current = !voiceOn;
+            setVoiceOn(!voiceOn);
+            if (voiceOn) stopVoice();
+          }}
+        >
+          {voiceOn ? 'Mute narration' : 'Turn on narration'}
+        </button>
+        <label>
+          Voice language
+          <select
+            value={voiceLanguage}
+            disabled={working}
+            onChange={(e) => {
+              stopVoice();
+              setVoiceLanguage(e.target.value);
+            }}
+          >
+            <option value="hi-IN">Hinglish</option>
+            <option value="en-IN">English</option>
+          </select>
+        </label>
+        <button
+          className="ghost"
+          disabled={working || !voiceOn}
+          onClick={() => void narrate(Math.max(0, (saved?.cursor ?? 1) - 1))}
+        >
+          Test / replay voice
+        </button>
+        <span>
+          Narration is optional. Use the recorded English videos for uninterrupted viewing.
+        </span>
+        {voiceStatus && <p role="status">{voiceStatus}</p>}
+      </section>
       {!saved && (
         <label className={css.consent}>
           <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-          Use fictional consent, a practice cash payment and a sample feedback response. No real
-          message, call or payment will be made.
+          Use fictional consent, practice schedule changes, a practice cash payment and a sample
+          feedback response. No real message, call or payment will be made.
         </label>
       )}
       <details className={css.about}>
@@ -377,9 +506,7 @@ export default function Presentation() {
               : beat.why}
           </p>
         </div>
-        <span className={css.count}>
-          {complete ? '17 / 17' : `${cursor} / ${beats.length}`} steps saved
-        </span>
+        <span className={css.count}>{`${cursor} / ${beats.length}`} steps saved</span>
       </section>
       <div className={css.stage}>
         <section className={css.phone} aria-label="Patient view">
@@ -623,6 +750,11 @@ export default function Presentation() {
               </button>
             </>
           )}
+          {saved?.documentPath && (
+            <a href={saved.documentPath} target="_blank" rel="noreferrer" className="button-link">
+              Open patient document copy ↗
+            </a>
+          )}
           {saved?.feedbackPath && (
             <button className="ghost" onClick={() => setFormOpen(!formOpen)}>
               Patient feedback form
@@ -640,6 +772,60 @@ export default function Presentation() {
           <iframe title="Patient feedback form" src={saved.feedbackPath} />
         </section>
       )}
+      <section className={css.coverage} aria-labelledby="coverage-title">
+        <h2 id="coverage-title">More help throughout your clinic day</h2>
+        <p>
+          The story shows one patient journey. These existing capabilities are also available to
+          explore; this overview does not perform their actions.
+        </p>
+        <div className={css.coverageGrid}>
+          {[
+            [
+              'Protect your appointment time',
+              'Cancelled-slot offers, waiting lists, planned leave and clinic answers help reduce repeated coordination.',
+            ],
+            [
+              'Make consultation paperwork easier',
+              'Symptom recording, doctor-selected prescriptions, dictation, reusable notes, certificates and care plans keep you in control.',
+            ],
+            [
+              'Keep reports moving',
+              'Track reports and referrals through receipt, doctor review and patient communication. Review source records and saved references.',
+            ],
+            [
+              'Hear from patients after they leave',
+              'Evening check-ins, feedback, improvement tasks and human handoff make unresolved concerns visible. Live messages need delivery setup.',
+            ],
+            [
+              'See payments and pending paperwork',
+              'Patient charges, recorded payments, outstanding amounts, corrections and insurance-paperwork tracking are available. These are not full accounting or insurer submission.',
+            ],
+            [
+              'Run the clinic your way',
+              'Solo-owner and team roles, assistant preferences, patient import, public pages, queue display, supported Hindi screens, privacy and audit controls.',
+            ],
+          ].map(([title, detail]) => (
+            <article key={title}>
+              <h3>{title}</h3>
+              <p>{detail}</p>
+            </article>
+          ))}
+        </div>
+        <p>
+          <strong>Connections:</strong> Live WhatsApp, real phone calls, Razorpay and supported
+          external software require setup and verification. The fictional clinic does not
+          demonstrate external delivery.
+        </p>
+        <p>
+          <strong>Future additions:</strong> Pharmacy dispensing and stock management, full
+          accounting connections and bank-settlement reconciliation are not demonstrated as
+          available features.
+        </p>
+        <details>
+          <summary>Explore every capability and open its demo screen</summary>
+          <CapabilityExplorer key={kind} kind={kind === 'hospital' ? 'hospital' : 'solo'} />
+        </details>
+      </section>
       <details className={css.log}>
         <summary>Show the saved activity ({saved?.events.length ?? 0} steps)</summary>
         <ol>
@@ -656,10 +842,11 @@ export default function Presentation() {
       </details>
       <div className={css.next}>
         <div>
-          <h3>Show the connected story in about 3 minutes.</h3>
+          <h3>A short patient story, with more capabilities when you need them.</h3>
           <p>
-            Message → booking → QR arrival → payment & queue → doctor review → feedback → human
-            follow-up.
+            Booking → delay update → arrival & queue → doctor review → digital instructions →
+            feedback → follow-up. Playback pauses for your approval; exploring extra screens adds
+            time.
           </p>
         </div>
         <Link href="/demo/journey">Open the detailed, manual walkthrough →</Link>

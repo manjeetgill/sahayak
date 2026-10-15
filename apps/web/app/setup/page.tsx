@@ -70,6 +70,7 @@ export default function Setup() {
   const { lang, setLang, x: ui } = useStaffLang();
   const s = useSession('admin');
   const [step, setStep] = useState(0);
+  const [saving, setSaving] = useState(false);
   const [cfg, setCfg] = useState<any>(null),
     [status, setStatus] = useState<any>(null),
     [docs, setDocs] = useState<any[]>([]),
@@ -118,6 +119,8 @@ export default function Setup() {
 
   const set = (k: string, v: unknown) => setCfg({ ...cfg, [k]: v });
   const go = async (fn?: () => Promise<unknown>, next = step + 1) => {
+    if (saving) return;
+    setSaving(true);
     setErr('');
     setMsg('');
     try {
@@ -127,6 +130,8 @@ export default function Setup() {
       window.scrollTo(0, 0);
     } catch (e: any) {
       setErr(e.message);
+    } finally {
+      setSaving(false);
     }
   };
   const put = (body: object) => staff('/staff/settings', body, 'PUT');
@@ -146,6 +151,7 @@ export default function Setup() {
         <a href="/admin">{ui("Skip for now")}</a>
       </div>
       <div className="wrap" style={{ maxWidth: 860 }}>
+        <fieldset disabled={saving} aria-busy={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <header className="screen-heading">
           <span className="eyebrow">
             {ui('Step')} {step + 1} {ui('of')} {STEPS.length}
@@ -623,6 +629,7 @@ export default function Setup() {
             )}
           </div>
         )}
+        </fieldset>
       </div>
     </div>
   );

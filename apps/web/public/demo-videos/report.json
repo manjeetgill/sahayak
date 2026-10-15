@@ -1,0 +1,162 @@
+{
+  "patient-journey": {
+    "duration": 348.17,
+    "chapters": [
+      {
+        "title": "One patient, one connected visit",
+        "seconds": 0
+      },
+      {
+        "title": "A patient starts with a message",
+        "seconds": 20.6
+      },
+      {
+        "title": "Request an appointment",
+        "seconds": 36.5
+      },
+      {
+        "title": "First visit or follow-up",
+        "seconds": 52.3
+      },
+      {
+        "title": "Check availability",
+        "seconds": 67.2
+      },
+      {
+        "title": "Choose a time",
+        "seconds": 80.0
+      },
+      {
+        "title": "Booking saved",
+        "seconds": 92.6
+      },
+      {
+        "title": "Patient permission",
+        "seconds": 105.7
+      },
+      {
+        "title": "The doctor is running late",
+        "seconds": 120.8
+      },
+      {
+        "title": "Appointment times update",
+        "seconds": 137.2
+      },
+      {
+        "title": "Arrival is recorded",
+        "seconds": 154.7
+      },
+      {
+        "title": "Payment record and queue token",
+        "seconds": 168.9
+      },
+      {
+        "title": "Use the waiting time",
+        "seconds": 184.1
+      },
+      {
+        "title": "The consultation begins",
+        "seconds": 197.8
+      },
+      {
+        "title": "An editable note",
+        "seconds": 214.7
+      },
+      {
+        "title": "Doctor review and approval",
+        "seconds": 228.8
+      },
+      {
+        "title": "A digital copy for the patient",
+        "seconds": 242.7
+      },
+      {
+        "title": "Visit completed",
+        "seconds": 259.6
+      },
+      {
+        "title": "Feedback invitation",
+        "seconds": 275.6
+      },
+      {
+        "title": "The patient responds",
+        "seconds": 294.1
+      },
+      {
+        "title": "Follow-up becomes visible",
+        "seconds": 308.8
+      },
+      {
+        "title": "The patient keeps the instructions",
+        "seconds": 328.0
+      }
+    ],
+    "file": "Sahayak-patient-journey-English.mp4"
+  },
+  "platform-capabilities": {
+    "duration": 289.81,
+    "chapters": [
+      {
+        "title": "Clinic overview",
+        "seconds": 0
+      },
+      {
+        "title": "Choose the help you need",
+        "seconds": 20.2
+      },
+      {
+        "title": "Booking and patient entry",
+        "seconds": 39.5
+      },
+      {
+        "title": "Arrival and payments",
+        "seconds": 58.2
+      },
+      {
+        "title": "The clinic\u2019s day",
+        "seconds": 76.2
+      },
+      {
+        "title": "Cancelled slots",
+        "seconds": 94.4
+      },
+      {
+        "title": "Reports and referrals",
+        "seconds": 114.2
+      },
+      {
+        "title": "Patient feedback",
+        "seconds": 132.4
+      },
+      {
+        "title": "Work requiring a person",
+        "seconds": 150.9
+      },
+      {
+        "title": "Team access",
+        "seconds": 171.1
+      },
+      {
+        "title": "Connected services",
+        "seconds": 188.6
+      },
+      {
+        "title": "Patient check-in delivery",
+        "seconds": 206.0
+      },
+      {
+        "title": "Clinic activity and collections",
+        "seconds": 227.6
+      },
+      {
+        "title": "All existing capabilities",
+        "seconds": 244.2
+      },
+      {
+        "title": "More time for patient care",
+        "seconds": 268.2
+      }
+    ],
+    "file": "Sahayak-platform-capabilities-English.mp4"
+  }
+}

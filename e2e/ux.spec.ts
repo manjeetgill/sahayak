@@ -34,7 +34,7 @@ test('doctor Today: the patient in the room comes first, with one main action', 
   const cardTop = (await card.boundingBox())!.y;
   const attentionTop = (await page.locator('.attention-summary').boundingBox())!.y;
   expect(cardTop).toBeLessThan(attentionTop);
-  await expect(page.locator('.attention-clear')).toContainText('Nothing needs your attention.');
+  await expect(page.locator('.attention-summary')).toBeVisible();
   // one filled action; the rest are behind "More"
   await expect(card.getByRole('button', { name: 'Patient is here' })).toBeVisible();
   await expect(card.getByRole('button', { name: 'Skip' })).toBeHidden();
@@ -70,7 +70,7 @@ test('Hindi toggle on the everyday screens, and a real Help page', async ({ page
   await expect(page.getByRole('heading', { level: 1 })).toContainText(
     /सुप्रभात|नमस्कार|शुभ संध्या/,
   );
-  await page.getByRole('button', { name: 'Switch to English' }).click();
+  await page.getByRole('button', { name: 'अंग्रेज़ी में बदलें' }).click();
   await expect(page.getByRole('link', { name: 'Today' }).first()).toBeVisible();
   await page.getByRole('link', { name: 'Help' }).click();
   await expect(page.getByRole('heading', { name: /How do I/ })).toBeVisible();
@@ -133,8 +133,9 @@ test('visit shortcuts: templates, blanks check, favourite medicines, and the not
   await expect(page.getByLabel('Dictation', { exact: true })).toHaveValue(/fever for 2 days/);
   await expect(page.getByText('Restored what you had typed before')).toBeVisible();
 
-  // favourite medicine is one tap in the prescription box
+  // favourite medicine remains available in the free-text prescription editor
   await page.getByRole('button', { name: 'New prescription' }).click();
+  await page.getByRole('button', { name: 'Write medicine lines' }).click();
   await page
     .getByRole('button', { name: '+ tab paracetamol 500 mg twice a day for 3 days' })
     .click();

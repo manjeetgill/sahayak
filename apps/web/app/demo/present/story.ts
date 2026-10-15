@@ -64,6 +64,20 @@ export const beats: Beat[] = [
     text: 'yes',
   },
   {
+    title: 'Doctor says: I am running 15 minutes late',
+    phase: 0,
+    who: 'Doctor · practice scenario',
+    why: 'The proposed change shows affected appointments before any times move.',
+    action: 'late-propose',
+  },
+  {
+    title: 'Practice delay confirmed: appointments updated',
+    phase: 0,
+    who: 'Scheduling workflow',
+    why: 'This rehearsal confirms the practice change. Notices stay inside the fictional clinic; no real WhatsApp message is sent.',
+    action: 'late-confirm',
+  },
+  {
     title: 'The patient arrives and checks in',
     phase: 1,
     who: 'Arrival assistant',
@@ -104,6 +118,13 @@ export const beats: Beat[] = [
     who: 'Doctor approval required',
     why: 'The demo pauses here. Review the note and instructions before signing.',
     action: 'review',
+  },
+  {
+    title: 'The patient can keep a digital copy',
+    phase: 4,
+    who: 'Private patient page',
+    why: 'Approved instructions are available through a private link. Open the patient copy and print or save it as PDF. This does not send a WhatsApp message.',
+    action: 'document',
   },
   {
     title: 'Visit complete → feedback scheduled',

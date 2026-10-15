@@ -11,7 +11,8 @@ export async function login(page: Page, email: string) {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill('demo1234');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(/\/(doctor|console)$/);
+  await expect(page).toHaveURL(/\/(doctor|console|admin)$/);
+  await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
 }
 export async function simSend(page: Page, text: string) {
   await page.getByLabel('Message').fill(text);

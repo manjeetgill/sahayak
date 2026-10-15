@@ -47,17 +47,38 @@ const Input = z.discriminatedUnion('probe', [
     })
     .strict(),
 ]);
+// Internet voice carries an app-authenticated caller UUID, never a telephone caller ID.
+const WebInput = z.object({
+  ...base, session_id: z.string().uuid(), user_id: z.string().uuid(),
+  caller_phone: z.string().regex(/^\+[1-9]\d{7,14}$/).optional(),
+  input: z.string().min(1).max(1500), input_trust: z.literal('untrusted_speech'),
+  turn: z.number().int().min(1).max(15), channel: z.literal('web_voice'),
+  language: z.enum(['auto','en','hi','hinglish']),
+  conversation: z.array(z.object({role:z.enum(['user','assistant']),text:z.string().max(1500)}).strict()).max(8),
+}).strict();
 export function installCallingBridge(
   app: FastifyInstance,
   env: AgentEnv,
   bindings: CallingBridgeOptions = {},
 ) {
-  app.post('/integrations/agent-platform/calling', { bodyLimit: 16384 }, async (req, reply) => {
+  for (const route of ['/integrations/agent-platform/calling','/integrations/agent-platform/voice']) {
+  app.post(route, { bodyLimit: 20000 }, async (req, reply) => {
     reply.header('Cache-Control', 'no-store');
-    const parsed = Input.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: 'Invalid calling event' });
-    const i = parsed.data,
-      binding = bindings[i.agent_id];
+    let i: z.infer<typeof Input>;
+    if (route.endsWith('/voice')) {
+      const parsed = WebInput.safeParse(req.body);
+      if (!parsed.success) return reply.code(400).send({error:'Invalid internet voice event'});
+      const w=parsed.data;
+      i={probe:false,event_id:w.event_id,agent_id:w.agent_id,app_id:w.app_id,
+         call_id:w.session_id,caller:w.caller_phone ?? '',input:w.input,
+         input_trust:'untrusted_caller_data',turn:w.turn,
+         language:w.language==='hi'||w.language==='hinglish'?'hi-IN':'en-IN'};
+    } else {
+      const parsed = Input.safeParse(req.body);
+      if (!parsed.success) return reply.code(400).send({error:'Invalid calling event'});
+      i=parsed.data;
+    }
+    const binding = bindings[i.agent_id];
     const stamp = req.headers['x-agent-timestamp'],
       signature = req.headers['x-agent-signature'];
     const raw = (req as unknown as { rawBody: string }).rawBody;
@@ -77,6 +98,7 @@ export function installCallingBridge(
       .digest();
     if (!timingSafeEqual(expected, Buffer.from(signature, 'hex')))
       return reply.code(403).send({ error: 'Invalid calling authentication' });
+    if (!i.probe && !i.caller) return {event_id:i.event_id,action:'handoff',text:'Please add your contact phone number in the clinic app before starting an appointment call. This number does not grant access to existing patient records.'};
     if (i.probe) {
       const ready = await withClinic(env.rt.pool, binding.clinicId, async (db) => {
         await db.query('SELECT 1 FROM calling_sessions LIMIT 1');
@@ -87,7 +109,7 @@ export function installCallingBridge(
         ? { ready: true, event_id: i.event_id }
         : reply.code(409).send({ error: 'Clinic unavailable' });
     }
-    const digest = createHash('sha256').update(JSON.stringify(i)).digest('hex');
+    const digest = createHash('sha256').update(JSON.stringify({route,...i})).digest('hex');
     const callerHash = createHmac('sha256', binding.secret).update(i.caller).digest('hex');
     const lock = await env.rt.pool.connect();
     const lockKey = binding.clinicId + ':calling:' + i.agent_id + ':' + i.call_id;
@@ -190,4 +212,5 @@ export function installCallingBridge(
       }
     }
   });
+  }
 }

@@ -1,0 +1,29 @@
+{
+ "capabilities": {
+  "welcome": ["Sahayak patient ki poori journey ko jodta hai. Pehli enquiry se lekar visit ke baad ke follow-up tak.", "Iske assistants roz ke clinic kaamon mein madad karte hain, taaki aapki team patient par zyada dhyaan de sake."],
+  "frontdesk": ["Front-desk assistant timing, location aur fees jaise sawaalon mein madad karta hai. Enquiry assistant naye patient ki jaankaari ek jagah laata hai.", "Patient ko shuruaat se clarity milti hai, aur team ko baar-baar wahi jaankaari nahi dohrani padti."],
+  "booking": ["Patient baatcheet mein apni suvidha ka available time dhoondh sakta hai, chun sakta hai aur visit confirm kar sakta hai.", "Clinic ko ek organised calendar milta hai. Booking ki details ke liye baar-baar baat karne ki zaroorat kam hoti hai."],
+  "arrival": ["Check-in aur queue assistants aane waale patient, consultation payment record aur token organised rakhne mein madad karte hain.", "Patient apni baari ki progress dekh sakta hai. Team ko saaf dikhta hai ki kaun intezaar mein hai aur kaun doctor ke saath hai."],
+  "intake": ["Intake assistant patient ki woh baat saamne laata hai jo woh doctor se karna chahta hai. Records assistant reports ko visit history ke saath rakhta hai.", "Pre-visit brief se doctor ko consultation se pehle useful background mil jaata hai."],
+  "changes": ["Doctor late hon, toh Sahayak appointment mein badlaav aur patient updates ko organised karne mein madad karta hai.", "Koi slot khaali ho jaaye, toh waiting list mein pehle aana chaahne waale eligible patient ko woh time offer kiya jaa sakta hai."],
+  "notes": ["Note assistant consultation ke text ko organised draft mein laane mein madad karta hai. Doctor ka review ismein centre mein rehta hai.", "Language support se patient ki samajh ki bhaasha mein instructions taiyaar karne mein madad milti hai."],
+  "followup": ["Follow-up assistant planned reminders aur patient check-ins se consultation ke baad bhi clinic ko jude rehne mein madad karta hai.", "Optional evening messages se patient ko yeh bataane ka ek aur mauka milta hai ki ab use kaisa lag raha hai."],
+  "feedback": ["Feedback assistant visit ke baad patient ka experience, uski concern aur suggestions saamne laane mein madad karta hai.", "Clinic dekh sakta hai ki kahaan dhyaan chaahiye aur kaun follow-up kar raha hai. Isse sunne, samjhaane aur improve karne ka mauka milta hai."],
+  "daily": ["Clinic summary se din ki activities ek nazar mein samajh aati hain. Ask your clinic aapke records se jude supported sawaalon mein madad karta hai.", "Routine assistants reminders aur staff notifications mein madad karte hain, taaki zaroori kaam saamne rahein."],
+  "connection": ["Sahayak patient pages ke saath WhatsApp aur phone assistance par clinic ki baatcheet mein madad karta hai.", "Patient ki concern aur kisi person se baat karne ki request team tak pahunchaane mein madad milti hai. Patient ki communication preference ka bhi dhyaan rehta hai."],
+  "close": ["Chaahe solo doctor hon ya clinic team, Sahayak roz ke patient support ko ek connected journey mein laata hai.", "Pehle hello se agle follow-up tak. Clinic ke kaam zyada organised, aur patient ko personal attention dene ke zyada mauke."]
+ },
+ "patient-journey": {
+  "intro": ["Ab ek patient ki poori journey dekhte hain. Pehla message, booking, clinic mein visit, aur ghar jaane ke baad feedback. Is example mein ek fictional patient hai."],
+  "hello": ["Patient clinic ko hello bhejta hai. Use welcome ke saath appointment book karne ka option milta hai. Yahin se uski journey shuru hoti hai."],
+  "booking": ["Patient apni visit ke baare mein bataata hai, available time dekhta hai aur apni pasand ka slot confirm karta hai. Appointment ab clinic ke calendar mein dikh raha hai."],
+  "arrival": ["Clinic pahunchkar patient QR page se check-in karta hai. Consultation fees ka record judta hai, token milta hai aur patient doctor ki queue mein aa jaata hai."],
+  "waiting": ["Apni baari ka intezaar karte samay patient bataata hai ki doctor se kaun-si baat karni hai. Yeh baat doctor ko visit se pehle dikhaai deti hai."],
+  "consultation": ["Doctor patient ko andar bulaate hain. Queue aage badhti hai, aur patient ki jaankaari ek saath milti hai. Consultation ki baaton ko organised note mein rakhne se visit ka record clear rehta hai."],
+  "approval": ["Doctor note dekhte hain, patient ke liye instructions review karte hain aur note sign karte hain. Patient ki aage ki care ka plan usi visit ke saath rehta hai."],
+  "finish": ["Consultation poora hone par visit ka record update ho jaata hai. Patient ke liye aage ka check-in tay hota hai. Ghar jaane ke baad usse experience aur suggestions poochhne ka mauka milta hai."],
+  "feedback": ["Patient bataata hai ki visit kaisi lagi aur kya better ho sakta hai. Is example mein use agle step ki aur clarity chaahiye. Uska jawaab usi visit ke saath save hota hai."],
+  "handoff": ["Ab doctor ko follow-up ka kaam dikhaai deta hai. Team patient se baat karke uski concern samajh sakti hai aur agle steps clear kar sakti hai. Feedback sirf rating bankar nahi reh jaata."],
+  "outro": ["Pehle message se lekar personal follow-up tak. Sahayak clinic ke kaamon ko jodta hai, taaki patient ki baat suni jaaye aur zaroori kaam saamne rahein."]
+ }
+}

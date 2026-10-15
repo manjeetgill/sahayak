@@ -1,0 +1,263 @@
+[
+  {
+    "id": "opening",
+    "type": "owner-card",
+    "title": "Your clinic grows.\nDoes the chasing grow too?",
+    "kicker": "SAHAYAK · FOR CLINIC & HOSPITAL OWNERS",
+    "lead": "A connected outpatient journey, from the first message to follow-up.",
+    "tiles": [
+      ["Less repeated work", "Bookings and visit updates move through one patient record."],
+      ["Clear responsibility", "Routine steps follow the workflow. Exceptions go to people."],
+      ["Visible follow-up", "A patient’s concern becomes a task someone owns."]
+    ],
+    "narration": [
+      "When your clinic gets busier, does every extra patient create more calls, more entries and more chasing?",
+      "See how Sahayak connects the outpatient journey, so your team can spend less time coordinating routine work."
+    ],
+    "spoken": [
+      "जब आपकी क्लिनिक में पेशेंट बढ़ते हैं, क्या हर नए पेशेंट के साथ कॉल, डेटा एंट्री और भागदौड़ भी बढ़ती है?",
+      "आइए देखते हैं, सहायक आउटपेशेंट जर्नी को कैसे जोड़ता है, ताकि आपकी टीम का समय रूटीन काम को कोऑर्डिनेट करने में कम लगे।"
+    ]
+  },
+  {
+    "id": "problem",
+    "type": "owner-card",
+    "title": "Where staff time gets used up",
+    "kicker": "LOOK AT THE HANDOVERS",
+    "tiles": [
+      ["Booking desk", "Answer a message. Check a time. Confirm it. Enter it again."],
+      ["Reception", "Confirm arrival. Record payment. Tell the doctor who is waiting."],
+      ["After the visit", "Remember to ask for feedback. Find the reply. Assign the next step."]
+    ],
+    "fine": "Illustrative manual workflow; compare with how your own clinic operates.",
+    "narration": [
+      "Consider a clinic where staff manually pass bookings, arrivals and follow-ups between people.",
+      "Each handover needs attention. The opportunity is to reduce repeated entry and routine chasing, while keeping help available for patients."
+    ],
+    "spoken": [
+      "मान लीजिए, आपकी टीम बुकिंग, अराइवल और फॉलो-अप की जानकारी एक व्यक्ति से दूसरे तक मैन्युअली पहुँचाती है।",
+      "हर हैंडओवर में समय लगता है। यहाँ मौका है, बार-बार एंट्री और रूटीन चेज़िंग कम करने का, और ज़रूरत पर पेशेंट को इंसानी मदद देने का।"
+    ]
+  },
+  {
+    "id": "roles",
+    "type": "owner-card",
+    "title": "One journey. Clear jobs for each assistant.",
+    "kicker": "HOW THE AGENTS FIT TOGETHER",
+    "tiles": [
+      [
+        "Booking assistant",
+        "Guides the conversation, offers a slot and saves the confirmed appointment."
+      ],
+      ["Arrival & queue workflow", "Links check-in, a payment record and the doctor’s queue."],
+      [
+        "Follow-up workflow",
+        "Schedules the check-in; feedback and assigned tasks stay linked to the visit."
+      ]
+    ],
+    "fine": "Conversation assistance plus rule-based automation. Clinical decisions and approvals remain with the doctor.",
+    "narration": [
+      "The booking assistant handles the conversation. Arrival and queue automation move the visit forward. Follow-up connects the clinic to the patient afterwards.",
+      "These roles combine conversation assistance with saved rules. Clinical decisions remain with the doctor."
+    ],
+    "spoken": [
+      "बुकिंग असिस्टेंट बातचीत संभालता है। अराइवल और क्यू ऑटोमेशन विज़िट को आगे बढ़ाते हैं। फॉलो-अप वर्कफ्लो बाद में पेशेंट से कनेक्शन बनाए रखने में मदद करता है।",
+      "इनमें बातचीत की मदद और सेव किए गए रूल्स साथ काम करते हैं। क्लिनिकल फैसले डॉक्टर लेते हैं।"
+    ]
+  },
+  {
+    "id": "hello",
+    "type": "app",
+    "title": "The patient starts. The clinic follows.",
+    "action": "hello",
+    "narration": [
+      "Watch one fictional patient go through the actual saved workflow. On the left is the patient conversation; on the right is the clinic record.",
+      "This is a practice chat. A configured WhatsApp connection is needed for real patient messaging."
+    ],
+    "spoken": [
+      "अब एक डेमो पेशेंट का असली सेव होने वाला वर्कफ्लो देखिए। लेफ्ट पर पेशेंट की बातचीत है, राइट पर क्लिनिक का रिकॉर्ड।",
+      "यह प्रैक्टिस चैट है। असली पेशेंट मैसेजिंग के लिए व्हाट्सऐप कनेक्शन चालू होना चाहिए।"
+    ]
+  },
+  {
+    "id": "booking",
+    "type": "app",
+    "title": "A booking without another entry",
+    "action": "booking",
+    "narration": [
+      "The assistant offers available times and asks the patient to confirm. The appointment is saved in the clinic calendar.",
+      "For this supported booking, staff do not need to copy the chat into an appointment register. Reminder permission is asked separately."
+    ],
+    "spoken": [
+      "असिस्टेंट अवेलेबल टाइम दिखाता है और पेशेंट से कन्फर्म करवाता है। अपॉइंटमेंट क्लिनिक के कैलेंडर में सेव हो जाता है।",
+      "इस सपोर्टेड बुकिंग में स्टाफ को चैट से जानकारी उठाकर फिर से अपॉइंटमेंट रजिस्टर में नहीं भरनी पड़ती। रिमाइंडर की परमिशन अलग से ली जाती है।"
+    ]
+  },
+  {
+    "id": "arrival",
+    "type": "app",
+    "title": "Self check-in, connected to reception",
+    "action": "arrival",
+    "narration": [
+      "The patient checks in using the QR page. Staff confirm a practice cash payment, and the queue token appears.",
+      "The same patient moves forward. Cash still needs staff confirmation; this is not a live online-payment demonstration."
+    ],
+    "spoken": [
+      "पेशेंट क्यू आर पेज से चेक-इन करता है। स्टाफ प्रैक्टिस कैश पेमेंट कन्फर्म करता है, और क्यू टोकन बन जाता है।",
+      "वही पेशेंट रिकॉर्ड आगे बढ़ता है। कैश पेमेंट में स्टाफ का कन्फर्मेशन ज़रूरी है। यह लाइव ऑनलाइन पेमेंट का डेमो नहीं है।"
+    ]
+  },
+  {
+    "id": "waiting",
+    "type": "app",
+    "title": "Collect the question before the visit",
+    "action": "waiting",
+    "narration": [
+      "While waiting, the patient shares what they want to discuss. That answer is saved for the doctor.",
+      "Staff do not need to carry this question from the waiting room to the consultation room. Help remains available for patients who need it."
+    ],
+    "spoken": [
+      "वेट करते समय पेशेंट बताता है कि डॉक्टर से क्या पूछना है। जवाब सीधे डॉक्टर के लिए सेव होता है।",
+      "स्टाफ को यही सवाल वेटिंग रूम से कंसल्टेशन रूम तक पहुँचाने की ज़रूरत नहीं पड़ती। जिन पेशेंट्स को मदद चाहिए, उनके लिए टीम मौजूद रहती है।"
+    ]
+  },
+  {
+    "id": "consultation",
+    "type": "app",
+    "title": "The queue and visit stay together",
+    "action": "consultation",
+    "narration": [
+      "The doctor calls the patient in, and the queue updates in the same workflow.",
+      "A structured note uses supplied practice text here. Missing findings, diagnoses and medicines remain blank for the doctor."
+    ],
+    "spoken": [
+      "डॉक्टर पेशेंट को बुलाते हैं, और उसी वर्कफ्लो में क्यू अपडेट हो जाती है।",
+      "यहाँ दिए गए प्रैक्टिस टेक्स्ट से स्ट्रक्चर्ड नोट बनता है। जो फाइंडिंग्स, डायग्नोसिस और दवाइयाँ नहीं दी गईं, वे डॉक्टर के लिए खाली रहती हैं।"
+    ]
+  },
+  {
+    "id": "approval",
+    "type": "app",
+    "title": "Automation with doctor approval",
+    "action": "approval",
+    "narration": [
+      "The workflow pauses for review. The doctor checks the note and instructions, then explicitly approves.",
+      "For the owner, the boundary is clear: routine coordination can be automated; clinical judgment remains a doctor's responsibility."
+    ],
+    "spoken": [
+      "अब वर्कफ्लो रिव्यू के लिए रुकता है। डॉक्टर नोट और इंस्ट्रक्शंस देखते हैं, फिर अप्रूव करते हैं।",
+      "ओनर के लिए यह सीमा साफ है। रूटीन कोऑर्डिनेशन ऑटोमेट हो सकता है। क्लिनिकल जजमेंट डॉक्टर की ज़िम्मेदारी रहती है।"
+    ]
+  },
+  {
+    "id": "finish",
+    "type": "app",
+    "title": "Finish the visit. Schedule the check-in.",
+    "action": "finish",
+    "narration": [
+      "Finishing the visit schedules a check-in using the saved preference. Staff do not need to remember each patient's feedback date.",
+      "We fast-forward for the demo. The invitation shown is a preview; live sending needs the connection, approved template and background jobs."
+    ],
+    "spoken": [
+      "विज़िट फिनिश होते ही सेव की गई सेटिंग से चेक-इन शेड्यूल होता है। स्टाफ को हर पेशेंट की फीडबैक डेट याद रखने की ज़रूरत नहीं पड़ती।",
+      "डेमो में हम आगे बढ़ रहे हैं। इन्विटेशन प्रीव्यू है। लाइव भेजने के लिए कनेक्शन, अप्रूव्ड टेम्प्लेट और बैकग्राउंड जॉब्स चाहिए।"
+    ]
+  },
+  {
+    "id": "feedback",
+    "type": "app",
+    "title": "A patient concern becomes visible",
+    "action": "feedback",
+    "narration": [
+      "The patient asks for clearer next steps. Their response is saved against this visit, rather than being left in a separate conversation.",
+      "The clinic has an opportunity to understand the concern and improve the experience. Retaining the patient is not guaranteed."
+    ],
+    "spoken": [
+      "पेशेंट को अगले स्टेप की क्लैरिटी चाहिए। उसका जवाब अलग बातचीत में खोने के बजाय, इसी विज़िट में सेव होता है।",
+      "क्लिनिक को कंसर्न समझने और एक्सपीरियंस बेहतर करने का मौका मिलता है। पेशेंट वापस आएगा, इसकी गारंटी नहीं है।"
+    ]
+  },
+  {
+    "id": "handoff",
+    "type": "app",
+    "title": "People focus on the work that needs them",
+    "action": "handoff",
+    "narration": [
+      "The concern is assigned to the doctor. It stays open for a real human response.",
+      "This is the operating model: let supported routine steps move automatically, and give people a clear task when judgment or personal attention is needed."
+    ],
+    "spoken": [
+      "कंसर्न डॉक्टर को असाइन हो जाता है। असली इंसानी जवाब के लिए यह काम खुला रहता है।",
+      "काम करने का तरीका यह है। सपोर्टेड रूटीन स्टेप्स अपने आप आगे बढ़ें, और जहाँ जजमेंट या पर्सनल अटेंशन चाहिए, वहाँ किसी व्यक्ति को साफ टास्क मिले।"
+    ]
+  },
+  {
+    "id": "staffing",
+    "type": "owner-card",
+    "title": "Less routine desk work.\nMore focused human attention.",
+    "kicker": "WHAT CHANGES FOR YOUR TEAM",
+    "tiles": [
+      [
+        "System handles",
+        "Supported booking, record updates, queue transitions and check-in scheduling."
+      ],
+      ["Reception handles", "Cash confirmation, walk-ins, exceptions and patients who need help."],
+      [
+        "Doctor handles",
+        "Consultation, clinical decisions, approval and concerns needing a clinician."
+      ]
+    ],
+    "fine": "Potential to reduce manual workload. Staffing needs depend on patient volume, case mix and measured results.",
+    "narration": [
+      "Could fewer people be needed for routine desk work? Potentially, if enough repetitive tasks are handled by the system.",
+      "Keep coverage for reception exceptions and clinical care. Decide staffing from your patient volume and measured workload, not a promised headcount reduction."
+    ],
+    "spoken": [
+      "क्या रूटीन डेस्क वर्क के लिए कम लोगों की ज़रूरत हो सकती है? संभव है, अगर पर्याप्त दोहराए जाने वाले काम सिस्टम संभाले।",
+      "रिसेप्शन के एक्सेप्शंस और क्लिनिकल केयर के लिए लोग चाहिए। स्टाफिंग का फैसला पेशेंट वॉल्यूम और मापे गए वर्कलोड से कीजिए, किसी तय हेडकाउंट कटौती के वादे से नहीं।"
+    ]
+  },
+  {
+    "id": "pilot",
+    "type": "owner-card",
+    "title": "Choose the flow.\nProve the value in your clinic.",
+    "kicker": "A PRACTICAL OWNER’S PILOT",
+    "tiles": [
+      ["Start with one flow", "One doctor or department: booking → arrival → visit → feedback."],
+      [
+        "Set responsibility",
+        "Decide who handles exceptions, approves notes and follows up on concerns."
+      ],
+      [
+        "Measure before & after",
+        "Staff minutes per visit, repeated entry and follow-up completion."
+      ]
+    ],
+    "fine": "Suggested pilot measures; this video does not demonstrate an automated ROI dashboard or measured savings.",
+    "narration": [
+      "Start with one doctor or department. Agree on the booking, arrival and feedback flow, and assign responsibility for exceptions.",
+      "Compare staff minutes per visit, repeated entry and completed follow-ups before and after. Expand when your own results support it."
+    ],
+    "spoken": [
+      "एक डॉक्टर या डिपार्टमेंट से शुरू कीजिए। बुकिंग, अराइवल और फीडबैक का फ्लो तय कीजिए, और एक्सेप्शंस की ज़िम्मेदारी बाँटिए।",
+      "पहले और बाद में हर विज़िट पर स्टाफ का समय, दोहराई गई एंट्री और पूरे हुए फॉलो-अप कम्पेयर कीजिए। अपने रिज़ल्ट देखकर आगे बढ़िए।"
+    ]
+  },
+  {
+    "id": "close",
+    "type": "owner-card",
+    "title": "Let routine work move.\nLet your team care.",
+    "kicker": "SAHAYAK · YOUR NEXT CLINIC WORKFLOW",
+    "lead": "For single-doctor clinics and small-hospital outpatient teams.",
+    "cta": "Bring one patient journey. See the complete flow.",
+    "fine": "Fictional demonstration · Synthetic Hinglish narration · No real messages, calls or charges. Live services require setup and verification.",
+    "narration": [
+      "Sahayak connects routine steps so your team can focus on patients and the decisions that need people.",
+      "Bring one patient journey from your clinic. Let us show you where the work can become simpler."
+    ],
+    "spoken": [
+      "सहायक रूटीन स्टेप्स को जोड़ता है, ताकि आपकी टीम पेशेंट्स और उन फैसलों पर ध्यान दे सके, जहाँ लोगों की ज़रूरत है।",
+      "अपनी क्लिनिक से एक पेशेंट जर्नी लेकर आइए। देखते हैं, कहाँ काम और आसान हो सकता है।"
+    ]
+  }
+]

@@ -600,14 +600,14 @@ async function seedClinic(db: pg.Client, config: (typeof CLINICS)[number], passw
     ).rows[0].id as string;
     await db.query(
       `INSERT INTO slot_offers(clinic_id,waitlist_id,doctor_id,patient_id,starts_at,expires_at,code)
-       VALUES($1,$2,$3,$4,$5,now()+interval '24 hours',$6)`,
+       VALUES($1,$2,$3,$4,$5,now()+interval '15 minutes',$6)`,
       [
         clinic,
         waitlist,
         firstDoctor,
         patients[3],
         at(1, '11:30'),
-        `DEMO${randomBytes(3).toString('hex').toUpperCase()}`,
+        randomBytes(5).toString('hex').toUpperCase(),
       ],
     );
     await db.query(

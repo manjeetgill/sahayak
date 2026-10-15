@@ -12,6 +12,8 @@
     "db:migrate": "pnpm --filter @sahayak/db migrate",
     "db:seed": "pnpm --filter @sahayak/db seed",
     "demo:seed": "pnpm --filter @sahayak/db seed:showcase",
+    "demo:ready": "node scripts/demo-ready.mjs",
+    "demo:check": "node scripts/check-local-demo.mjs",
     "demo:reset": "pnpm exec tsx packages/db/src/seed-showcase.ts --reset",
     "db:reset": "pnpm --filter @sahayak/db reset",
     "eval": "pnpm --filter @sahayak/agents eval",

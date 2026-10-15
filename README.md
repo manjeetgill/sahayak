@@ -4,6 +4,10 @@ AI front desk for small clinics in India: one receptionist instead of three or f
 
 ## Run the demo
 
+**Moving to another laptop or Windows? Start with [Windows setup and laptop transfer](docs/windows-setup.md).**
+Finished downloadable videos are included in [demo-media](demo-media/README.md), and the
+in-app English videos are available at `/demo/videos` after starting the app.
+
 ```bash
 cp .env.example .env
 pnpm install

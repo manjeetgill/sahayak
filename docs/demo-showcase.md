@@ -4,9 +4,13 @@ Open **http://localhost:3000/demo** on the Mac. The home page links to the same 
 
 ## Prepare
 
-1. Start the local database, API, and web app as usual. The API serves port 4000 and the web app serves port 3000.
-2. Run `set -a; . ./.env; set +a; pnpm demo:seed` from the repository root. This adds missing demo clinics and keeps any practice changes already made.
-3. To start over, run `set -a; . ./.env; set +a; pnpm demo:reset`. This deletes and recreates **only** the two exact `DEMO ·` clinics listed below. The command refuses a non-local database or a clinic with a matching slug but a different name. It clears all prior practice actions in those demo clinics.
+1. In the repository, run `pnpm demo:ready`. This starts PostgreSQL/Redis, applies migrations, creates missing fictional clinics, starts the API/web if needed, and checks all demo role logins.
+2. For a fresh meeting with today's appointments, run `pnpm demo:ready --refresh-demo`. This clears prior practice work **only** in the two exact fictional demo clinics. The connected real clinic is untouched.
+3. Open **http://localhost:3000/demo**, choose the clinic size, and use the doctor, admin, or reception sign-in buttons. No typing credentials is needed.
+4. Use **Play the presentation** for a guided saved patient journey. It pauses for doctor review. Use **Agent demo** for a booking conversation, queue questions, clinic answers, and human handoff. You can open the linked clinic screens to inspect the saved records.
+5. Optional pre-meeting check: `pnpm demo:check`. This runs Chrome against your actual localhost app, checks the hospital's three role logins, and completes a fictional journey through assigned feedback. It creates practice records; refresh the demo afterward if you want a clean start.
+
+Doctor-running-late and cancellation notices in these two fictional clinics are saved in the practice conversation even when the separate live clinic uses the agent platform. They do not send external WhatsApp messages. A real clinic's connection is never replaced by this practice adapter.
 
 The shared demo password is `demo1234`.
 
@@ -139,3 +143,29 @@ The result is `artifacts/doctor-demo/Sahayak-Doctor-Demo-Hinglish.mp4`, with Eng
 captions, synthetic Hinglish narration and chapter timestamps in the adjacent README.
 Rendered media is kept out of Git. The recording uses a disposable test database and
 does not send real WhatsApp messages or charge a payment.
+
+The **clinic/hospital owner edition** uses `DEMO_AUDIENCE=owner` with the same
+render commands. Its separate output is
+`artifacts/owner-demo/Sahayak-Owner-Demo-Hinglish.mp4`. It covers how booking,
+arrival/queue and follow-up responsibilities connect, which manual work can be
+reduced, where staff remain involved, and a suggested pilot to measure workload.
+It does not promise a particular staffing reduction or replace hospital clinical systems.
+
+### Revised doctor video: everyday changes
+
+`DEMO_AUDIENCE=workflow` produces
+`artifacts/workflow-demo/Sahayak-Workflow-Demo-Hinglish.mp4`.
+This cut removes owner/pilot advice and adds verified late-running, revised-time,
+patient-reply, cancellation and replacement-booking scenes. The scenario cards
+show actual saved API results from a separate fictional clinic, with simulator
+messages. The remaining scenes follow the original booking-to-feedback journey.
+
+## Capability explorer
+
+The demo start page includes **What can Sahayak help with?**, with 34 existing capabilities grouped into before the visit, consultation, after the visit, clinic management, and connections. Search by task or filter by part of the clinic day. Each card explains the benefit and expands to show a demonstration action. Opening a staff capability signs into the appropriate fictional account for the selected clinic; this changes the session used by other tabs in the same browser. Patient pages open without changing the staff account. External service cards describe required setup and do not claim live delivery.
+
+## Extended live-on-screen presentation
+
+`/demo/present` now runs 20 saved steps: booking, a practice 15-minute delay proposal and confirmation, arrival/payment/queue, doctor review, private approved-instruction access, feedback and assigned follow-up. The presenter explicitly enables fictional practice actions; clinical signing still pauses for review. The delay may affect other future appointments for this doctor in the fictional clinic. No external messages are sent.
+
+After doctor approval, **Open patient document copy** opens the existing token-protected patient page. It lists approved instructions only and offers the browser print/save-as-PDF action. This is not a prescription PDF or a claim of WhatsApp delivery. The private access link expires after seven days and is replaced when another access link is issued.

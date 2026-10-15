@@ -27,6 +27,37 @@
     ]
   },
   {
+    "id": "welcome-team",
+    "type": "assistants",
+    "title": "Before the visit: answer, collect, book",
+    "kicker": "MEET YOUR CLINIC ASSISTANTS",
+    "tiles": [
+      [
+        "Front-desk assistant",
+        "Answers saved clinic questions: hours, fees, location and available appointments."
+      ],
+      [
+        "New-patient enquiry assistant",
+        "Collects a name and reason for contact; unresolved enquiries go to staff."
+      ],
+      [
+        "Booking & time preferences",
+        "Finds suitable slots; the patient confirms before the appointment is saved."
+      ]
+    ],
+    "narration": [
+      "The front-desk assistant answers routine clinic questions using your saved information.",
+      "The enquiry assistant collects new-patient details. The booking flow understands time preferences, offers availability and asks for confirmation.",
+      "This helps the team avoid repeating the same questions. An enquiry is not a confirmed booking."
+    ],
+    "spoken": [
+      "फ्रंट डेस्क असिस्टेंट आपकी सेव की गई जानकारी से टाइमिंग, फीस और लोकेशन बताता है।",
+      "नए पेशेंट की डिटेल्स एनक्वायरी असिस्टेंट लेता है। बुकिंग फ्लो पसंद का टाइम समझकर अवेलेबल स्लॉट दिखाता है और कन्फर्मेशन लेता है।",
+      "टीम को बार-बार वही सवाल नहीं पूछने पड़ते। सिर्फ एनक्वायरी होने से बुकिंग कन्फर्म नहीं होती।"
+    ],
+    "fine": "Role explanation. The confirmed booking workflow is demonstrated next."
+  },
+  {
     "id": "hello",
     "type": "app",
     "title": "One message starts the journey",
@@ -38,7 +69,8 @@
     "spoken": [
       "आइए, सहायक में एक डेमो पेशेंट की पूरी जर्नी देखते हैं। यह डेटा सिर्फ प्रैक्टिस के लिए है।",
       "लेफ्ट साइड पर पेशेंट का एक्सपीरियंस है। राइट साइड पर देखिए, क्लिनिक का रिकॉर्ड साथ-साथ अपडेट होता है।"
-    ]
+    ],
+    "role": "Front desk · practice conversation"
   },
   {
     "id": "booking",
@@ -52,7 +84,8 @@
     "spoken": [
       "बुकिंग असिस्टेंट पेशेंट की ज़रूरत पूछता है, अवेलेबल टाइम दिखाता है, और कन्फर्मेशन लेता है।",
       "पेशेंट कन्फर्म करते ही अपॉइंटमेंट क्लिनिक में दिख जाता है। रिमाइंडर भेजने की परमिशन अलग से ली जाती है।"
-    ]
+    ],
+    "role": "Booking assistant · actual saved appointment"
   },
   {
     "id": "arrival",
@@ -66,7 +99,39 @@
     "spoken": [
       "क्लिनिक पहुँचकर पेशेंट क्यू आर पेज से चेक-इन करता है।",
       "इस डेमो में स्टाफ प्रैक्टिस कैश पेमेंट कन्फर्म करता है। सिस्टम टोकन देता है, और उसी पेशेंट को डॉक्टर की क्यू में जोड़ देता है।"
-    ]
+    ],
+    "role": "Check-in workflow · staff confirms practice payment"
+  },
+  {
+    "id": "intake-records",
+    "type": "assistants",
+    "title": "Give the doctor context before the visit",
+    "kicker": "MEET YOUR CLINIC ASSISTANTS",
+    "tiles": [
+      [
+        "Check-in assistant",
+        "Connects arrival to the patient record. Payment-based QR entry waits for payment confirmation."
+      ],
+      [
+        "Intake assistant",
+        "Asks the clinic’s saved questions and captures the patient’s stated concern."
+      ],
+      [
+        "Records assistant",
+        "Saves supported uploaded reports with the patient record for doctor review."
+      ]
+    ],
+    "narration": [
+      "The check-in assistant helps connect arrival with the correct patient record.",
+      "The intake assistant asks your saved questions. The records assistant keeps uploaded reports available for review.",
+      "The doctor gets context before the visit. A patient answer or uploaded report is not a diagnosis or a medical review."
+    ],
+    "spoken": [
+      "चेक-इन असिस्टेंट आने वाले पेशेंट को सही रिकॉर्ड से जोड़ने में मदद करता है।",
+      "इनटेक असिस्टेंट आपके सेव किए सवाल पूछता है। रिकॉर्ड्स असिस्टेंट अपलोडेड रिपोर्ट डॉक्टर के रिव्यू के लिए रखता है।",
+      "डॉक्टर को विज़िट से पहले बैकग्राउंड मिलता है। पेशेंट का जवाब या रिपोर्ट अपलोड होना, डायग्नोसिस या मेडिकल रिव्यू नहीं है।"
+    ],
+    "fine": "Check-in is demonstrated. Intake and document upload are illustrated here; the waiting question follows."
   },
   {
     "id": "waiting",
@@ -80,7 +145,39 @@
     "spoken": [
       "वेट करते समय पेशेंट बता सकता है कि डॉक्टर से कौन-सी बात ज़रूर करनी है।",
       "यह जवाब डॉक्टर को विज़िट शुरू होने से पहले दिखता है। साथ में यह भी साफ रहता है कि जानकारी पेशेंट ने दी है।"
-    ]
+    ],
+    "role": "Patient waiting question · saved for the doctor"
+  },
+  {
+    "id": "queue-schedule",
+    "type": "assistants",
+    "title": "Keep patients informed when plans change",
+    "kicker": "MEET YOUR CLINIC ASSISTANTS",
+    "tiles": [
+      [
+        "Queue assistant",
+        "Shares token and estimated waiting updates. Staff choose when to call the next patient."
+      ],
+      [
+        "Delay assistant",
+        "Staff record a delay; it prepares affected appointment changes for approval and notification."
+      ],
+      [
+        "Cancellation-slot automation",
+        "Offers an eligible opted-in waiting patient a slot, with expiry and booking checks."
+      ]
+    ],
+    "narration": [
+      "The queue assistant helps patients understand their turn. Staff still control who is called next.",
+      "If the doctor is late, the delay assistant prepares changes for staff approval. Eligible patients can receive updates through a configured channel.",
+      "Cancellation-slot automation can offer an available slot to an opted-in waiting patient, with an expiry and checks against double booking."
+    ],
+    "spoken": [
+      "क्यू असिस्टेंट पेशेंट को उसकी बारी समझने में मदद करता है। अगला पेशेंट कब बुलाना है, यह स्टाफ तय करता है।",
+      "डॉक्टर लेट हों, तो डिले असिस्टेंट बदलाव तैयार करता है। स्टाफ अप्रूव करते हैं, और कनेक्टेड चैनल से अपडेट भेजा जा सकता है।",
+      "कैंसलेशन पर वेटिंग लिस्ट के सहमत पेशेंट को एक्सपायर होने वाला स्लॉट ऑफर मिल सकता है। डबल बुकिंग से बचाने के चेक भी हैं।"
+    ],
+    "fine": "Queue movement is demonstrated next. Delay and cancellation scenarios are explanations, not live sends."
   },
   {
     "id": "consultation",
@@ -94,7 +191,39 @@
     "spoken": [
       "डॉक्टर पेशेंट को अंदर बुलाते हैं। क्यू अपडेट हो जाती है, और उसी रिकॉर्ड में कंसल्टेशन आगे बढ़ता है।",
       "इस डेमो में दिए गए प्रैक्टिस टेक्स्ट से स्ट्रक्चर्ड ड्राफ्ट बनता है। जो फाइंडिंग्स, डायग्नोसिस या दवाइयाँ रिकॉर्ड नहीं हुईं, वे खाली रहती हैं।"
-    ]
+    ],
+    "role": "Queue & doctor workspace · supplied practice draft"
+  },
+  {
+    "id": "note-language",
+    "type": "assistants",
+    "title": "Less rewriting. Doctor-reviewed notes.",
+    "kicker": "MEET YOUR CLINIC ASSISTANTS",
+    "tiles": [
+      [
+        "Note-drafting assistant",
+        "Organises recorded or supplied text into a draft; missing information stays blank."
+      ],
+      [
+        "Translation assistant",
+        "Drafts approved instructions in a supported patient language for doctor review."
+      ],
+      [
+        "Doctor approval",
+        "Checks the draft, corrects it and signs. No autonomous diagnosis or prescription."
+      ]
+    ],
+    "narration": [
+      "The note assistant organises recorded or supplied text. Capturing a consultation needs patient consent.",
+      "The translation assistant can prepare instructions in a supported language. The doctor reviews the draft and translation before use.",
+      "This recording uses supplied practice text. It does not demonstrate a live AI consultation or generate a prescription."
+    ],
+    "spoken": [
+      "नोट असिस्टेंट रिकॉर्ड किए या दिए गए टेक्स्ट को ड्राफ्ट में व्यवस्थित करता है। कंसल्टेशन रिकॉर्ड करने के लिए पेशेंट की सहमति चाहिए।",
+      "ट्रांसलेशन असिस्टेंट सपोर्टेड भाषा में इंस्ट्रक्शंस का ड्राफ्ट बना सकता है। डॉक्टर दोनों को चेक करते हैं।",
+      "यहाँ प्रैक्टिस टेक्स्ट है। लाइव ए आई कंसल्टेशन या अपने आप प्रिस्क्रिप्शन बनना इस डेमो में नहीं दिखाया गया है।"
+    ],
+    "fine": "Draft approval is demonstrated next. AI drafting and translation need the configured model."
   },
   {
     "id": "approval",
@@ -108,7 +237,8 @@
     "spoken": [
       "अब वर्कफ्लो रुकता है, ताकि डॉक्टर नोट और इंस्ट्रक्शंस रिव्यू कर सकें।",
       "डॉक्टर के अप्रूवल के बाद ही नोट साइन होता है। सिस्टम रूटीन काम में मदद करता है, और क्लिनिकल जजमेंट डॉक्टर के पास रहता है।"
-    ]
+    ],
+    "role": "Doctor review · explicit approval"
   },
   {
     "id": "finish",
@@ -122,7 +252,39 @@
     "spoken": [
       "डॉक्टर विज़िट फिनिश करते हैं, तो सेव की गई सेटिंग के हिसाब से पेशेंट चेक-इन शेड्यूल हो जाता है।",
       "डेमो में हम सीधे फीडबैक स्टेज पर जा रहे हैं। असली व्हाट्सऐप इन्विटेशन के लिए चालू कनेक्शन और अप्रूव्ड मैसेज टेम्पलेट चाहिए।"
-    ]
+    ],
+    "role": "Feedback scheduling · invitation preview"
+  },
+  {
+    "id": "followup-team",
+    "type": "assistants",
+    "title": "Stay connected after the patient leaves",
+    "kicker": "MEET YOUR CLINIC ASSISTANTS",
+    "tiles": [
+      [
+        "Follow-up reminder assistant",
+        "Uses the doctor’s saved plan and patient consent to prepare eligible reminders."
+      ],
+      [
+        "Feedback invitation workflow",
+        "A finished visit schedules a check-in using the clinic’s saved preferences."
+      ],
+      [
+        "Evening check-in messages",
+        "Optional, consented messages ask how the patient feels within the configured schedule."
+      ]
+    ],
+    "narration": [
+      "The follow-up assistant uses the doctor’s plan and reminder consent. Finishing a visit can schedule feedback automatically.",
+      "Optional evening check-ins follow their own consent and schedule. They are not unlimited nightly messages.",
+      "Automatic delivery needs background jobs, a working connection and the required approved outbound template. Scheduling alone is not delivery."
+    ],
+    "spoken": [
+      "फॉलो-अप असिस्टेंट डॉक्टर के प्लान और पेशेंट की परमिशन के हिसाब से रिमाइंडर तैयार करता है। विज़िट फिनिश होने पर फीडबैक शेड्यूल हो सकता है।",
+      "ईवनिंग चेक-इन की अलग सहमति और शेड्यूल है। हर रात बिना सीमा मैसेज नहीं जाता।",
+      "ऑटोमैटिक डिलीवरी के लिए बैकग्राउंड जॉब, कनेक्शन और ज़रूरी अप्रूव्ड टेम्प्लेट चाहिए। शेड्यूल होने का मतलब डिलीवर होना नहीं है।"
+    ],
+    "fine": "This recording previews invitations and saves a sample response; no real patient is messaged."
   },
   {
     "id": "feedback",
@@ -136,7 +298,39 @@
     "spoken": [
       "पेशेंट बता सकता है कि अब कैसा लग रहा है, विज़िट का एक्सपीरियंस कैसा था, और क्या बेहतर हो सकता है।",
       "हमारे डेमो पेशेंट को अगले स्टेप की क्लैरिटी चाहिए। उसका जवाब इसी विज़िट में सेव होता है, ताकि क्लिनिक उस पर काम कर सके।"
-    ]
+    ],
+    "role": "Patient feedback · actual saved sample response"
+  },
+  {
+    "id": "feedback-team",
+    "type": "assistants",
+    "title": "Turn patient feedback into a next step",
+    "kicker": "MEET YOUR CLINIC ASSISTANTS",
+    "tiles": [
+      [
+        "Feedback review assistant",
+        "When AI is available, suggests a concern category and quotes the patient’s own words."
+      ],
+      [
+        "Uncertain? Human review",
+        "Unclear responses remain for review; the assistant does not invent treatment advice."
+      ],
+      [
+        "Assigned follow-up",
+        "A person takes responsibility, contacts the patient and records what happened."
+      ]
+    ],
+    "narration": [
+      "The feedback review assistant can suggest whether a response needs a callback, clarification or service review, using the patient’s own words.",
+      "If AI is unavailable or the answer is unclear, the response remains for human review.",
+      "The benefit is a visible next action. Staff still need to contact the patient and resolve the concern."
+    ],
+    "spoken": [
+      "फीडबैक रिव्यू असिस्टेंट पेशेंट के अपने शब्दों से कैटेगरी सुझा सकता है। जैसे कॉलबैक, इंस्ट्रक्शन की क्लैरिटी, या सर्विस रिव्यू।",
+      "ए आई उपलब्ध न हो या जवाब साफ न हो, तो ह्यूमन रिव्यू रहता है।",
+      "फायदा है कि अगला काम सामने दिखता है। पेशेंट से बात करना और समस्या हल करना अभी भी टीम की ज़िम्मेदारी है।"
+    ],
+    "fine": "AI classification is explained here. The saved feedback and human assignment are demonstrated."
   },
   {
     "id": "handoff",
@@ -150,7 +344,70 @@
     "spoken": [
       "अब यह कंसर्न डॉक्टर को फॉलो-अप के लिए असाइन होता है।",
       "क्लिनिक के पास सुनने, समझाने और सुधार करने का मौका है। जब तक कोई व्यक्ति जवाब नहीं देता, काम पेंडिंग रहता है। सिर्फ फीडबैक सेव होने का मतलब समस्या हल होना नहीं है।"
-    ]
+    ],
+    "role": "Human follow-up · assigned to the doctor"
+  },
+  {
+    "id": "clinic-team",
+    "type": "assistants",
+    "title": "Help the doctor manage the whole day",
+    "kicker": "MEET YOUR CLINIC ASSISTANTS",
+    "tiles": [
+      [
+        "Ask your clinic",
+        "Answers supported questions about clinic records and builds a daily summary."
+      ],
+      [
+        "Custom routine automations",
+        "Prepare supported reminders, staff notifications or summaries from a saved trigger."
+      ],
+      [
+        "Clinic controls",
+        "Admin manages access and connections; authorised doctors choose and review their assistant use."
+      ]
+    ],
+    "narration": [
+      "Ask your clinic helps with supported questions such as today’s appointments or a daily summary.",
+      "Custom automations can use a saved event or schedule for reminders, staff notifications and summaries. Review the supported action before enabling it.",
+      "A solo doctor can manage setup too. In a larger clinic, admin controls access and connections while doctors retain clinical approval."
+    ],
+    "spoken": [
+      "आस्क योर क्लिनिक से सपोर्टेड सवाल पूछ सकते हैं, जैसे आज के अपॉइंटमेंट या दिन का सारांश।",
+      "कस्टम ऑटोमेशन सेव किए इवेंट या शेड्यूल से रिमाइंडर, स्टाफ नोटिफिकेशन और समरी बना सकता है। चालू करने से पहले एक्शन रिव्यू करें।",
+      "सोलो डॉक्टर सेटअप भी संभाल सकते हैं। बड़ी क्लिनिक में एडमिन एक्सेस और कनेक्शन संभालता है, क्लिनिकल अप्रूवल डॉक्टर के पास रहता है।"
+    ],
+    "fine": "Capability explanation. Daily summaries and custom rules are not executed in this recorded patient journey."
+  },
+  {
+    "id": "channel-safety",
+    "type": "assistants",
+    "title": "One clinic workflow. Clear safeguards.",
+    "kicker": "MEET YOUR CLINIC ASSISTANTS",
+    "tiles": [
+      [
+        "WhatsApp & phone channels",
+        "Carry supported conversations through connected services. Real phone calls need telephony setup."
+      ],
+      [
+        "Safety & human handoff",
+        "Checks incoming messages for red flags; medical questions and requests for a person need staff handling."
+      ],
+      [
+        "Consent & privacy",
+        "Handles supported STOP and data requests. Staff review stays central to patient care."
+      ]
+    ],
+    "narration": [
+      "WhatsApp and phone are communication channels for supported clinic workflows. Live phone calls require a telephone service; they are not shown in this video.",
+      "Safety checks look for red flags, while medical questions and requests for a person go to staff handling. Detection is not guaranteed medical triage.",
+      "These are a mix of AI-assisted work and rule-based automation. Patient consent, correct setup and human follow-up remain essential."
+    ],
+    "spoken": [
+      "व्हाट्सऐप और फोन, क्लिनिक वर्कफ्लो के कम्युनिकेशन चैनल हैं। असली कॉल के लिए टेलीफोन सर्विस चाहिए। इस वीडियो में लाइव कॉल नहीं है।",
+      "सेफ्टी चेक रेड फ्लैग देखते हैं। मेडिकल सवाल और व्यक्ति से बात करने की रिक्वेस्ट स्टाफ तक जाती है। यह गारंटीड मेडिकल ट्रायाज नहीं है।",
+      "कुछ काम ए आई की मदद से होते हैं, कुछ सेव किए नियमों से। पेशेंट की सहमति, सही सेटअप और ह्यूमन फॉलो-अप ज़रूरी हैं।"
+    ],
+    "fine": "Safeguards and channel requirements are explained; no emergency detection or live phone call is demonstrated."
   },
   {
     "id": "compare",

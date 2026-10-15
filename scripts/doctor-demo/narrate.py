@@ -1,9 +1,11 @@
 """Render the original narration using an installed macOS voice."""
 import json, pathlib, subprocess, re, os
 root=pathlib.Path(__file__).resolve().parents[2]
-out=root/'artifacts/doctor-demo/work'
+variant=os.environ.get('DEMO_AUDIENCE','doctor')
+if variant not in ('doctor','owner','workflow'): raise ValueError('Unknown DEMO_AUDIENCE')
+out=root/f'artifacts/{variant}-demo/work'
 out.mkdir(parents=True,exist_ok=True)
-scenes=json.loads((root/'scripts/doctor-demo/scenes.json').read_text())
+scenes=json.loads((root/'scripts/doctor-demo'/('scenes.json' if variant=='doctor' else f'{variant}-scenes.json')).read_text())
 voice=os.environ.get('DEMO_VOICE','Lekha')
 for scene in scenes:
  text=' '.join(scene.get('spoken',scene['narration']))

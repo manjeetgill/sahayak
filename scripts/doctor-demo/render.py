@@ -4,9 +4,13 @@ import json
 import pathlib
 import shutil
 import subprocess
+import os
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-OUTPUT = ROOT / 'artifacts/doctor-demo'
+VARIANT = os.environ.get('DEMO_AUDIENCE', 'doctor')
+if VARIANT not in ('doctor', 'owner', 'workflow'):
+    raise ValueError('Unknown DEMO_AUDIENCE')
+OUTPUT = ROOT / f'artifacts/{VARIANT}-demo'
 WORK = OUTPUT / 'work'
 
 
@@ -27,12 +31,13 @@ def main():
     scenes = json.loads((WORK / 'timeline.json').read_text())
     start = scenes[0]['start']
     duration = scenes[-1]['start'] + scenes[-1]['duration'] - start
-    video = OUTPUT / 'Sahayak-Doctor-Demo-Hinglish.mp4'
+    prefix = f'Sahayak-{VARIANT.title()}-Demo'
+    video = OUTPUT / f'{prefix}-Hinglish.mp4'
     command = [args.ffmpeg, '-hide_banner', '-y', '-ss', str(start),
                '-i', str(WORK / 'doctor-demo-raw.webm')]
     filters = ['[0:v]setpts=PTS-STARTPTS[v]']
     subtitles = []
-    chapters = ['# Sahayak doctor demo — Hinglish', '',
+    chapters = [f'# Sahayak {VARIANT} demo — Hinglish', '',
                 'Fictional patient data; actual saved workflow in an isolated test clinic.',
                 'Synthetic Hinglish narration with English captions.', '',
                 'No real WhatsApp messages, phone calls or payments are made in this recording.', '',
@@ -64,7 +69,7 @@ def main():
                 '-metadata', 'title=Sahayak — A connected patient journey',
                 '-metadata:s:a:0', 'language=hin', str(video)]
     subprocess.run(command, check=True)
-    (OUTPUT / 'Sahayak-Doctor-Demo-English.srt').write_text('\n'.join(subtitles))
+    (OUTPUT / f'{prefix}-English.srt').write_text('\n'.join(subtitles))
     (OUTPUT / 'README.md').write_text('\n'.join(chapters) + '\n')
     print(f'Rendered {video} ({duration:.1f} seconds)')
 
